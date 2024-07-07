@@ -13,6 +13,9 @@
 #include "threadSymbol.h"
 #include "unlockedSymbol.h"
 
+// logic
+#include "state.h"
+
 // OLED
 #define SCREEN_WIDTH 128  // OLED display width, in pixels
 #define SCREEN_HEIGHT 64  // OLED display height, in pixels
@@ -92,12 +95,9 @@ volatile int leadscrewAngle;
 volatile int leadscrewAngleCumulative;
 volatile long long lastPulse;
 
-volatile bool driveMode =
-    false;  // select threading mode (true) or feeding mode (false)
-volatile bool enabled = false;
-volatile bool lockState = true;
+ELS_State state = new ELS_State();
+
 volatile bool lastDirection;
-volatile bool readyToThread = false;
 volatile bool synced = false;
 int feedSelect = 19;
 int jogRate;
@@ -350,14 +350,13 @@ void rateIncCall(Button::CALLBACK_EVENT event,
 void rateDecCall(Button::CALLBACK_EVENT event,
                  uint8_t) {  // decreases feedSelect variable on button press
 
-  if (driveMode == false ||
+  // todo refactor complicated logic
+  if (state.getDriveState() == ELS_State::DriveState::FEED ||
       ((millis() - lastPulse) > safetyDelay && lockState == false)) {
     if (event == Button::PRESSED_EVENT) {
       if (feedSelect > 0) {
         feedSelect--;
-      }
-
-      else {
+      } else {
         feedSelect = 19;
       }
 
@@ -369,8 +368,9 @@ void rateDecCall(Button::CALLBACK_EVENT event,
 void halfNutCall(Button::CALLBACK_EVENT event,
                  uint8_t) {  // sets readyToThread to true on button hold
 
-  if (event == Button::HELD_EVENT && driveMode == true) {
-    readyToThread = true;
+  if (event == Button::HELD_EVENT &&
+      state.getDriveState() == ELS_State::DriveState::THREAD) {
+    state.setReadyToThread(true)
   }
 }
 
@@ -378,14 +378,9 @@ void enaCall(Button::CALLBACK_EVENT event,
              uint8_t) {  // toggles enabled variable on button press
 
   if (event == Button::PRESSED_EVENT) {
-    if (enabled == true) {
-      enabled = false;
-    }
-
-    else {
-      enabled = true;
-    }
-
+    // if we did this in more than one spot it might be worthwhile to make a
+    // dedicated toggle function
+    state.setEnabledState(!state.getEnabledState());
     displayUpdate();
   }
 }
@@ -394,15 +389,8 @@ void lockCall(Button::CALLBACK_EVENT event,
               uint8_t) {  // toggles lockState variable on button press
 
   if (event == Button::PRESSED_EVENT) {
-    if (lockState == true) {
-      lockState = false;
-      displayUpdate();
-    }
-
-    else {
-      lockState = true;
-      displayUpdate();
-    }
+    state.setLockState(!state.getLockState());
+    displayUpdate();
   }
 }
 
@@ -428,8 +416,11 @@ void modeCycleCall(
     Button::CALLBACK_EVENT event,
     uint8_t) {  // toggles between thread / feed modes on button press
 
-  if (event == Button::PRESSED_EVENT && (millis() - lastPulse) > safetyDelay &&
-      lockState == false) {
+  if (state.getLockState()) {
+    return;
+  }
+
+  if (event == Button::PRESSED_EVENT && (millis() - lastPulse) > safetyDelay) {
     if (driveMode == false) {
       driveMode = true;
     }
@@ -446,7 +437,11 @@ void modeCycleCall(
 void jogLeftCall(Button::CALLBACK_EVENT event,
                  uint8_t) {  // jogs left on button hold (one day)
 
-  if (event == Button::HELD_EVENT && enabled == false) {
+  if (!state.getEnabledState()) {
+    return;
+  }
+
+  if (event == Button::HELD_EVENT) {
     CW;
 
     while (digitalReadFast(24) == HIGH) {
@@ -471,7 +466,13 @@ void jogLeftCall(Button::CALLBACK_EVENT event,
 void jogRightCall(Button::CALLBACK_EVENT event,
                   uint8_t) {  /// jogs right on button hold (one day)
 
-  if (event == Button::HELD_EVENT && enabled == false) {
+  if (!state.getEnabledState()) {
+    return;
+  }
+
+  // todo save what button is currently being held and check if it is the same
+  // button as the current one
+  if (event == Button::HELD_EVENT) {
     CCW;
 
     while (digitalReadFast(25) == HIGH) {
@@ -506,24 +507,20 @@ void displayUpdate() {  // updates display elements to reflectt current system
 
 void modePrint() {  // prints mode status to display
 
-  if (driveMode == true) {
+  if (state.getDriveState() == ELS_State::DriveState::FEED) {
     display.drawBitmap(57, 32, threadSymbol, 64, 32, WHITE);
-  }
-
-  else {
+  } else {
     display.drawBitmap(57, 32, feedSymbol, 64, 32, WHITE);
   }
 }
 
 void ratePrint() {  // prints rate status to display
 
-  if (driveMode == true) {
+  if (state.getDriveState() == ELS_State::DriveState::FEED) {
     display.setCursor(55, 8);
     display.setTextSize(3);
     display.print(threadPitch[feedSelect]);
-  }
-
-  else {
+  } else {
     display.setCursor(55, 8);
     display.setTextSize(3);
     display.print(feedPitch[feedSelect]);
@@ -532,12 +529,10 @@ void ratePrint() {  // prints rate status to display
 
 void lockPrint() {  // prints lock status to display
 
-  if (lockState == true) {
+  if (state.getLockState()) {
     display.fillRoundRect(2, 40, 20, 20, 2, WHITE);
     display.drawBitmap(4, 42, lockedSymbol, 16, 16, BLACK);
-  }
-
-  if (lockState == false) {
+  } else {
     display.fillRoundRect(2, 40, 20, 20, 2, WHITE);
     display.drawBitmap(4, 42, unlockedSymbol, 16, 16, BLACK);
   }
@@ -545,12 +540,10 @@ void lockPrint() {  // prints lock status to display
 
 void enaPrint() {  // prints enable status to display
 
-  if (enabled == true) {
+  if (state.getEnabledState() == true) {
     display.fillRoundRect(26, 40, 20, 20, 2, WHITE);
     display.drawBitmap(28, 42, runSymbol, 16, 16, BLACK);
-  }
-
-  if (enabled == false) {
+  } else {
     display.fillRoundRect(26, 40, 20, 20, 2, WHITE);
     display.drawBitmap(28, 42, pauseSymbol, 16, 16, BLACK);
   }
