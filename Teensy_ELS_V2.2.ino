@@ -446,6 +446,15 @@ void modeCycleCall(
 void jogLeftCall(Button::CALLBACK_EVENT event,
                  uint8_t) {  // jogs left on button hold (one day)
 
+  // when in thread mode, a single press should jog one "thread" in the
+  // specified direction
+  if (event == Button::PRESSED_EVENT) {
+    if (driveMode == true && enabled == false) {
+      long unsigned int fullThreadRotation = 2000 * numerator / denominator;
+      pulseCount -= fullThreadRotation;
+    }
+  }
+
   if (event == Button::HELD_EVENT && enabled == false) {
     CW;
 
@@ -470,6 +479,13 @@ void jogLeftCall(Button::CALLBACK_EVENT event,
 
 void jogRightCall(Button::CALLBACK_EVENT event,
                   uint8_t) {  /// jogs right on button hold (one day)
+
+  if (event == Button::PRESSED_EVENT) {
+    if (driveMode == true) {
+      long unsigned int fullThreadRotation = 2000 * numerator / denominator;
+      pulseCount += fullThreadRotation;
+    }
+  }
 
   if (event == Button::HELD_EVENT && enabled == false) {
     CCW;
