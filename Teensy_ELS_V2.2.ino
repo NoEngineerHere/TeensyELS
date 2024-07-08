@@ -102,6 +102,10 @@ volatile bool synced = false;
 int feedSelect = 19;
 int jogRate;
 int jogStepTime = 10;
+// NOTE: if the spindle moves while jogging in a different direction, this may
+// lead to some weird behaviour!
+volatile bool jogMode = false;  // set when starting a jog, lets us know to
+                                // reset the direction back to what it was
 
 // UI Values
 const char gearLetter[3] = {65, 66, 67};
@@ -202,9 +206,9 @@ void loop() {
         leadscrewAngle = 1999;
       }
 
-      if (leadscrewAngleCumulative ==
-          0) {  // disables motor when leadscrew reaches "sync" point
-
+      // disables motor when leadscrew reaches "sync" point
+      if (leadscrewAngleCumulative == 0) {
+        onLeadscrewSync();
         enabled = false;
       }
     }
@@ -220,9 +224,9 @@ void loop() {
         leadscrewAngle = 0;
       }
 
-      if (leadscrewAngleCumulative ==
-          0) {  // disables motor when leadscrew reaches "sync" point
-
+      // disables motor when leadscrew reaches "sync" point
+      if (leadscrewAngleCumulative == 0) {
+        onLeadscrewSync();
         enabled = false;
       }
     }
@@ -443,8 +447,32 @@ void modeCycleCall(
   }
 }
 
+// some logic when leadscrew is synced
+void onLeadscrewSync() {
+  // if we're in jog mode, restore the leadscrew direction
+  if (jogMode == true) {
+    jogMode = false;
+    if (lastDirection == true) {
+      CCW;
+    } else {
+      CW;
+    }
+  }
+}
+
 void jogLeftCall(Button::CALLBACK_EVENT event,
                  uint8_t) {  // jogs left on button hold (one day)
+
+  // when in thread mode, a single press should jog one "thread" in the
+  // specified direction
+  if (event == Button::PRESSED_EVENT) {
+    if (driveMode == true && enabled == false && jogMode == false) {
+      CW;
+      long unsigned int fullThreadRotation = 2000 * numerator / denominator;
+      pulseCount -= fullThreadRotation;
+      jogMode = true;
+    }
+  }
 
   if (event == Button::HELD_EVENT && enabled == false) {
     CW;
@@ -470,6 +498,14 @@ void jogLeftCall(Button::CALLBACK_EVENT event,
 
 void jogRightCall(Button::CALLBACK_EVENT event,
                   uint8_t) {  /// jogs right on button hold (one day)
+
+  if (event == Button::PRESSED_EVENT) {
+    if (driveMode == true && enabled == false && jogMode == false) {
+      long unsigned int fullThreadRotation = 2000 * numerator / denominator;
+      pulseCount += fullThreadRotation;
+      jogMode = true;
+    }
+  }
 
   if (event == Button::HELD_EVENT && enabled == false) {
     CCW;
