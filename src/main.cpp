@@ -24,6 +24,7 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 #define CCW digitalWriteFast(3, LOW);  // direction output pin
 
 void modePrint();
+void lockPrint();
 void modeHandle();
 void enaPrint();
 void pulse();
@@ -127,6 +128,9 @@ const int numeratorTable2[20] = {
 
 const int denominatorTable2[20] = {80, 160, 40, 100, 80, 160, 20, 160, 16, 160,
                                    40, 80,  10, 80,  8,  80,  20, 80,  40, 16};
+
+void Achange();
+void Bchange();
 
 void setup() {
   if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
