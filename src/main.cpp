@@ -1,35 +1,12 @@
 // Libraries
 #include <AbleButtons.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
 #include <SPI.h>
 #include <Wire.h>
 
-// Images
-#include "feedSymbol.h"
-#include "lockedSymbol.h"
-#include "pauseSymbol.h"
-#include "runSymbol.h"
-#include "threadSymbol.h"
-#include "unlockedSymbol.h"
-
-// OLED
-#define SCREEN_WIDTH 128  // OLED display width, in pixels
-#define SCREEN_HEIGHT 64  // OLED display height, in pixels
-#define OLED_RESET -1
-#define SCREEN_ADDRESS 0x3C
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+#include "display.h"
 
 #define CW digitalWriteFast(3, HIGH);  // direction output pin
 #define CCW digitalWriteFast(3, LOW);  // direction output pin
-
-void modePrint();
-void lockPrint();
-void modeHandle();
-void enaPrint();
-void pulse();
-void ratePrint();
-void displayUpdate();
 
 using Button = AblePullupCallbackButton;  // AblePullupButton; // Using basic
                                           // pull-up resistor circuit.
@@ -37,15 +14,15 @@ using ButtonList =
     AblePullupCallbackButtonList;  // AblePullupButtonList; // Using basic
                                    // pull-up button list.
 
-void rateIncCall(Button::CALLBACK_EVENT, uint8_t);
-void rateDecCall(Button::CALLBACK_EVENT, uint8_t);
-void modeCycleCall(Button::CALLBACK_EVENT, uint8_t);
-void threadSyncCall(Button::CALLBACK_EVENT, uint8_t);
-void halfNutCall(Button::CALLBACK_EVENT, uint8_t);
-void enaCall(Button::CALLBACK_EVENT, uint8_t);
-void lockCall(Button::CALLBACK_EVENT, uint8_t);
-void jogLeftCall(Button::CALLBACK_EVENT, uint8_t);
-void jogRightCall(Button::CALLBACK_EVENT, uint8_t);
+void rateIncCall(Button::CALLBACK_EVENT, unsigned char);
+void rateDecCall(Button::CALLBACK_EVENT, unsigned char);
+void modeCycleCall(Button::CALLBACK_EVENT, unsigned char);
+void threadSyncCall(Button::CALLBACK_EVENT, unsigned char);
+void halfNutCall(Button::CALLBACK_EVENT, unsigned char);
+void enaCall(Button::CALLBACK_EVENT, unsigned char);
+void lockCall(Button::CALLBACK_EVENT, unsigned char);
+void jogLeftCall(Button::CALLBACK_EVENT, unsigned char);
+void jogRightCall(Button::CALLBACK_EVENT, unsigned char);
 
 Button rateInc(4, rateIncCall);
 Button rateDec(5, rateDecCall);
@@ -64,6 +41,8 @@ Button *keys[] = {&rateInc, &rateDec, &modeCycle, &threadSync, &halfNut,
 
 ButtonList keyPad(keys);
 Button setHeldTime(100);
+
+Display display;
 
 int EncoderMatrix[16] = {
     0, -1, 1, 2, 1, 0,  2, -1, -1,
@@ -131,13 +110,9 @@ const int denominatorTable2[20] = {80, 160, 40, 100, 80, 160, 20, 160, 16, 160,
 
 void Achange();
 void Bchange();
+void modeHandle();
 
 void setup() {
-  if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
-    Serial.println(F("SSD1306 allocation failed"));
-    for (;;);
-  }
-
   // Pinmodes
 
   pinMode(14, INPUT_PULLUP);  // encoder pin 1
@@ -166,9 +141,7 @@ void setup() {
   numerator = numeratorTable[feedSelect];
   denominator = denominatorTable[feedSelect];
 
-  display.setTextColor(SSD1306_WHITE);
-  displayUpdate();
-  display.display();
+  display.init();
 }
 
 void loop() {
@@ -346,7 +319,10 @@ void rateIncCall(Button::CALLBACK_EVENT event,
         feedSelect = 0;
       }
 
-      displayUpdate();
+      display.update(
+          driveMode,
+          driveMode == true ? threadPitch[feedSelect] : feedPitch[feedSelect],
+          lockState, enabled);
     }
   }
 }
@@ -365,7 +341,10 @@ void rateDecCall(Button::CALLBACK_EVENT event,
         feedSelect = 19;
       }
 
-      displayUpdate();
+      display.update(
+          driveMode,
+          driveMode == true ? threadPitch[feedSelect] : feedPitch[feedSelect],
+          lockState, enabled);
     }
   }
 }
@@ -390,7 +369,10 @@ void enaCall(Button::CALLBACK_EVENT event,
       enabled = true;
     }
 
-    displayUpdate();
+    display.update(
+        driveMode,
+        driveMode == true ? threadPitch[feedSelect] : feedPitch[feedSelect],
+        lockState, enabled);
   }
 }
 
@@ -398,15 +380,12 @@ void lockCall(Button::CALLBACK_EVENT event,
               uint8_t) {  // toggles lockState variable on button press
 
   if (event == Button::PRESSED_EVENT) {
-    if (lockState == true) {
-      lockState = false;
-      displayUpdate();
-    }
+    lockState = !lockState;
 
-    else {
-      lockState = true;
-      displayUpdate();
-    }
+    display.update(
+        driveMode,
+        driveMode == true ? threadPitch[feedSelect] : feedPitch[feedSelect],
+        lockState, enabled);
   }
 }
 
@@ -443,7 +422,10 @@ void modeCycleCall(
     }
 
     modeHandle();
-    displayUpdate();
+    display.update(
+        driveMode,
+        driveMode == true ? threadPitch[feedSelect] : feedPitch[feedSelect],
+        lockState, enabled);
   }
 }
 
@@ -494,68 +476,5 @@ void jogRightCall(Button::CALLBACK_EVENT event,
         }
       }
     }
-  }
-}
-
-void displayUpdate() {  // updates display elements to reflectt current system
-                        // state
-
-  display.clearDisplay();
-  modePrint();
-  ratePrint();
-  lockPrint();
-  enaPrint();
-  display.display();
-}
-
-void modePrint() {  // prints mode status to display
-
-  if (driveMode == true) {
-    display.drawBitmap(57, 32, threadSymbol, 64, 32, WHITE);
-  }
-
-  else {
-    display.drawBitmap(57, 32, feedSymbol, 64, 32, WHITE);
-  }
-}
-
-void ratePrint() {  // prints rate status to display
-
-  if (driveMode == true) {
-    display.setCursor(55, 8);
-    display.setTextSize(3);
-    display.print(threadPitch[feedSelect]);
-  }
-
-  else {
-    display.setCursor(55, 8);
-    display.setTextSize(3);
-    display.print(feedPitch[feedSelect]);
-  }
-}
-
-void lockPrint() {  // prints lock status to display
-
-  if (lockState == true) {
-    display.fillRoundRect(2, 40, 20, 20, 2, WHITE);
-    display.drawBitmap(4, 42, lockedSymbol, 16, 16, BLACK);
-  }
-
-  if (lockState == false) {
-    display.fillRoundRect(2, 40, 20, 20, 2, WHITE);
-    display.drawBitmap(4, 42, unlockedSymbol, 16, 16, BLACK);
-  }
-}
-
-void enaPrint() {  // prints enable status to display
-
-  if (enabled == true) {
-    display.fillRoundRect(26, 40, 20, 20, 2, WHITE);
-    display.drawBitmap(28, 42, runSymbol, 16, 16, BLACK);
-  }
-
-  if (enabled == false) {
-    display.fillRoundRect(26, 40, 20, 20, 2, WHITE);
-    display.drawBitmap(28, 42, pauseSymbol, 16, 16, BLACK);
   }
 }
