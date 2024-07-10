@@ -76,7 +76,6 @@ volatile bool driveMode =
     false;  // select threading mode (true) or feeding mode (false)
 volatile bool enabled = false;
 volatile bool lockState = true;
-volatile bool lastDirection;
 volatile bool readyToThread = false;
 volatile bool synced = false;
 int feedSelect = 19;
@@ -148,102 +147,86 @@ void loop() {
   keyPad.handle();
   modeHandle();
 
-  if (pulseCount > 0 && enabled == true) {  // state 1, motion enabled
+  if (pulseCount != 0) {
+    int directionIncrement = pulseCount > 0 ? -1 : 1;
 
-    accumulator =
-        numerator +
-        accumulator;  // "bresenham algorithm", carries remainder of required
-                      // motor steps to next pulse received from spindle
+    // state 1, motion enabled
+    if (enabled) {
+      accumulator =
+          numerator +
+          accumulator;  // "bresenham algorithm", carries remainder of required
+                        // motor steps to next pulse received from spindle
 
-    while (accumulator >= denominator) {  // sends required motor steps to motor
-
-      accumulator = accumulator - denominator;
-
-      digitalWriteFast(stp, HIGH);
-      delayMicroseconds(2);
-      digitalWriteFast(stp, LOW);
-      delayMicroseconds(2);
-    }
-
-    pulseCount--;
-    lastPulse = millis();
-
-    if (lastDirection == true &&
-        leadscrewAngleCumulative > 0) {  // checks leadscrew position against
-                                         // "sync" point in one direction
-
-      leadscrewAngle--;
-      leadscrewAngleCumulative--;
-
-      if (leadscrewAngle <= -1) {
-        leadscrewAngle = 1999;
+      // change direction based on sign of the pulse count
+      if (pulseCount > 0) {
+        CW;
+      } else {
+        CCW;
       }
 
-      if (leadscrewAngleCumulative ==
-          0) {  // disables motor when leadscrew reaches "sync" point
+      while (accumulator >=
+             denominator) {  // sends required motor steps to motor
 
-        enabled = false;
-      }
-    }
+        accumulator = accumulator - denominator;
 
-    else if (lastDirection == false &&
-             leadscrewAngleCumulative < 0) {  // checks axis position against
-                                              // "sync" point in other direction
-
-      leadscrewAngle++;
-      leadscrewAngleCumulative++;
-
-      if (leadscrewAngle >= 1999) {
-        leadscrewAngle = 0;
+        // todo try and leverage hardware PWM timer to send set amount of pulses
+        digitalWriteFast(stp, HIGH);
+        delayMicroseconds(2);
+        digitalWriteFast(stp, LOW);
+        delayMicroseconds(2);
       }
 
-      if (leadscrewAngleCumulative ==
-          0) {  // disables motor when leadscrew reaches "sync" point
+      pulseCount += directionIncrement;
+      lastPulse = millis();
 
-        enabled = false;
+      if (leadscrewAngleCumulative > 0) {  // checks leadscrew position against
+                                           // "sync" point in one direction
+
+        leadscrewAngle += directionIncrement;
+        leadscrewAngleCumulative += directionIncrement;
+
+        if (leadscrewAngle == -1) {
+          leadscrewAngle = 1999;
+        } else if (leadscrewAngle == 1999) {
+          leadscrewAngle = 0;
+        }
+
+        if (leadscrewAngleCumulative ==
+            0) {  // disables motor when leadscrew reaches "sync" point
+
+          enabled = false;
+        }
       }
-    }
-  }
+    } else if (synced) {  // state 2, motion disabled
 
-  else if (pulseCount > 0 && enabled == false &&
-           synced == true) {  // state 2, motion disabled
+      if (driveMode == false) {
+        // negates encoder pulses if disabled while in feed mode
+        pulseCount += directionIncrement;
+      }
 
-    if (driveMode ==
-        false) {  // negates encoder pulses if disabled while in feed mode
-
-      pulseCount--;
-    }
-
-    else {  // converts encoder pulses to stored spindle angle if disabled while
-            // in thread mode
-
-      if (lastDirection == true) {
-        spindleAngle++;
-
+      else {
+        // converts encoder pulses to stored spindle angle if disabled
+        // while in thread mode
+        spindleAngle -= directionIncrement;
         if (spindleAngle >= 2000) {
           spindleAngle = 0;
-        }
-      }
-
-      else if (lastDirection == false) {
-        spindleAngle--;
-
-        if (spindleAngle <= -1) {
+        } else if (spindleAngle <= -1) {
           spindleAngle = 1999;
         }
+
+        pulseCount += directionIncrement;
       }
 
-      pulseCount--;
-    }
+      if (((spindleAngle * 10) * numeratorTable[feedSelect]) ==
+              ((leadscrewAngle * 10) * denominatorTable[feedSelect]) &&
+          readyToThread == true) {
+        // compares leadscrew angle to spindle angle
+        // using ratio - if matching, and user has
+        // pressed "nut", state 1 is restored
 
-    if (((spindleAngle * 10) * numeratorTable[feedSelect]) ==
-            ((leadscrewAngle * 10) * denominatorTable[feedSelect]) &&
-        readyToThread == true) {  // compares leadscrew angle to spindle angle
-                                  // using ratio - if matching, and user has
-                                  // pressed "nut", state 1 is restored
-
-      enabled = true;
-      readyToThread = false;
+        enabled = true;
+        readyToThread = false;
+      }
     }
   }
 }
@@ -270,17 +253,7 @@ void Achange() {  // validates encoder pulses, adds to pulse variable
            digitalReadFast(pinB));  // adds A to B, converts to integer
   pulseID = EncoderMatrix[(oldPos * 4) + newPos];
 
-  if (pulseID == 1) {
-    CW;  // set DIR pin HIGH
-    lastDirection = true;
-    pulseCount++;
-  }
-
-  else if (pulseID == -1) {
-    CCW;  // set DIR pin LOW
-    lastDirection = false;
-    pulseCount++;
-  }
+  pulseCount += pulseID;
 }
 
 void Bchange() {  // validates encoder pulses, adds to pulse variable
@@ -294,15 +267,7 @@ void Bchange() {  // validates encoder pulses, adds to pulse variable
                     newPos];  // assigns value from encoder matrix to determine
                               // validity and direction of encoder pulse
 
-  if (pulseID == 1) {
-    CW;  // set DIR pin HIGH
-    pulseCount++;
-  }
-
-  else if (pulseID == -1) {
-    CCW;  // set DIR pin LOW
-    pulseCount++;
-  }
+  pulseCount += pulseID;
 }
 
 void rateIncCall(Button::CALLBACK_EVENT event,
@@ -433,6 +398,8 @@ void jogLeftCall(Button::CALLBACK_EVENT event,
                  uint8_t) {  // jogs left on button hold (one day)
 
   if (event == Button::HELD_EVENT && enabled == false) {
+    // todo have a better system for handling jogging - move but keep track for
+    // re-sync on spindle startup
     CW;
 
     while (digitalReadFast(24) == HIGH) {
@@ -458,6 +425,8 @@ void jogRightCall(Button::CALLBACK_EVENT event,
                   uint8_t) {  /// jogs right on button hold (one day)
 
   if (event == Button::HELD_EVENT && enabled == false) {
+    // todo have a better system for handling jogging - move but keep track for
+    // re-sync on spindle startup
     CCW;
 
     while (digitalReadFast(25) == HIGH) {
