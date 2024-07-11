@@ -14,6 +14,7 @@ void Display::init() {
     Serial.println(F("SSD1306 allocation failed"));
     for (;;);
   }
+  m_ssd1306.clearDisplay();
 #endif
 }
 
@@ -47,6 +48,7 @@ void Display::drawPitch(float pitch) {
 #if ELS_DISPLAY == SSD1306_128_64
   m_ssd1306.setCursor(55, 8);
   m_ssd1306.setTextSize(3);
+  m_ssd1306.setTextColor(WHITE);
   m_ssd1306.print(pitch);
 #endif
 }

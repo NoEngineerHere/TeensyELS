@@ -59,21 +59,22 @@ const int dir = 3;    // direction output pin
 
 const int safetyDelay = 100;
 
-volatile int accumulator;
-volatile int numerator;
-volatile int denominator;
+int accumulator;
+int numerator;
+int denominator;
 
 volatile int pulseCount;
 volatile int pulseID;
 volatile int positionCount;
-volatile int spindleAngle;
-volatile int spindleRotations;
-volatile int leadscrewAngle;
-volatile int leadscrewAngleCumulative;
-volatile long long lastPulse;
+int spindleAngle;
+int spindleRotations;
+int leadscrewAngle;
+int leadscrewAngleCumulative;
+long long lastPulse;
 
+bool jogMode = true;
 volatile bool driveMode =
-    false;  // select threading mode (true) or feeding mode (false)
+    true;  // select threading mode (true) or feeding mode (false)
 volatile bool enabled = false;
 volatile bool lockState = true;
 volatile bool readyToThread = false;
@@ -141,17 +142,24 @@ void setup() {
   denominator = denominatorTable[feedSelect];
 
   display.init();
+        display.update(
+          driveMode,
+          driveMode == true ? threadPitch[feedSelect] : feedPitch[feedSelect],
+          lockState, enabled);
+
 }
 
 void loop() {
   keyPad.handle();
   modeHandle();
 
-  if (pulseCount != 0) {
+  uint32_t currentMicros = micros();
+
+  if (pulseCount != 0 || jogMode && currentMicros - lastPulse > 500) {
     int directionIncrement = pulseCount > 0 ? -1 : 1;
 
     // state 1, motion enabled
-    if (enabled) {
+    if (enabled || jogMode) {
       accumulator =
           numerator +
           accumulator;  // "bresenham algorithm", carries remainder of required
@@ -177,7 +185,10 @@ void loop() {
       }
 
       pulseCount += directionIncrement;
-      lastPulse = millis();
+      lastPulse = micros();
+      if(pulseCount == 0 && jogMode == true) {
+        jogMode = false;
+      }
 
       if (leadscrewAngleCumulative > 0) {  // checks leadscrew position against
                                            // "sync" point in one direction
@@ -283,11 +294,11 @@ void rateIncCall(Button::CALLBACK_EVENT event,
       else {
         feedSelect = 0;
       }
-
-      display.update(
+        display.update(
           driveMode,
           driveMode == true ? threadPitch[feedSelect] : feedPitch[feedSelect],
           lockState, enabled);
+
     }
   }
 }
@@ -397,6 +408,16 @@ void modeCycleCall(
 void jogLeftCall(Button::CALLBACK_EVENT event,
                  uint8_t) {  // jogs left on button hold (one day)
 
+                   // when in thread mode, a single press should jog one "thread" in the
+  // specified direction
+  if (event == Button::PRESSED_EVENT) {
+    if (driveMode == true && enabled == false && jogMode == false) {
+      jogMode = true;
+      long unsigned int fullThreadRotation = 2000 * numerator / denominator;
+      pulseCount -= fullThreadRotation;
+    }
+  }
+
   if (event == Button::HELD_EVENT && enabled == false) {
     // todo have a better system for handling jogging - move but keep track for
     // re-sync on spindle startup
@@ -423,6 +444,13 @@ void jogLeftCall(Button::CALLBACK_EVENT event,
 
 void jogRightCall(Button::CALLBACK_EVENT event,
                   uint8_t) {  /// jogs right on button hold (one day)
+  if (event == Button::PRESSED_EVENT) {
+    if (driveMode == true && enabled == false && jogMode == false) {
+      jogMode = true;
+      long unsigned int fullThreadRotation = 2000 * numerator / denominator;
+      pulseCount += fullThreadRotation;
+    }
+  }
 
   if (event == Button::HELD_EVENT && enabled == false) {
     // todo have a better system for handling jogging - move but keep track for
