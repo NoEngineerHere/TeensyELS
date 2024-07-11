@@ -7,7 +7,9 @@
 
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
-#define SCREEN_ADDRESS 0x3C  // this is the default address of the SSD1306
+// some displays can have different addresses, this is what we attempt to init  
+#define SCREEN_ADDRESS 0x3C
+
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
