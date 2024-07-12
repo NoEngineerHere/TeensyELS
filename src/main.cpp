@@ -64,6 +64,7 @@ int numerator;
 int denominator;
 
 int jogUnsyncedCount;
+volatile int spindlePulsesToSync;
 volatile int pulseCount;
 volatile int pulseID;
 int spindleAngle;
@@ -165,6 +166,8 @@ void printState() {
   Serial.println(feedSelect);
   Serial.print("Jog Mode: ");
   Serial.println(jogMode);
+  Serial.print("Jog Unsynced Count: ");
+  Serial.println(jogUnsyncedCount);
   Serial.print("Pulse Count: ");
   Serial.println(pulseCount);
   Serial.print("Spindle Angle: ");
@@ -187,10 +190,12 @@ void buttonHeldHandle() {
   if (jogLeftHeld && currentMicros - lastPulse > JOG_PULSE_DELAY_US) {
     jogMode = true;
     pulseCount--;
+    jogUnsyncedCount--;
 
   } else if (jogRightHeld && currentMicros - lastPulse > JOG_PULSE_DELAY_US) {
     jogMode = true;
     pulseCount++;
+    jogUnsyncedCount++;
   }
 }
 
@@ -203,59 +208,67 @@ void loop() {
   uint32_t currentMicros = micros();
 
   if (pulseCount != 0 ||
-      jogMode && currentMicros - lastPulse > JOG_PULSE_DELAY_US) {
+      (jogMode && currentMicros - lastPulse > JOG_PULSE_DELAY_US)) {
     int directionIncrement = pulseCount > 0 ? -1 : 1;
 
     // state 1, motion enabled
     if (enabled || jogMode) {
-      accumulator =
-          numerator +
-          accumulator;  // "bresenham algorithm", carries remainder of required
-                        // motor steps to next pulse received from spindle
-
-      // change direction based on sign of the pulse count
-      if (pulseCount > 0) {
-        CW;
+      if (enabled && jogUnsyncedCount != 0) {
+        // "consume" the pulse by using up the jogUnsyncedCount
+        jogUnsyncedCount += directionIncrement;
+        pulseCount += directionIncrement;
+        lastPulse = micros();
       } else {
-        CCW;
-      }
+        // change direction based on sign of the pulse count
+        if (pulseCount > 0) {
+          CW;
+        } else {
+          CCW;
+        }
+        accumulator =
+            numerator + accumulator;  // "bresenham algorithm", carries
+                                      // remainder of required motor steps to
+                                      // next pulse received from spindle
+        while (accumulator >=
+               denominator) {  // sends required motor steps to motor
 
-      while (accumulator >=
-             denominator) {  // sends required motor steps to motor
+          accumulator = accumulator - denominator;
 
-        accumulator = accumulator - denominator;
-
-        // todo try and leverage hardware PWM timer to send set amount of pulses
-        digitalWriteFast(stp, HIGH);
-        delayMicroseconds(2);
-        digitalWriteFast(stp, LOW);
-        delayMicroseconds(2);
-      }
-
-      pulseCount += directionIncrement;
-      lastPulse = micros();
-      if (pulseCount == 0 && jogMode == true) {
-        jogMode = false;
-      }
-
-      if (leadscrewAngleCumulative > 0) {  // checks leadscrew position against
-                                           // "sync" point in one direction
-
-        leadscrewAngle += directionIncrement;
-        leadscrewAngleCumulative += directionIncrement;
-
-        if (leadscrewAngle == -1) {
-          leadscrewAngle = 1999;
-        } else if (leadscrewAngle == 1999) {
-          leadscrewAngle = 0;
+          // todo try and leverage hardware PWM timer to send set amount of
+          // pulses
+          digitalWriteFast(stp, HIGH);
+          delayMicroseconds(2);
+          digitalWriteFast(stp, LOW);
+          delayMicroseconds(2);
         }
 
-        if (leadscrewAngleCumulative ==
-            0) {  // disables motor when leadscrew reaches "sync" point
+        pulseCount += directionIncrement;
+        lastPulse = micros();
+        if (pulseCount == 0 && jogMode == true) {
+          jogMode = false;
+        }
 
-          enabled = false;
+        if (leadscrewAngleCumulative >
+            0) {  // checks leadscrew position against
+                  // "sync" point in one direction
+
+          leadscrewAngle += directionIncrement;
+          leadscrewAngleCumulative += directionIncrement;
+
+          if (leadscrewAngle == -1) {
+            leadscrewAngle = 1999;
+          } else if (leadscrewAngle == 1999) {
+            leadscrewAngle = 0;
+          }
+
+          if (leadscrewAngleCumulative ==
+              0) {  // disables motor when leadscrew reaches "sync" point
+
+            enabled = false;
+          }
         }
       }
+
     } else if (synced) {  // state 2, motion disabled
 
       if (driveMode == false) {
@@ -334,7 +347,7 @@ void rateIncCall(Button::CALLBACK_EVENT event,
   printState();
 
   if (driveMode == false ||
-      ((millis() - lastPulse) > safetyDelay && lockState == false)) {
+      ((micros() - lastPulse) > safetyDelay && lockState == false)) {
     if (event == Button::PRESSED_EVENT) {
       if (feedSelect < 19) {
         feedSelect++;
@@ -355,7 +368,7 @@ void rateDecCall(Button::CALLBACK_EVENT event,
                  uint8_t) {  // decreases feedSelect variable on button press
   printState();
   if (driveMode == false ||
-      ((millis() - lastPulse) > safetyDelay && lockState == false)) {
+      ((micros() - lastPulse) > safetyDelay && lockState == false)) {
     if (event == Button::PRESSED_EVENT) {
       if (feedSelect > 0) {
         feedSelect--;
@@ -390,6 +403,14 @@ void enaCall(Button::CALLBACK_EVENT event,
     }
 
     else {
+      // set jogUnsyncedCount to remainder of spindle pulses based on current
+      // feed rate
+      jogUnsyncedCount = jogUnsyncedCount % (2000 * numerator / denominator);
+      Serial.print("mod:");
+      Serial.println(2000 * numerator / denominator);
+      Serial.print("reenabling!");
+      Serial.print("Jog Unsynced Count: ");
+      Serial.println(jogUnsyncedCount);
       enabled = true;
     }
 
