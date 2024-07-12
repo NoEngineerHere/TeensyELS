@@ -57,15 +57,15 @@ const int pinB = 15;  // encoder pin B
 const int stp = 2;    // step output pin
 const int dir = 3;    // direction output pin
 
-const int safetyDelay = 100;
+const int safetyDelay = 100000;
 
 int accumulator;
 int numerator;
 int denominator;
 
+int jogUnsyncedCount;
 volatile int pulseCount;
 volatile int pulseID;
-volatile int positionCount;
 int spindleAngle;
 int spindleRotations;
 int leadscrewAngle;
@@ -79,9 +79,11 @@ volatile bool enabled = false;
 volatile bool lockState = true;
 volatile bool readyToThread = false;
 volatile bool synced = false;
-int feedSelect = 19;
+int feedSelect = 8;
 int jogRate;
-int jogStepTime = 10;
+boolean jogLeftHeld;
+boolean jogRightHeld;
+#define JOG_PULSE_DELAY_US 1000
 
 // UI Values
 const char gearLetter[3] = {65, 66, 67};
@@ -142,20 +144,66 @@ void setup() {
   denominator = denominatorTable[feedSelect];
 
   display.init();
-        display.update(
-          driveMode,
-          driveMode == true ? threadPitch[feedSelect] : feedPitch[feedSelect],
-          lockState, enabled);
+  display.update(
+      driveMode,
+      driveMode == true ? threadPitch[feedSelect] : feedPitch[feedSelect],
+      lockState, enabled);
+}
 
+void printState() {
+  Serial.print("Drive Mode: ");
+  Serial.println(driveMode);
+  Serial.print("Enabled: ");
+  Serial.println(enabled);
+  Serial.print("Lock State: ");
+  Serial.println(lockState);
+  Serial.print("Ready to Thread: ");
+  Serial.println(readyToThread);
+  Serial.print("Synced: ");
+  Serial.println(synced);
+  Serial.print("Feed Select: ");
+  Serial.println(feedSelect);
+  Serial.print("Jog Mode: ");
+  Serial.println(jogMode);
+  Serial.print("Pulse Count: ");
+  Serial.println(pulseCount);
+  Serial.print("Spindle Angle: ");
+  Serial.println(spindleAngle);
+  Serial.print("Spindle Rotations: ");
+  Serial.println(spindleRotations);
+  Serial.print("Leadscrew Angle: ");
+  Serial.println(leadscrewAngle);
+  Serial.print("Leadscrew Angle Cumulative: ");
+  Serial.println(leadscrewAngleCumulative);
+  Serial.print("Last Pulse: ");
+  Serial.println(lastPulse);
+  Serial.print("micros: ");
+  Serial.println(micros());
+}
+
+void buttonHeldHandle() {
+  int currentMicros = micros();
+
+  if (jogLeftHeld && currentMicros - lastPulse > JOG_PULSE_DELAY_US) {
+    jogMode = true;
+    pulseCount--;
+
+  } else if (jogRightHeld && currentMicros - lastPulse > JOG_PULSE_DELAY_US) {
+    jogMode = true;
+    pulseCount++;
+  }
 }
 
 void loop() {
+  // print out current state of the machine
   keyPad.handle();
+  buttonHeldHandle();
   modeHandle();
 
   uint32_t currentMicros = micros();
 
-  if (pulseCount != 0 || jogMode && currentMicros - lastPulse > 500) {
+  if (pulseCount != 0 ||
+      jogMode && currentMicros - lastPulse > JOG_PULSE_DELAY_US) {
     int directionIncrement = pulseCount > 0 ? -1 : 1;
 
     // state 1, motion enabled
@@ -186,7 +234,7 @@ void loop() {
 
       pulseCount += directionIncrement;
       lastPulse = micros();
-      if(pulseCount == 0 && jogMode == true) {
+      if (pulseCount == 0 && jogMode == true) {
         jogMode = false;
       }
 
@@ -283,6 +331,7 @@ void Bchange() {  // validates encoder pulses, adds to pulse variable
 
 void rateIncCall(Button::CALLBACK_EVENT event,
                  uint8_t) {  // increases feedSelect variable on button press
+  printState();
 
   if (driveMode == false ||
       ((millis() - lastPulse) > safetyDelay && lockState == false)) {
@@ -294,18 +343,17 @@ void rateIncCall(Button::CALLBACK_EVENT event,
       else {
         feedSelect = 0;
       }
-        display.update(
+      display.update(
           driveMode,
           driveMode == true ? threadPitch[feedSelect] : feedPitch[feedSelect],
           lockState, enabled);
-
     }
   }
 }
 
 void rateDecCall(Button::CALLBACK_EVENT event,
                  uint8_t) {  // decreases feedSelect variable on button press
-
+  printState();
   if (driveMode == false ||
       ((millis() - lastPulse) > safetyDelay && lockState == false)) {
     if (event == Button::PRESSED_EVENT) {
@@ -327,7 +375,7 @@ void rateDecCall(Button::CALLBACK_EVENT event,
 
 void halfNutCall(Button::CALLBACK_EVENT event,
                  uint8_t) {  // sets readyToThread to true on button hold
-
+  printState();
   if (event == Button::HELD_EVENT && driveMode == true) {
     readyToThread = true;
   }
@@ -335,7 +383,7 @@ void halfNutCall(Button::CALLBACK_EVENT event,
 
 void enaCall(Button::CALLBACK_EVENT event,
              uint8_t) {  // toggles enabled variable on button press
-
+  printState();
   if (event == Button::PRESSED_EVENT) {
     if (enabled == true) {
       enabled = false;
@@ -354,7 +402,7 @@ void enaCall(Button::CALLBACK_EVENT event,
 
 void lockCall(Button::CALLBACK_EVENT event,
               uint8_t) {  // toggles lockState variable on button press
-
+  printState();
   if (event == Button::PRESSED_EVENT) {
     lockState = !lockState;
 
@@ -367,7 +415,7 @@ void lockCall(Button::CALLBACK_EVENT event,
 
 void threadSyncCall(Button::CALLBACK_EVENT event,
                     uint8_t) {  // toggles sync status on button hold
-
+  printState();
   if (event == Button::HELD_EVENT) {
     if (synced == false) {
       lockState = true;
@@ -386,8 +434,8 @@ void threadSyncCall(Button::CALLBACK_EVENT event,
 void modeCycleCall(
     Button::CALLBACK_EVENT event,
     uint8_t) {  // toggles between thread / feed modes on button press
-
-  if (event == Button::PRESSED_EVENT && (millis() - lastPulse) > safetyDelay &&
+  printState();
+  if (event == Button::PRESSED_EVENT && (micros() - lastPulse) > safetyDelay &&
       lockState == false) {
     if (driveMode == false) {
       driveMode = true;
@@ -407,71 +455,24 @@ void modeCycleCall(
 
 void jogLeftCall(Button::CALLBACK_EVENT event,
                  uint8_t) {  // jogs left on button hold (one day)
+  printState();
 
-                   // when in thread mode, a single press should jog one "thread" in the
-  // specified direction
-  if (event == Button::PRESSED_EVENT) {
-    if (driveMode == true && enabled == false && jogMode == false) {
-      jogMode = true;
-      long unsigned int fullThreadRotation = 2000 * numerator / denominator;
-      pulseCount -= fullThreadRotation;
-    }
-  }
-
+  // this event doesn't repeat, so set a flag to keep track of it
   if (event == Button::HELD_EVENT && enabled == false) {
-    // todo have a better system for handling jogging - move but keep track for
-    // re-sync on spindle startup
-    CW;
-
-    while (digitalReadFast(24) == HIGH) {
-      if ((millis() - lastPulse) > jogStepTime) {
-        lastPulse = millis();
-        digitalWriteFast(stp, HIGH);
-        delayMicroseconds(2);
-        digitalWriteFast(stp, LOW);
-        delayMicroseconds(2);
-
-        leadscrewAngle++;
-        leadscrewAngleCumulative++;
-
-        if (leadscrewAngle >= 2000) {
-          leadscrewAngle = 0;
-        }
-      }
-    }
+    jogLeftHeld = true;
+  } else if (event == Button::RELEASED_EVENT) {
+    jogLeftHeld = false;
   }
 }
 
 void jogRightCall(Button::CALLBACK_EVENT event,
                   uint8_t) {  /// jogs right on button hold (one day)
-  if (event == Button::PRESSED_EVENT) {
-    if (driveMode == true && enabled == false && jogMode == false) {
-      jogMode = true;
-      long unsigned int fullThreadRotation = 2000 * numerator / denominator;
-      pulseCount += fullThreadRotation;
-    }
-  }
+  printState();
 
+  // this event doesn't repeat, so set a flag to keep track of it
   if (event == Button::HELD_EVENT && enabled == false) {
-    // todo have a better system for handling jogging - move but keep track for
-    // re-sync on spindle startup
-    CCW;
-
-    while (digitalReadFast(25) == HIGH) {
-      if ((millis() - lastPulse) > jogStepTime) {
-        lastPulse = millis();
-        digitalWriteFast(stp, HIGH);
-        delayMicroseconds(2);
-        digitalWriteFast(stp, LOW);
-        delayMicroseconds(2);
-
-        leadscrewAngle--;
-        leadscrewAngleCumulative--;
-
-        if (leadscrewAngle <= -1) {
-          leadscrewAngle = 1999;
-        }
-      }
-    }
+    jogRightHeld = true;
+  } else if (event == Button::RELEASED_EVENT) {
+    jogRightHeld = false;
   }
 }
