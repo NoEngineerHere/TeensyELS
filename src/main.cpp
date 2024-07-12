@@ -59,9 +59,9 @@ const int dir = 3;    // direction output pin
 
 const int safetyDelay = 100;
 
-int accumulator;
-int numerator;
-int denominator;
+volatile int accumulator;
+volatile int numerator;
+volatile int denominator;
 
 volatile int pulseCount;
 volatile int pulseID;
@@ -72,16 +72,16 @@ int leadscrewAngle;
 int leadscrewAngleCumulative;
 long long lastPulse;
 
-bool jogMode = true;
+volatile bool jogMode = false;
 volatile bool driveMode =
     true;  // select threading mode (true) or feeding mode (false)
 volatile bool enabled = false;
-volatile bool lockState = true;
+volatile bool lockState = false;
 volatile bool readyToThread = false;
 volatile bool synced = false;
-int feedSelect = 19;
+int feedSelect = 8;
 int jogRate;
-int jogStepTime = 10;
+int jogStepTime = 500;
 
 // UI Values
 const char gearLetter[3] = {65, 66, 67};
@@ -155,11 +155,11 @@ void loop() {
 
   uint32_t currentMicros = micros();
 
-  if (pulseCount != 0 || jogMode && currentMicros - lastPulse > 500) {
+  if (pulseCount != 0 || jogMode && currentMicros - lastPulse > jogStepTime) {
     int directionIncrement = pulseCount > 0 ? -1 : 1;
 
-    // state 1, motion enabled
-    if (enabled || jogMode) {
+    
+    if (enabled || jogMode && currentMicros - lastPulse > jogStepTime) {
       accumulator =
           numerator +
           accumulator;  // "bresenham algorithm", carries remainder of required
@@ -208,7 +208,7 @@ void loop() {
           enabled = false;
         }
       }
-    } else if (synced) {  // state 2, motion disabled
+    } else if (!enabled) {  // state 2, motion disabled
 
       if (driveMode == false) {
         // negates encoder pulses if disabled while in feed mode
@@ -218,7 +218,7 @@ void loop() {
       else {
         // converts encoder pulses to stored spindle angle if disabled
         // while in thread mode
-        spindleAngle -= directionIncrement;
+        spindleAngle += directionIncrement;
         if (spindleAngle >= 2000) {
           spindleAngle = 0;
         } else if (spindleAngle <= -1) {
@@ -285,15 +285,13 @@ void rateIncCall(Button::CALLBACK_EVENT event,
                  uint8_t) {  // increases feedSelect variable on button press
 
   if (driveMode == false ||
-      ((millis() - lastPulse) > safetyDelay && lockState == false)) {
+      ((micros() - lastPulse) > safetyDelay && lockState == false)) {
     if (event == Button::PRESSED_EVENT) {
       if (feedSelect < 19) {
         feedSelect++;
       }
 
-      else {
-        feedSelect = 0;
-      }
+
         display.update(
           driveMode,
           driveMode == true ? threadPitch[feedSelect] : feedPitch[feedSelect],
@@ -307,15 +305,13 @@ void rateDecCall(Button::CALLBACK_EVENT event,
                  uint8_t) {  // decreases feedSelect variable on button press
 
   if (driveMode == false ||
-      ((millis() - lastPulse) > safetyDelay && lockState == false)) {
+      ((micros() - lastPulse) > safetyDelay && lockState == false)) {
     if (event == Button::PRESSED_EVENT) {
       if (feedSelect > 0) {
         feedSelect--;
       }
 
-      else {
-        feedSelect = 19;
-      }
+
 
       display.update(
           driveMode,
@@ -387,7 +383,7 @@ void modeCycleCall(
     Button::CALLBACK_EVENT event,
     uint8_t) {  // toggles between thread / feed modes on button press
 
-  if (event == Button::PRESSED_EVENT && (millis() - lastPulse) > safetyDelay &&
+  if (event == Button::PRESSED_EVENT && (micros() - lastPulse) > safetyDelay &&
       lockState == false) {
     if (driveMode == false) {
       driveMode = true;
@@ -450,7 +446,10 @@ void jogRightCall(Button::CALLBACK_EVENT event,
       long unsigned int fullThreadRotation = 2000 * numerator / denominator;
       pulseCount += fullThreadRotation;
     }
+
   }
+
+  
 
   if (event == Button::HELD_EVENT && enabled == false) {
     // todo have a better system for handling jogging - move but keep track for
