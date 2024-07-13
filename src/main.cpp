@@ -99,19 +99,20 @@ void modeHandle();
 void printState() {
   Serial.println();
   Serial.print("Drive Mode: ");
-  Serial.println(driveMode);
+  Serial.println(driveMode ? "Thread" : "Feed");
   Serial.print("Enabled: ");
-  Serial.println(enabled);
+  Serial.println(enabled ? "True" : "False");
   Serial.print("Lock State: ");
-  Serial.println(lockState);
+  Serial.println(lockState ? "True" : "False");
   Serial.print("Ready to Thread: ");
-  Serial.println(readyToThread);
+  Serial.println(readyToThread ? "True" : "False");
   Serial.print("Synced: ");
-  Serial.println(synced);
+  Serial.println(synced ? "True" : "False");
   Serial.print("Feed Select: ");
-  Serial.println(feedSelect);
+  Serial.println(driveMode == true ? threadPitch[feedSelect]
+                                   : feedPitch[feedSelect]);
   Serial.print("Jog Mode: ");
-  Serial.println(jogMode);
+  Serial.println(jogMode ? "True" : "False");
   Serial.print("Jog Unsynced Count: ");
   Serial.println(jogUnsyncedCount);
   Serial.print("Pulse Count: ");
@@ -120,6 +121,8 @@ void printState() {
   Serial.println(lastPulse);
   Serial.print("Pulses Back to Sync: ");
   Serial.println(pulsesBackToSync);
+  Serial.print("Has previously synced: ");
+  Serial.println(hasPreviouslySynced);
   Serial.print("micros: ");
   Serial.println(micros());
 }
@@ -164,6 +167,7 @@ void buttonHeldHandle() {
 
   if (jogLeftHeld && currentMicros - lastPulse > JOG_PULSE_DELAY_US) {
     jogMode = true;
+    synced = false;
     pulseCount--;
     jogUnsyncedCount--;
     if (hasPreviouslySynced) {
@@ -172,6 +176,7 @@ void buttonHeldHandle() {
 
   } else if (jogRightHeld && currentMicros - lastPulse > JOG_PULSE_DELAY_US) {
     jogMode = true;
+    synced = false;
     pulseCount++;
     jogUnsyncedCount++;
     if (hasPreviouslySynced) {
@@ -186,6 +191,12 @@ void loop() {
   buttonHeldHandle();
 
   uint32_t currentMicros = micros();
+  static uint32_t lastPrint = currentMicros;
+
+  if (currentMicros - lastPrint > 1000 * 1000) {
+    printState();
+    lastPrint = currentMicros;
+  }
 
   if (pulseCount != 0 ||
       (jogMode && currentMicros - lastPulse > JOG_PULSE_DELAY_US)) {
@@ -196,11 +207,34 @@ void loop() {
       // we have jogged and need to wait for the spindle to move to a point we
       // can restart we assume we only want to do this in a CW direction (CCW
       // todo)
-      if (enabled && jogUnsyncedCount != 0) {
+      float ratio =
+          (driveMode == true ? threadPitch[feedSelect] : feedPitch[feedSelect]);
+      int mod =
+          (int)((ELS_SPINDLE_ENCODER_PPR * ratio) / ELS_LEADSCREW_PITCH_MM);
+      // todo unspaghettify this logic
+      if (synced) {
+        // state 2, motion disabled
+
+        // negates encoder pulses if at sync point
+        pulseCount = 0;
+
+        if (driveMode == true) {
+          // keep track of pulses to get back in sync with the thread
+          pulsesBackToSync += directionIncrement;
+          pulsesBackToSync %= mod;
+        }
+
+      } else if (enabled && jogUnsyncedCount != 0 &&
+                 abs(jogUnsyncedCount) != mod) {
+        // state 1, jog mode or motion enabled
         // "consume" the pulse by using up the jogUnsyncedCount
         jogUnsyncedCount += directionIncrement;
         pulseCount += directionIncrement;
         lastPulse = micros();
+
+        if (jogUnsyncedCount == mod) {
+          jogUnsyncedCount = 0;
+        }
       } else {
         // change direction based on sign of the pulse count
         if (pulseCount > 0) {
@@ -212,8 +246,6 @@ void loop() {
         // "bresenham algorithm", carries
         // remainder of required motor steps to
         // next pulse received from spindle
-        float ratio = (driveMode == true ? threadPitch[feedSelect]
-                                         : feedPitch[feedSelect]);
 
         accumulator +=
             ELS_LEADSCREW_STEPS_PER_MM * ratio / ELS_LEADSCREW_STEPPER_PPR;
@@ -233,23 +265,16 @@ void loop() {
         pulseCount += directionIncrement;
 
         lastPulse = micros();
-        if (pulseCount == 0 && jogMode == true) {
+        if (!enabled && pulseCount == 0 && jogMode == true) {
           jogMode = false;
         }
         // if we are threading
-        if (driveMode == true && hasPreviouslySynced) {
-          pulsesBackToSync -= directionIncrement;
+        if (enabled && driveMode == true && hasPreviouslySynced) {
+          pulsesBackToSync += directionIncrement;
         }
-        if (pulsesBackToSync == 0) {
+        if (enabled && pulsesBackToSync == 0 && hasPreviouslySynced) {
           synced = true;
         }
-      }
-
-    } else if (synced) {  // state 2, motion disabled
-
-      if (driveMode == false) {
-        // negates encoder pulses if disabled while in feed mode
-        pulseCount += directionIncrement;
       }
     }
   }
@@ -278,6 +303,7 @@ void Bchange() {  // validates encoder pulses, adds to pulse variable
 
 void rateIncCall(Button::CALLBACK_EVENT event,
                  uint8_t) {  // increases feedSelect variable on button press
+  Serial.println("Rate Inc Call");
   printState();
 
   if (driveMode == false ||
@@ -300,6 +326,7 @@ void rateIncCall(Button::CALLBACK_EVENT event,
 
 void rateDecCall(Button::CALLBACK_EVENT event,
                  uint8_t) {  // decreases feedSelect variable on button press
+  Serial.println("Rate Dec Call");
   printState();
   if (driveMode == false ||
       ((micros() - lastPulse) > safetyDelay && lockState == false)) {
@@ -322,8 +349,9 @@ void rateDecCall(Button::CALLBACK_EVENT event,
 
 void halfNutCall(Button::CALLBACK_EVENT event,
                  uint8_t) {  // sets readyToThread to true on button hold
+  Serial.println("Half Nut Call");
   printState();
-  if (event == Button::HELD_EVENT && driveMode == true) {
+  if (event == Button::PRESSED_EVENT && driveMode == true) {
     readyToThread = true;
     synced = true;
     hasPreviouslySynced = true;
@@ -333,6 +361,7 @@ void halfNutCall(Button::CALLBACK_EVENT event,
 
 void enaCall(Button::CALLBACK_EVENT event,
              uint8_t) {  // toggles enabled variable on button press
+  Serial.println("Enable Call");
   printState();
   if (event == Button::PRESSED_EVENT) {
     if (enabled == true) {
@@ -365,6 +394,7 @@ void enaCall(Button::CALLBACK_EVENT event,
 
 void lockCall(Button::CALLBACK_EVENT event,
               uint8_t) {  // toggles lockState variable on button press
+  Serial.println("Lock Call");
   printState();
   if (event == Button::PRESSED_EVENT) {
     lockState = !lockState;
@@ -378,8 +408,9 @@ void lockCall(Button::CALLBACK_EVENT event,
 
 void threadSyncCall(Button::CALLBACK_EVENT event,
                     uint8_t) {  // toggles sync status on button hold
+  Serial.println("Thread Sync Call");
   printState();
-  if (event == Button::HELD_EVENT) {
+  if (event == Button::PRESSED_EVENT) {
     if (synced == false) {
       lockState = true;
       synced = true;
@@ -394,6 +425,7 @@ void threadSyncCall(Button::CALLBACK_EVENT event,
 void modeCycleCall(
     Button::CALLBACK_EVENT event,
     uint8_t) {  // toggles between thread / feed modes on button press
+  Serial.println("Mode Cycle Call");
   printState();
   if (event == Button::PRESSED_EVENT && (micros() - lastPulse) > safetyDelay &&
       lockState == false) {
@@ -414,6 +446,7 @@ void modeCycleCall(
 
 void jogLeftCall(Button::CALLBACK_EVENT event,
                  uint8_t) {  // jogs left on button hold (one day)
+  Serial.println("Jog Left Call");
   printState();
 
   // this event doesn't repeat, so set a flag to keep track of it
@@ -426,6 +459,7 @@ void jogLeftCall(Button::CALLBACK_EVENT event,
 
 void jogRightCall(Button::CALLBACK_EVENT event,
                   uint8_t) {  /// jogs right on button hold (one day)
+  Serial.println("Jog Right Call");
   printState();
 
   // this event doesn't repeat, so set a flag to keep track of it
