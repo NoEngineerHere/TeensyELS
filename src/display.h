@@ -7,7 +7,7 @@
 
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
-// some displays can have different addresses, this is what we attempt to init  
+// some displays can have different addresses, this is what we attempt to init
 #define SCREEN_ADDRESS 0x3C
 
 #include <Adafruit_GFX.h>
