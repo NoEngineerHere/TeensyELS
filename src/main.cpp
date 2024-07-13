@@ -57,34 +57,34 @@ const int pinB = 15;  // encoder pin B
 const int stp = 2;    // step output pin
 const int dir = 3;    // direction output pin
 
-const int safetyDelay = 100;
+const int safetyDelay = 100000;
 
-int accumulator;
-int numerator;
-int denominator;
+// todo maybe integer maths if this is too slow
+float accumulator;
 
+int jogUnsyncedCount;  // when we jog in thread mode we may be "in between"
+                       // threads, this stores how many pulses we require to be
+                       // back in line
+int pulsesBackToSync;  // when jogging in thread mode, this stores how many
+                       // pulses we need to get back in sync i.e: the stop point
+                       // of the thread
 volatile int pulseCount;
-volatile int pulseID;
-volatile int positionCount;
-int spindleAngle;
-int spindleRotations;
-int leadscrewAngle;
-int leadscrewAngleCumulative;
 long long lastPulse;
 
 bool jogMode = true;
-volatile bool driveMode =
-    true;  // select threading mode (true) or feeding mode (false)
-volatile bool enabled = false;
-volatile bool lockState = true;
-volatile bool readyToThread = false;
-volatile bool synced = false;
-int feedSelect = 19;
+bool driveMode = true;  // select threading mode (true) or feeding mode (false)
+bool enabled = false;
+bool lockState = true;
+bool readyToThread = false;
+bool synced = false;
+bool hasPreviouslySynced = false;
+int feedSelect = 8;
 int jogRate;
-int jogStepTime = 10;
+boolean jogLeftHeld;
+boolean jogRightHeld;
 
 // UI Values
-const char gearLetter[3] = {65, 66, 67};
+// these are how many leadscrew pulses we need to send per spindle pulse
 const float threadPitch[20] = {0.35, 0.40, 0.45, 0.50, 0.60, 0.70, 0.80,
                                1.00, 1.25, 1.50, 1.75, 2.00, 2.50, 3.00,
                                3.50, 4.00, 4.50, 5.00, 5.50, 6.00};
@@ -92,25 +92,40 @@ const float feedPitch[20] = {0.05, 0.08, 0.10, 0.12, 0.15, 0.18, 0.20,
                              0.23, 0.25, 0.28, 0.30, 0.35, 0.40, 0.45,
                              0.50, 0.55, 0.60, 0.65, 0.70, 0.75};
 
-// Ratio Values
-
-const int numeratorTable[20] = {
-    7, 8, 9, 2,  12, 14, 16, 4, 1,  6,
-    7, 8, 2, 12, 14, 16, 18, 4, 22, 24};  // metric threading ratio tables
-
-const int denominatorTable[20] = {25, 25, 25, 5, 25, 25, 25, 5, 1, 5,
-                                  5,  5,  1,  5, 5,  5,  5,  1, 5, 5};
-
-const int numeratorTable2[20] = {
-    1, 3, 1, 3, 3, 7,  1, 9,  1, 11,
-    3, 7, 1, 9, 1, 11, 3, 13, 7, 3};  // feed ratio tables
-
-const int denominatorTable2[20] = {80, 160, 40, 100, 80, 160, 20, 160, 16, 160,
-                                   40, 80,  10, 80,  8,  80,  20, 80,  40, 16};
-
 void Achange();
 void Bchange();
 void modeHandle();
+
+void printState() {
+  Serial.println();
+  Serial.print("Drive Mode: ");
+  Serial.println(driveMode ? "Thread" : "Feed");
+  Serial.print("Enabled: ");
+  Serial.println(enabled ? "True" : "False");
+  Serial.print("Lock State: ");
+  Serial.println(lockState ? "True" : "False");
+  Serial.print("Ready to Thread: ");
+  Serial.println(readyToThread ? "True" : "False");
+  Serial.print("Synced: ");
+  Serial.println(synced ? "True" : "False");
+  Serial.print("Feed Select: ");
+  Serial.println(driveMode == true ? threadPitch[feedSelect]
+                                   : feedPitch[feedSelect]);
+  Serial.print("Jog Mode: ");
+  Serial.println(jogMode ? "True" : "False");
+  Serial.print("Jog Unsynced Count: ");
+  Serial.println(jogUnsyncedCount);
+  Serial.print("Pulse Count: ");
+  Serial.println(pulseCount);
+  Serial.print("Last Pulse: ");
+  Serial.println(lastPulse);
+  Serial.print("Pulses Back to Sync: ");
+  Serial.println(pulsesBackToSync);
+  Serial.print("Has previously synced: ");
+  Serial.println(hasPreviouslySynced);
+  Serial.print("micros: ");
+  Serial.println(micros());
+}
 
 void setup() {
   // Pinmodes
@@ -138,121 +153,130 @@ void setup() {
 
   // Display Initalisation
 
-  numerator = numeratorTable[feedSelect];
-  denominator = denominatorTable[feedSelect];
-
   display.init();
-        display.update(
-          driveMode,
-          driveMode == true ? threadPitch[feedSelect] : feedPitch[feedSelect],
-          lockState, enabled);
+  display.update(
+      driveMode,
+      driveMode == true ? threadPitch[feedSelect] : feedPitch[feedSelect],
+      lockState, enabled);
 
+  printState();
 }
 
-void loop() {
-  keyPad.handle();
-  modeHandle();
+void buttonHeldHandle() {
+  int currentMicros = micros();
 
-  uint32_t currentMicros = micros();
+  if (jogLeftHeld && currentMicros - lastPulse > JOG_PULSE_DELAY_US) {
+    jogMode = true;
+    synced = false;
+    pulseCount--;
+    jogUnsyncedCount--;
+    if (hasPreviouslySynced) {
+      pulsesBackToSync++;
+    }
 
-  if (pulseCount != 0 || jogMode && currentMicros - lastPulse > 500) {
-    int directionIncrement = pulseCount > 0 ? -1 : 1;
-
-    // state 1, motion enabled
-    if (enabled || jogMode) {
-      accumulator =
-          numerator +
-          accumulator;  // "bresenham algorithm", carries remainder of required
-                        // motor steps to next pulse received from spindle
-
-      // change direction based on sign of the pulse count
-      if (pulseCount > 0) {
-        CW;
-      } else {
-        CCW;
-      }
-
-      while (accumulator >=
-             denominator) {  // sends required motor steps to motor
-
-        accumulator = accumulator - denominator;
-
-        // todo try and leverage hardware PWM timer to send set amount of pulses
-        digitalWriteFast(stp, HIGH);
-        delayMicroseconds(2);
-        digitalWriteFast(stp, LOW);
-        delayMicroseconds(2);
-      }
-
-      pulseCount += directionIncrement;
-      lastPulse = micros();
-      if(pulseCount == 0 && jogMode == true) {
-        jogMode = false;
-      }
-
-      if (leadscrewAngleCumulative > 0) {  // checks leadscrew position against
-                                           // "sync" point in one direction
-
-        leadscrewAngle += directionIncrement;
-        leadscrewAngleCumulative += directionIncrement;
-
-        if (leadscrewAngle == -1) {
-          leadscrewAngle = 1999;
-        } else if (leadscrewAngle == 1999) {
-          leadscrewAngle = 0;
-        }
-
-        if (leadscrewAngleCumulative ==
-            0) {  // disables motor when leadscrew reaches "sync" point
-
-          enabled = false;
-        }
-      }
-    } else if (synced) {  // state 2, motion disabled
-
-      if (driveMode == false) {
-        // negates encoder pulses if disabled while in feed mode
-        pulseCount += directionIncrement;
-      }
-
-      else {
-        // converts encoder pulses to stored spindle angle if disabled
-        // while in thread mode
-        spindleAngle -= directionIncrement;
-        if (spindleAngle >= 2000) {
-          spindleAngle = 0;
-        } else if (spindleAngle <= -1) {
-          spindleAngle = 1999;
-        }
-
-        pulseCount += directionIncrement;
-      }
-
-      if (((spindleAngle * 10) * numeratorTable[feedSelect]) ==
-              ((leadscrewAngle * 10) * denominatorTable[feedSelect]) &&
-          readyToThread == true) {
-        // compares leadscrew angle to spindle angle
-        // using ratio - if matching, and user has
-        // pressed "nut", state 1 is restored
-
-        enabled = true;
-        readyToThread = false;
-      }
+  } else if (jogRightHeld && currentMicros - lastPulse > JOG_PULSE_DELAY_US) {
+    jogMode = true;
+    synced = false;
+    pulseCount++;
+    jogUnsyncedCount++;
+    if (hasPreviouslySynced) {
+      pulsesBackToSync--;
     }
   }
 }
 
-void modeHandle() {  // sets pulse/motor steps ratio based on driveMode (true ==
-                     // thread mode, false == feed mode)
+void loop() {
+  // print out current state of the machine
+  keyPad.handle();
+  buttonHeldHandle();
 
-  if (driveMode == false) {
-    numerator = numeratorTable2[feedSelect];
-    denominator = denominatorTable2[feedSelect];
+  uint32_t currentMicros = micros();
+  static uint32_t lastPrint = currentMicros;
+
+  if (currentMicros - lastPrint > 1000 * 1000) {
+    printState();
+    lastPrint = currentMicros;
   }
 
-  else {
-    numerator = numeratorTable[feedSelect];
-    denominator = denominatorTable[feedSelect];
+  if (pulseCount != 0 ||
+      (jogMode && currentMicros - lastPulse > JOG_PULSE_DELAY_US)) {
+    int directionIncrement = pulseCount > 0 ? -1 : 1;
+
+    // state 1, motion enabled
+    if (enabled || jogMode) {
+      // we have jogged and need to wait for the spindle to move to a point we
+      // can restart we assume we only want to do this in a CW direction (CCW
+      // todo)
+      float ratio =
+          (driveMode == true ? threadPitch[feedSelect] : feedPitch[feedSelect]);
+      int mod =
+          (int)((ELS_SPINDLE_ENCODER_PPR * ratio) / ELS_LEADSCREW_PITCH_MM);
+      // todo unspaghettify this logic
+      if (synced) {
+        // state 2, motion disabled
+
+        // negates encoder pulses if at sync point
+        pulseCount = 0;
+
+        if (driveMode == true) {
+          // keep track of pulses to get back in sync with the thread
+          pulsesBackToSync += directionIncrement;
+          pulsesBackToSync %= mod;
+        }
+
+      } else if (enabled && jogUnsyncedCount != 0 &&
+                 abs(jogUnsyncedCount) != mod) {
+        // state 1, jog mode or motion enabled
+        // "consume" the pulse by using up the jogUnsyncedCount
+        jogUnsyncedCount += directionIncrement;
+        pulseCount += directionIncrement;
+        lastPulse = micros();
+
+        if (jogUnsyncedCount == mod) {
+          jogUnsyncedCount = 0;
+        }
+      } else {
+        // change direction based on sign of the pulse count
+        if (pulseCount > 0) {
+          CW;
+        } else {
+          CCW;
+        }
+
+        // "bresenham algorithm", carries
+        // remainder of required motor steps to
+        // next pulse received from spindle
+
+        accumulator +=
+            ELS_LEADSCREW_STEPS_PER_MM * ratio / ELS_LEADSCREW_STEPPER_PPR;
+
+        while (accumulator >= 0) {  // sends required motor steps to motor
+
+          accumulator--;
+
+          // todo try and leverage hardware PWM timer to send set amount of
+          // pulses
+          digitalWriteFast(stp, HIGH);
+          delayMicroseconds(2);
+          digitalWriteFast(stp, LOW);
+          delayMicroseconds(2);
+        }
+
+        pulseCount += directionIncrement;
+
+        lastPulse = micros();
+        if (!enabled && pulseCount == 0 && jogMode == true) {
+          jogMode = false;
+        }
+        // if we are threading
+        if (enabled && driveMode == true && hasPreviouslySynced) {
+          pulsesBackToSync += directionIncrement;
+        }
+        if (enabled && pulsesBackToSync == 0 && hasPreviouslySynced) {
+          synced = true;
+        }
+      }
+    }
   }
 }
 
@@ -262,9 +286,7 @@ void Achange() {  // validates encoder pulses, adds to pulse variable
   bitWrite(newPos, 0, digitalReadFast(pinA));
   bitWrite(newPos, 1,
            digitalReadFast(pinB));  // adds A to B, converts to integer
-  pulseID = EncoderMatrix[(oldPos * 4) + newPos];
-
-  pulseCount += pulseID;
+  pulseCount = EncoderMatrix[(oldPos * 4) + newPos];
 }
 
 void Bchange() {  // validates encoder pulses, adds to pulse variable
@@ -273,19 +295,19 @@ void Bchange() {  // validates encoder pulses, adds to pulse variable
   bitWrite(newPos, 0, digitalReadFast(pinA));
   bitWrite(newPos, 1,
            digitalReadFast(pinB));  // adds A to B, converts to integer
-  pulseID =
-      EncoderMatrix[(oldPos * 4) +
-                    newPos];  // assigns value from encoder matrix to determine
-                              // validity and direction of encoder pulse
-
-  pulseCount += pulseID;
+  pulseCount =
+      EncoderMatrix[(oldPos * 4) + newPos];  // assigns value from encoder
+                                             // matrix to determine validity
+                                             // and direction of encoder pulse
 }
 
 void rateIncCall(Button::CALLBACK_EVENT event,
                  uint8_t) {  // increases feedSelect variable on button press
+  Serial.println("Rate Inc Call");
+  printState();
 
   if (driveMode == false ||
-      ((millis() - lastPulse) > safetyDelay && lockState == false)) {
+      ((micros() - lastPulse) > safetyDelay && lockState == false)) {
     if (event == Button::PRESSED_EVENT) {
       if (feedSelect < 19) {
         feedSelect++;
@@ -294,20 +316,20 @@ void rateIncCall(Button::CALLBACK_EVENT event,
       else {
         feedSelect = 0;
       }
-        display.update(
+      display.update(
           driveMode,
           driveMode == true ? threadPitch[feedSelect] : feedPitch[feedSelect],
           lockState, enabled);
-
     }
   }
 }
 
 void rateDecCall(Button::CALLBACK_EVENT event,
                  uint8_t) {  // decreases feedSelect variable on button press
-
+  Serial.println("Rate Dec Call");
+  printState();
   if (driveMode == false ||
-      ((millis() - lastPulse) > safetyDelay && lockState == false)) {
+      ((micros() - lastPulse) > safetyDelay && lockState == false)) {
     if (event == Button::PRESSED_EVENT) {
       if (feedSelect > 0) {
         feedSelect--;
@@ -327,21 +349,39 @@ void rateDecCall(Button::CALLBACK_EVENT event,
 
 void halfNutCall(Button::CALLBACK_EVENT event,
                  uint8_t) {  // sets readyToThread to true on button hold
-
-  if (event == Button::HELD_EVENT && driveMode == true) {
+  Serial.println("Half Nut Call");
+  printState();
+  if (event == Button::PRESSED_EVENT && driveMode == true) {
     readyToThread = true;
+    synced = true;
+    hasPreviouslySynced = true;
+    pulsesBackToSync = 0;
   }
 }
 
 void enaCall(Button::CALLBACK_EVENT event,
              uint8_t) {  // toggles enabled variable on button press
-
+  Serial.println("Enable Call");
+  printState();
   if (event == Button::PRESSED_EVENT) {
     if (enabled == true) {
       enabled = false;
     }
 
     else {
+      // set jogUnsyncedCount to remainder of spindle pulses based on current
+      // feed rate
+      float ratio =
+          (driveMode == true ? threadPitch[feedSelect] : feedPitch[feedSelect]);
+      int mod =
+          (int)((ELS_SPINDLE_ENCODER_PPR * ratio) / ELS_LEADSCREW_PITCH_MM);
+      jogUnsyncedCount = jogUnsyncedCount % mod;
+
+      Serial.print("mod:");
+      Serial.println(mod);
+      Serial.print("reenabling!");
+      Serial.print("Jog Unsynced Count: ");
+      Serial.println(jogUnsyncedCount);
       enabled = true;
     }
 
@@ -354,7 +394,8 @@ void enaCall(Button::CALLBACK_EVENT event,
 
 void lockCall(Button::CALLBACK_EVENT event,
               uint8_t) {  // toggles lockState variable on button press
-
+  Serial.println("Lock Call");
+  printState();
   if (event == Button::PRESSED_EVENT) {
     lockState = !lockState;
 
@@ -367,13 +408,11 @@ void lockCall(Button::CALLBACK_EVENT event,
 
 void threadSyncCall(Button::CALLBACK_EVENT event,
                     uint8_t) {  // toggles sync status on button hold
-
-  if (event == Button::HELD_EVENT) {
+  Serial.println("Thread Sync Call");
+  printState();
+  if (event == Button::PRESSED_EVENT) {
     if (synced == false) {
       lockState = true;
-      leadscrewAngle = 0;
-      leadscrewAngleCumulative = 0;
-      spindleAngle = 0;
       synced = true;
     }
 
@@ -386,8 +425,9 @@ void threadSyncCall(Button::CALLBACK_EVENT event,
 void modeCycleCall(
     Button::CALLBACK_EVENT event,
     uint8_t) {  // toggles between thread / feed modes on button press
-
-  if (event == Button::PRESSED_EVENT && (millis() - lastPulse) > safetyDelay &&
+  Serial.println("Mode Cycle Call");
+  printState();
+  if (event == Button::PRESSED_EVENT && (micros() - lastPulse) > safetyDelay &&
       lockState == false) {
     if (driveMode == false) {
       driveMode = true;
@@ -397,7 +437,6 @@ void modeCycleCall(
       driveMode = false;
     }
 
-    modeHandle();
     display.update(
         driveMode,
         driveMode == true ? threadPitch[feedSelect] : feedPitch[feedSelect],
@@ -407,71 +446,26 @@ void modeCycleCall(
 
 void jogLeftCall(Button::CALLBACK_EVENT event,
                  uint8_t) {  // jogs left on button hold (one day)
+  Serial.println("Jog Left Call");
+  printState();
 
-                   // when in thread mode, a single press should jog one "thread" in the
-  // specified direction
-  if (event == Button::PRESSED_EVENT) {
-    if (driveMode == true && enabled == false && jogMode == false) {
-      jogMode = true;
-      long unsigned int fullThreadRotation = 2000 * numerator / denominator;
-      pulseCount -= fullThreadRotation;
-    }
-  }
-
+  // this event doesn't repeat, so set a flag to keep track of it
   if (event == Button::HELD_EVENT && enabled == false) {
-    // todo have a better system for handling jogging - move but keep track for
-    // re-sync on spindle startup
-    CW;
-
-    while (digitalReadFast(24) == HIGH) {
-      if ((millis() - lastPulse) > jogStepTime) {
-        lastPulse = millis();
-        digitalWriteFast(stp, HIGH);
-        delayMicroseconds(2);
-        digitalWriteFast(stp, LOW);
-        delayMicroseconds(2);
-
-        leadscrewAngle++;
-        leadscrewAngleCumulative++;
-
-        if (leadscrewAngle >= 2000) {
-          leadscrewAngle = 0;
-        }
-      }
-    }
+    jogLeftHeld = true;
+  } else if (event == Button::RELEASED_EVENT) {
+    jogLeftHeld = false;
   }
 }
 
 void jogRightCall(Button::CALLBACK_EVENT event,
                   uint8_t) {  /// jogs right on button hold (one day)
-  if (event == Button::PRESSED_EVENT) {
-    if (driveMode == true && enabled == false && jogMode == false) {
-      jogMode = true;
-      long unsigned int fullThreadRotation = 2000 * numerator / denominator;
-      pulseCount += fullThreadRotation;
-    }
-  }
+  Serial.println("Jog Right Call");
+  printState();
 
+  // this event doesn't repeat, so set a flag to keep track of it
   if (event == Button::HELD_EVENT && enabled == false) {
-    // todo have a better system for handling jogging - move but keep track for
-    // re-sync on spindle startup
-    CCW;
-
-    while (digitalReadFast(25) == HIGH) {
-      if ((millis() - lastPulse) > jogStepTime) {
-        lastPulse = millis();
-        digitalWriteFast(stp, HIGH);
-        delayMicroseconds(2);
-        digitalWriteFast(stp, LOW);
-        delayMicroseconds(2);
-
-        leadscrewAngle--;
-        leadscrewAngleCumulative--;
-
-        if (leadscrewAngle <= -1) {
-          leadscrewAngle = 1999;
-        }
-      }
-    }
+    jogRightHeld = true;
+  } else if (event == Button::RELEASED_EVENT) {
+    jogRightHeld = false;
   }
 }
