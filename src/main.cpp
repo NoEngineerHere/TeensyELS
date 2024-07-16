@@ -4,6 +4,7 @@
 #include <Wire.h>
 
 #include "display.h"
+#include "globalstate.h"
 
 #define CW digitalWriteFast(3, HIGH);  // direction output pin
 #define CCW digitalWriteFast(3, LOW);  // direction output pin
@@ -43,6 +44,7 @@ ButtonList keyPad(keys);
 Button setHeldTime(100);
 
 Display display;
+GlobalState &globalState = GlobalState::getInstance();
 
 int EncoderMatrix[16] = {
     0, -1, 1, 2, 1, 0,  2, -1, -1,
@@ -68,7 +70,6 @@ int jogUnsyncedCount;  // when we jog in thread mode we may be "in between"
 int pulsesBackToSync;  // when jogging in thread mode, this stores how many
                        // pulses we need to get back in sync i.e: the stop point
                        // of the thread
-volatile int pulseCount;
 long long lastPulse;
 
 bool jogMode = true;
@@ -116,7 +117,7 @@ void printState() {
   Serial.print("Jog Unsynced Count: ");
   Serial.println(jogUnsyncedCount);
   Serial.print("Pulse Count: ");
-  Serial.println(pulseCount);
+  Serial.println(globalState.getPulseCount());
   Serial.print("Last Pulse: ");
   Serial.println(lastPulse);
   Serial.print("Pulses Back to Sync: ");
@@ -168,7 +169,7 @@ void buttonHeldHandle() {
   if (jogLeftHeld && currentMicros - lastPulse > JOG_PULSE_DELAY_US) {
     jogMode = true;
     synced = false;
-    pulseCount--;
+    globalState.incrementPulseCount(-1);
     jogUnsyncedCount--;
     if (hasPreviouslySynced) {
       pulsesBackToSync++;
@@ -177,7 +178,7 @@ void buttonHeldHandle() {
   } else if (jogRightHeld && currentMicros - lastPulse > JOG_PULSE_DELAY_US) {
     jogMode = true;
     synced = false;
-    pulseCount++;
+    globalState.incrementPulseCount(1);
     jogUnsyncedCount++;
     if (hasPreviouslySynced) {
       pulsesBackToSync--;
@@ -198,9 +199,9 @@ void loop() {
     lastPrint = currentMicros;
   }
 
-  if (pulseCount != 0 ||
+  if (globalState.getPulseCount() != 0 ||
       (jogMode && currentMicros - lastPulse > JOG_PULSE_DELAY_US)) {
-    int directionIncrement = pulseCount > 0 ? -1 : 1;
+    int directionIncrement = globalState.getPulseCount() > 0 ? -1 : 1;
 
     // state 1, motion enabled
     if (enabled || jogMode) {
@@ -216,7 +217,7 @@ void loop() {
         // state 2, motion disabled
 
         // negates encoder pulses if at sync point
-        pulseCount = 0;
+        globalState.setPulseCount(0);
 
         if (driveMode == true) {
           // keep track of pulses to get back in sync with the thread
@@ -229,7 +230,7 @@ void loop() {
         // state 1, jog mode or motion enabled
         // "consume" the pulse by using up the jogUnsyncedCount
         jogUnsyncedCount += directionIncrement;
-        pulseCount += directionIncrement;
+        globalState.incrementPulseCount(directionIncrement);
         lastPulse = micros();
 
         if (jogUnsyncedCount == mod) {
@@ -237,7 +238,7 @@ void loop() {
         }
       } else {
         // change direction based on sign of the pulse count
-        if (pulseCount > 0) {
+        if (globalState.getPulseCount() > 0) {
           CW;
         } else {
           CCW;
@@ -261,11 +262,10 @@ void loop() {
           digitalWriteFast(stp, LOW);
           delayMicroseconds(2);
         }
-
-        pulseCount += directionIncrement;
+        globalState.incrementPulseCount(directionIncrement);
 
         lastPulse = micros();
-        if (!enabled && pulseCount == 0 && jogMode == true) {
+        if (!enabled && globalState.getPulseCount() == 0 && jogMode == true) {
           jogMode = false;
         }
         // if we are threading
@@ -286,7 +286,7 @@ void Achange() {  // validates encoder pulses, adds to pulse variable
   bitWrite(newPos, 0, digitalReadFast(pinA));
   bitWrite(newPos, 1,
            digitalReadFast(pinB));  // adds A to B, converts to integer
-  pulseCount = EncoderMatrix[(oldPos * 4) + newPos];
+  globalState.setPulseCount(EncoderMatrix[(oldPos * 4) + newPos]);
 }
 
 void Bchange() {  // validates encoder pulses, adds to pulse variable
@@ -295,10 +295,10 @@ void Bchange() {  // validates encoder pulses, adds to pulse variable
   bitWrite(newPos, 0, digitalReadFast(pinA));
   bitWrite(newPos, 1,
            digitalReadFast(pinB));  // adds A to B, converts to integer
-  pulseCount =
-      EncoderMatrix[(oldPos * 4) + newPos];  // assigns value from encoder
-                                             // matrix to determine validity
-                                             // and direction of encoder pulse
+  globalState.setPulseCount(
+      EncoderMatrix[(oldPos * 4) + newPos]);  // assigns value from encoder
+                                              // matrix to determine validity
+                                              // and direction of encoder pulse
 }
 
 void rateIncCall(Button::CALLBACK_EVENT event,
