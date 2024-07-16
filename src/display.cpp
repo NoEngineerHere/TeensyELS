@@ -9,7 +9,7 @@
 #include "unlockedSymbol.h"
 
 void Display::init() {
-#ifdef ELS_DISPLAY == SSD1306_128_64
+#if ELS_DISPLAY == SSD1306_128_64
   if (!this->m_ssd1306.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
     Serial.println(F("SSD1306 allocation failed"));
     for (;;);
@@ -18,13 +18,14 @@ void Display::init() {
 #endif
 }
 
-void Display::update(boolean driveMode, float pitch, boolean lock,
-                     boolean enabled) {
+void Display::update(float pitch, boolean lock, boolean enabled) {
+  GlobalState *state = GlobalState::getInstance();
+
 #if ELS_DISPLAY == SSD1306_128_64
   m_ssd1306.clearDisplay();
 #endif
 
-  this->drawMode(driveMode);
+  this->drawMode(state->getMode());
   this->drawPitch(pitch);
   this->drawLocked(lock);
   this->drawEnabled(enabled);
@@ -34,12 +35,12 @@ void Display::update(boolean driveMode, float pitch, boolean lock,
 #endif
 }
 
-void Display::drawMode(boolean driveMode) {
+void Display::drawMode(GlobalMajorMode mode) {
 #if ELS_DISPLAY == SSD1306_128_64
-  if (driveMode == true) {
-    m_ssd1306.drawBitmap(57, 32, threadSymbol, 64, 32, WHITE);
-  } else {
+  if (mode == GlobalMajorMode::FEED) {
     m_ssd1306.drawBitmap(57, 32, feedSymbol, 64, 32, WHITE);
+  } else if (mode == GlobalMajorMode::THREAD) {
+    m_ssd1306.drawBitmap(57, 32, threadSymbol, 64, 32, WHITE);
   }
 #endif
 }
