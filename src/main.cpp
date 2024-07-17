@@ -106,8 +106,18 @@ void printState() {
       Serial.println("Thread");
       break;
   }
-  Serial.print("Enabled: ");
-  Serial.println(enabled ? "True" : "False");
+  Serial.print("Motion Mode: ");
+  switch (globalState->getMotionMode()) {
+    case GlobalMotionMode::DISABLED:
+      Serial.println("Disabled");
+      break;
+    case GlobalMotionMode::JOG:
+      Serial.println("Jog");
+      break;
+    case GlobalMotionMode::ENABLED:
+      Serial.println("Enabled");
+      break;
+  }
   Serial.print("Lock State: ");
   Serial.println(lockState ? "True" : "False");
   Serial.print("Ready to Thread: ");
@@ -125,8 +135,10 @@ void printState() {
   }
   Serial.print("Jog Unsynced Count: ");
   Serial.println(jogUnsyncedCount);
-  Serial.print("Pulse Count: ");
-  Serial.println(globalState->getPulseCount());
+  Serial.print("Expected Position: ");
+  Serial.println(globalState->getExpectedPosition());
+  Serial.print("Current Position: ");
+  Serial.println(globalState->getCurrentPosition());
   Serial.print("Last Pulse: ");
   Serial.println(lastPulse);
   Serial.print("Pulses Back to Sync: ");
@@ -175,19 +187,26 @@ void setup() {
 void buttonHeldHandle() {
   int currentMicros = micros();
 
-  if (jogLeftHeld && currentMicros - lastPulse > JOG_PULSE_DELAY_US) {
-    globalState->setMinorMode(GlobalMinorMode::JOG);
+  int positionError =
+      globalState->getExpectedPosition() - globalState->getCurrentPosition();
+
+  if (positionError > 5) {
+    return;
+  }
+
+  if (jogLeftHeld) {
+    globalState->setMotionMode(GlobalMotionMode::JOG);
     synced = false;
-    globalState->incrementPulseCount(-1);
+    globalState->incrementExpectedPosition(-1);
     jogUnsyncedCount--;
     if (hasPreviouslySynced) {
       pulsesBackToSync++;
     }
 
-  } else if (jogRightHeld && currentMicros - lastPulse > JOG_PULSE_DELAY_US) {
-    globalState->setMinorMode(GlobalMinorMode::JOG);
+  } else if (jogRightHeld) {
+    globalState->setMotionMode(GlobalMotionMode::JOG);
     synced = false;
-    globalState->incrementPulseCount(1);
+    globalState->incrementExpectedPosition(1);
     jogUnsyncedCount++;
     if (hasPreviouslySynced) {
       pulsesBackToSync--;
@@ -208,88 +227,70 @@ void loop() {
     lastPrint = currentMicros;
   }
 
-  if (globalState->getPulseCount() != 0 ||
-      (globalState->getMinorMode() == GlobalMinorMode::JOG &&
-       currentMicros - lastPulse > JOG_PULSE_DELAY_US)) {
-    int directionIncrement = globalState->getPulseCount() > 0 ? -1 : 1;
+  float ratio = (globalState->getMode() == GlobalMajorMode::THREAD
+                     ? threadPitch[feedSelect]
+                     : feedPitch[feedSelect]);
+  int mod = (int)((ELS_SPINDLE_ENCODER_PPR * ratio) / ELS_LEADSCREW_PITCH_MM);
+  int positionError =
+      globalState->getExpectedPosition() - globalState->getCurrentPosition();
+  int directionIncrement = 0;
 
-    // state 1, motion enabled
-    if (enabled || globalState->getMinorMode() == GlobalMinorMode::JOG) {
-      // we have jogged and need to wait for the spindle to move to a point we
-      // can restart we assume we only want to do this in a CW direction (CCW
-      // todo)
-      float ratio = (globalState->getMode() == GlobalMajorMode::THREAD
-                         ? threadPitch[feedSelect]
-                         : feedPitch[feedSelect]);
-      int mod =
-          (int)((ELS_SPINDLE_ENCODER_PPR * ratio) / ELS_LEADSCREW_PITCH_MM);
-      // todo unspaghettify this logic
-      if (synced) {
-        // state 2, motion disabled
+  // Perfectly in sync, nothing to change
+  if (positionError == 0) {
+    return;
+  }
 
-        // negates encoder pulses if at sync point
-        globalState->setPulseCount(0);
+  if (positionError > 0) {
+    CW;
+    directionIncrement = 1;
+  } else {
+    CCW;
+    directionIncrement = -1;
+  }
 
-        if (globalState->getMode() == GlobalMajorMode::THREAD) {
-          // keep track of pulses to get back in sync with the thread
-          pulsesBackToSync += directionIncrement;
-          pulsesBackToSync %= mod;
-        }
-
-      } else if (enabled && jogUnsyncedCount != 0 &&
-                 abs(jogUnsyncedCount) != mod) {
-        // state 1, jog mode or motion enabled
-        // "consume" the pulse by using up the jogUnsyncedCount
-        jogUnsyncedCount += directionIncrement;
-        globalState->incrementPulseCount(directionIncrement);
-        lastPulse = micros();
-
-        if (jogUnsyncedCount == mod) {
-          jogUnsyncedCount = 0;
-        }
-      } else {
-        // change direction based on sign of the pulse count
-        if (globalState->getPulseCount() > 0) {
-          CW;
-        } else {
-          CCW;
-        }
-
-        // "bresenham algorithm", carries
-        // remainder of required motor steps to
-        // next pulse received from spindle
-
-        accumulator +=
-            ELS_LEADSCREW_STEPS_PER_MM * ratio / ELS_LEADSCREW_STEPPER_PPR;
-
-        while (accumulator >= 0) {  // sends required motor steps to motor
-
-          accumulator--;
-
-          // todo try and leverage hardware PWM timer to send set amount of
-          // pulses
-          digitalWriteFast(stp, HIGH);
-          delayMicroseconds(2);
-          digitalWriteFast(stp, LOW);
-          delayMicroseconds(2);
-        }
-        globalState->incrementPulseCount(directionIncrement);
-
-        lastPulse = micros();
-        if (!enabled && globalState->getPulseCount() == 0 &&
-            globalState->getMinorMode() == GlobalMinorMode::JOG) {
-          globalState->setMinorMode(GlobalMinorMode::NONE);
-        }
-        // if we are threading
-        if (enabled && globalState->getMode() == GlobalMajorMode::THREAD &&
-            hasPreviouslySynced) {
-          pulsesBackToSync += directionIncrement;
-        }
-        if (enabled && pulsesBackToSync == 0 && hasPreviouslySynced) {
-          synced = true;
-        }
+  switch (globalState->getMotionMode()) {
+    case GlobalMotionMode::DISABLED:
+      // ignore the spindle
+      break;
+    case GlobalMotionMode::JOG:
+      // only send a pulse if we haven't sent one recently
+      if (currentMicros - lastPulse < JOG_PULSE_DELAY_US) {
+        break;
       }
-    }
+      // if jog is complete go back to disabled motion mode
+      if (globalState->getExpectedPosition() -
+              globalState->getCurrentPosition() ==
+          0) {
+        Serial.println("Jog Complete");
+        globalState->setMotionMode(GlobalMotionMode::DISABLED);
+      }
+      // jogging is a fixed rate based on JOG_PULSE_DELAY_US
+      digitalWriteFast(stp, HIGH);
+      delayMicroseconds(2);
+      digitalWriteFast(stp, LOW);
+      delayMicroseconds(2);
+      lastPulse = currentMicros;
+
+      break;
+    case GlobalMotionMode::ENABLED:
+      // attempt to keep in sync with the leadscrew
+      accumulator +=
+          ELS_LEADSCREW_STEPS_PER_MM * ratio / ELS_LEADSCREW_STEPPER_PPR;
+
+      while (accumulator >= 0) {  // sends required motor steps to motor
+
+        accumulator--;
+
+        // todo try and leverage hardware PWM timer to send set amount of
+        // pulses
+        digitalWriteFast(stp, HIGH);
+        delayMicroseconds(2);
+        digitalWriteFast(stp, LOW);
+        delayMicroseconds(2);
+      }
+      lastPulse = currentMicros;
+      globalState->incrementCurrentPosition(directionIncrement);
+      break;
   }
 }
 
@@ -299,7 +300,7 @@ void Achange() {  // validates encoder pulses, adds to pulse variable
   bitWrite(newPos, 0, digitalReadFast(pinA));
   bitWrite(newPos, 1,
            digitalReadFast(pinB));  // adds A to B, converts to integer
-  globalState->setPulseCount(EncoderMatrix[(oldPos * 4) + newPos]);
+  globalState->incrementExpectedPosition(EncoderMatrix[(oldPos * 4) + newPos]);
 }
 
 void Bchange() {  // validates encoder pulses, adds to pulse variable
@@ -308,7 +309,7 @@ void Bchange() {  // validates encoder pulses, adds to pulse variable
   bitWrite(newPos, 0, digitalReadFast(pinA));
   bitWrite(newPos, 1,
            digitalReadFast(pinB));  // adds A to B, converts to integer
-  globalState->setPulseCount(
+  globalState->incrementExpectedPosition(
       EncoderMatrix[(oldPos * 4) + newPos]);  // assigns value from encoder
                                               // matrix to determine validity
                                               // and direction of encoder pulse
