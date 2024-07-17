@@ -45,6 +45,8 @@ Button setHeldTime(100);
 
 Display display;
 GlobalState* globalState = GlobalState::getInstance();
+Spindle spindle;
+Leadscrew leadscrew(&spindle);
 
 int EncoderMatrix[16] = {
     0, -1, 1, 2, 1, 0,  2, -1, -1,
@@ -136,9 +138,9 @@ void printState() {
   Serial.print("Jog Unsynced Count: ");
   Serial.println(jogUnsyncedCount);
   Serial.print("Expected Position: ");
-  Serial.println(globalState->getExpectedPosition());
+  Serial.println(leadscrew.getExpectedPosition());
   Serial.print("Current Position: ");
-  Serial.println(globalState->getCurrentPosition());
+  Serial.println(leadscrew.getCurrentPosition());
   Serial.print("Last Pulse: ");
   Serial.println(lastPulse);
   Serial.print("Pulses Back to Sync: ");
@@ -188,7 +190,7 @@ void buttonHeldHandle() {
   int currentMicros = micros();
 
   int positionError =
-      globalState->getExpectedPosition() - globalState->getCurrentPosition();
+      leadscrew.getExpectedPosition() - leadscrew.getCurrentPosition();
 
   if (positionError > 5) {
     return;
@@ -197,7 +199,7 @@ void buttonHeldHandle() {
   if (jogLeftHeld) {
     globalState->setMotionMode(GlobalMotionMode::JOG);
     synced = false;
-    globalState->incrementExpectedPosition(-1);
+    leadscrew.incrementCurrentPosition(-1);
     jogUnsyncedCount--;
     if (hasPreviouslySynced) {
       pulsesBackToSync++;
@@ -206,7 +208,7 @@ void buttonHeldHandle() {
   } else if (jogRightHeld) {
     globalState->setMotionMode(GlobalMotionMode::JOG);
     synced = false;
-    globalState->incrementExpectedPosition(1);
+    leadscrew.incrementCurrentPosition(1);
     jogUnsyncedCount++;
     if (hasPreviouslySynced) {
       pulsesBackToSync--;
@@ -227,18 +229,11 @@ void loop() {
     lastPrint = currentMicros;
   }
 
-  float ratio = (globalState->getMode() == GlobalMajorMode::THREAD
-                     ? threadPitch[feedSelect]
-                     : feedPitch[feedSelect]);
-  int mod = (int)((ELS_SPINDLE_ENCODER_PPR * ratio) / ELS_LEADSCREW_PITCH_MM);
+  int mod = (int)((ELS_SPINDLE_ENCODER_PPR * leadscrew.getRatio()) /
+                  ELS_LEADSCREW_PITCH_MM);
   int positionError =
-      globalState->getExpectedPosition() - globalState->getCurrentPosition();
+      leadscrew.getExpectedPosition() - leadscrew.getCurrentPosition();
   int directionIncrement = 0;
-
-  // Perfectly in sync, nothing to change
-  if (positionError == 0) {
-    return;
-  }
 
   if (positionError > 0) {
     CW;
@@ -250,7 +245,8 @@ void loop() {
 
   switch (globalState->getMotionMode()) {
     case GlobalMotionMode::DISABLED:
-      // ignore the spindle
+      // ignore the spindle, pretend we're in sync all the time
+      leadscrew.resetCurrentPosition();
       break;
     case GlobalMotionMode::JOG:
       // only send a pulse if we haven't sent one recently
@@ -258,9 +254,7 @@ void loop() {
         break;
       }
       // if jog is complete go back to disabled motion mode
-      if (globalState->getExpectedPosition() -
-              globalState->getCurrentPosition() ==
-          0) {
+      if (leadscrew.getCurrentPosition() == leadscrew.getExpectedPosition()) {
         Serial.println("Jog Complete");
         globalState->setMotionMode(GlobalMotionMode::DISABLED);
       }
@@ -274,8 +268,8 @@ void loop() {
       break;
     case GlobalMotionMode::ENABLED:
       // attempt to keep in sync with the leadscrew
-      accumulator +=
-          ELS_LEADSCREW_STEPS_PER_MM * ratio / ELS_LEADSCREW_STEPPER_PPR;
+      accumulator += ELS_LEADSCREW_STEPS_PER_MM * leadscrew.getRatio() /
+                     ELS_LEADSCREW_STEPPER_PPR;
 
       while (accumulator >= 0) {  // sends required motor steps to motor
 
@@ -287,9 +281,10 @@ void loop() {
         delayMicroseconds(2);
         digitalWriteFast(stp, LOW);
         delayMicroseconds(2);
+        leadscrew.incrementCurrentPosition(directionIncrement);
       }
       lastPulse = currentMicros;
-      globalState->incrementCurrentPosition(directionIncrement);
+
       break;
   }
 }
@@ -300,7 +295,7 @@ void Achange() {  // validates encoder pulses, adds to pulse variable
   bitWrite(newPos, 0, digitalReadFast(pinA));
   bitWrite(newPos, 1,
            digitalReadFast(pinB));  // adds A to B, converts to integer
-  globalState->incrementExpectedPosition(EncoderMatrix[(oldPos * 4) + newPos]);
+  spindle.incrementCurrentPosition(EncoderMatrix[(oldPos * 4) + newPos]);
 }
 
 void Bchange() {  // validates encoder pulses, adds to pulse variable
@@ -309,7 +304,7 @@ void Bchange() {  // validates encoder pulses, adds to pulse variable
   bitWrite(newPos, 0, digitalReadFast(pinA));
   bitWrite(newPos, 1,
            digitalReadFast(pinB));  // adds A to B, converts to integer
-  globalState->incrementExpectedPosition(
+  spindle.incrementCurrentPosition(
       EncoderMatrix[(oldPos * 4) + newPos]);  // assigns value from encoder
                                               // matrix to determine validity
                                               // and direction of encoder pulse
@@ -330,10 +325,7 @@ void rateIncCall(Button::CALLBACK_EVENT event,
       else {
         feedSelect = 0;
       }
-      display.update(globalState->getMode() == GlobalMajorMode::THREAD
-                         ? threadPitch[feedSelect]
-                         : feedPitch[feedSelect],
-                     lockState, enabled);
+      display.update(leadscrew.getRatio(), lockState, enabled);
     }
   }
 }
@@ -353,10 +345,7 @@ void rateDecCall(Button::CALLBACK_EVENT event,
         feedSelect = 19;
       }
 
-      display.update(globalState->getMode() == GlobalMajorMode::THREAD
-                         ? threadPitch[feedSelect]
-                         : feedPitch[feedSelect],
-                     lockState, enabled);
+      display.update(leadscrew.getRatio(), lockState, enabled);
     }
   }
 }
@@ -386,11 +375,9 @@ void enaCall(Button::CALLBACK_EVENT event,
     else {
       // set jogUnsyncedCount to remainder of spindle pulses based on current
       // feed rate
-      float ratio = (globalState->getMode() == GlobalMajorMode::THREAD
-                         ? threadPitch[feedSelect]
-                         : feedPitch[feedSelect]);
-      int mod =
-          (int)((ELS_SPINDLE_ENCODER_PPR * ratio) / ELS_LEADSCREW_PITCH_MM);
+
+      int mod = (int)((ELS_SPINDLE_ENCODER_PPR * leadscrew.getRatio()) /
+                      ELS_LEADSCREW_PITCH_MM);
       jogUnsyncedCount = jogUnsyncedCount % mod;
 
       Serial.print("mod:");
@@ -401,10 +388,7 @@ void enaCall(Button::CALLBACK_EVENT event,
       enabled = true;
     }
 
-    display.update(globalState->getMode() == GlobalMajorMode::THREAD
-                       ? threadPitch[feedSelect]
-                       : feedPitch[feedSelect],
-                   lockState, enabled);
+    display.update(leadscrew.getRatio(), lockState, enabled);
   }
 }
 
@@ -415,9 +399,7 @@ void lockCall(Button::CALLBACK_EVENT event,
   if (event == Button::PRESSED_EVENT) {
     lockState = !lockState;
 
-    display.update(globalState->getMode() == GlobalMajorMode::THREAD
-                       ? threadPitch[feedSelect]
-                       : feedPitch[feedSelect],
+    display.update(leadscrew.getRatio(),
                    lockState, enabled);
   }
 }
