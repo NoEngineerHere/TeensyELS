@@ -2,13 +2,14 @@
 #include "axis/axis.h"
 #include "axis/leadscrew/leadscrew.h"
 #include "axis/spindle/spindle.h"
+#include "config.h"
 
 #pragma once
 
 // Major modes are the main modes of the application, like the feed or thread
 // The spindle acts the same way in both threading and feeding mode
 // this is just for the indicator on the screen
-enum GlobalMajorMode { FEED, THREAD };
+enum GlobalFeedMode { FEED, THREAD };
 
 // The motion mode of the leadscrew in relation to the spindle
 // Disabled: The leadscrew does not move when the spindle is moving
@@ -16,16 +17,25 @@ enum GlobalMajorMode { FEED, THREAD };
 // Enabled: The leadscrew is moving in sync with the spindle
 enum GlobalMotionMode { DISABLED, JOG, ENABLED };
 
+/**
+ * The unit mode of the application, usually for threading
+ * Choose either the superior metric system or the deprecated imperial system
+ */
+enum GlobalUnitMode { METRIC, IMPERIAL };
+
 // this is a singleton class - we don't want more than one of these existing at
 // a time!
 class GlobalState {
  private:
   static GlobalState *m_instance;
 
-    // todo jogging better
+  // todo jogging better
 
-  GlobalMajorMode m_mode;
+  GlobalFeedMode m_feedMode;
   GlobalMotionMode m_minorMode;
+  GlobalUnitMode m_unitMode;
+
+  int m_feedSelect;
 
   // pulse count for the "stop" positions of the spindle
   int m_stop1Position;
@@ -38,7 +48,9 @@ class GlobalState {
   int m_resyncPulseCount;
 
   GlobalState() {
-    m_mode = THREAD;
+    m_feedSelect = 0;
+    setFeedMode(DEFAULT_FEED_MODE);
+    setUnitMode(DEFAULT_UNIT_MODE);
     m_minorMode = DISABLED;
     m_stop1Position = 0;
     m_stop2Position = 0;
@@ -52,11 +64,20 @@ class GlobalState {
 
   static GlobalState *getInstance();
 
-  void setMode(GlobalMajorMode mode);
-  GlobalMajorMode getMode();
+  void setFeedMode(GlobalFeedMode mode);
+  GlobalFeedMode getFeedMode();
 
   void setMotionMode(GlobalMotionMode mode);
   GlobalMotionMode getMotionMode();
+
+  void setUnitMode(GlobalUnitMode mode);
+  GlobalUnitMode getUnitMode();
+
+  void setFeedSelect(int select);
+  int getFeedSelect();
+  float getCurrentFeedPitch();
+  int nextFeedPitch();
+  int prevFeedPitch();
 
   void setStopPosition(int position, int pulseCount);
   int getStopPosition(int position);

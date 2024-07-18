@@ -3,6 +3,7 @@
 #include <SPI.h>
 #include <Wire.h>
 
+#include "config.h"
 #include "display.h"
 #include "globalstate.h"
 
@@ -79,19 +80,11 @@ bool lockState = true;
 bool readyToThread = false;
 bool synced = false;
 bool hasPreviouslySynced = false;
-int feedSelect = 8;
 int jogRate;
 boolean jogLeftHeld;
 boolean jogRightHeld;
 
 // UI Values
-// these are how many leadscrew pulses we need to send per spindle pulse
-const float threadPitch[20] = {0.35, 0.40, 0.45, 0.50, 0.60, 0.70, 0.80,
-                               1.00, 1.25, 1.50, 1.75, 2.00, 2.50, 3.00,
-                               3.50, 4.00, 4.50, 5.00, 5.50, 6.00};
-const float feedPitch[20] = {0.05, 0.08, 0.10, 0.12, 0.15, 0.18, 0.20,
-                             0.23, 0.25, 0.28, 0.30, 0.35, 0.40, 0.45,
-                             0.50, 0.55, 0.60, 0.65, 0.70, 0.75};
 
 void Achange();
 void Bchange();
@@ -100,11 +93,11 @@ void modeHandle();
 void printState() {
   Serial.println();
   Serial.print("Drive Mode: ");
-  switch (globalState->getMode()) {
-    case GlobalMajorMode::FEED:
+  switch (globalState->getFeedMode()) {
+    case GlobalFeedMode::FEED:
       Serial.println("Feed");
       break;
-    case GlobalMajorMode::THREAD:
+    case GlobalFeedMode::THREAD:
       Serial.println("Thread");
       break;
   }
@@ -126,13 +119,31 @@ void printState() {
   Serial.println(readyToThread ? "True" : "False");
   Serial.print("Synced: ");
   Serial.println(synced ? "True" : "False");
-  Serial.print("Feed Select: ");
-  switch (globalState->getMode()) {
-    case GlobalMajorMode::FEED:
-      Serial.println(feedPitch[feedSelect]);
+  Serial.print("Feed Mode: ");
+  switch (globalState->getFeedMode()) {
+    case GlobalFeedMode::FEED:
+      Serial.println("Feed");
       break;
-    case GlobalMajorMode::THREAD:
-      Serial.println(threadPitch[feedSelect]);
+    case GlobalFeedMode::THREAD:
+      Serial.println("Thread");
+      break;
+  }
+  Serial.print("Feed Select: ");
+  switch (globalState->getFeedMode()) {
+    case GlobalFeedMode::FEED:
+      Serial.println(globalState->getCurrentFeedPitch());
+      break;
+    case GlobalFeedMode::THREAD:
+      Serial.println(globalState->getCurrentFeedPitch());
+      break;
+  }
+  Serial.print("Unit Mode: ");
+  switch (globalState->getUnitMode()) {
+    case GlobalUnitMode::METRIC:
+      Serial.println("Metric");
+      break;
+    case GlobalUnitMode::IMPERIAL:
+      Serial.println("Imperial");
       break;
   }
   Serial.print("Jog Unsynced Count: ");
@@ -152,6 +163,16 @@ void printState() {
 }
 
 void setup() {
+  // config - compile time checks for safety
+  CHECK_BOUNDS(DEFAULT_METRIC_THREAD_PITCH_IDX, threadPitchMetric,
+               "DEFAULT_METRIC_THREAD_PITCH_IDX out of bounds");
+  CHECK_BOUNDS(DEFAULT_METRIC_FEED_PITCH_IDX, feedPitchMetric,
+               "DEFAULT_METRIC_FEED_PITCH_IDX out of bounds");
+  CHECK_BOUNDS(DEFAULT_IMPERIAL_THREAD_PITCH_IDX, threadPitchImperial,
+               "DEFAULT_IMPERIAL_THREAD_PITCH_IDX out of bounds");
+  CHECK_BOUNDS(DEFAULT_IMPERIAL_FEED_PITCH_IDX, feedPitchImperial,
+               "DEFAULT_IMPERIAL_FEED_PITCH_IDX out of bounds");
+
   // Pinmodes
 
   pinMode(14, INPUT_PULLUP);  // encoder pin 1
@@ -178,10 +199,8 @@ void setup() {
   // Display Initalisation
 
   display.init();
-  display.update(globalState->getMode() == GlobalMajorMode::THREAD
-                     ? threadPitch[feedSelect]
-                     : feedPitch[feedSelect],
-                 lockState, enabled);
+
+  display.update(lockState, enabled);
 
   printState();
 }
@@ -315,17 +334,11 @@ void rateIncCall(Button::CALLBACK_EVENT event,
   Serial.println("Rate Inc Call");
   printState();
 
-  if (globalState->getMode() == GlobalMajorMode::FEED ||
+  if (globalState->getFeedMode() == GlobalFeedMode::FEED ||
       ((micros() - lastPulse) > safetyDelay && lockState == false)) {
     if (event == Button::PRESSED_EVENT) {
-      if (feedSelect < 19) {
-        feedSelect++;
-      }
-
-      else {
-        feedSelect = 0;
-      }
-      display.update(leadscrew.getRatio(), lockState, enabled);
+      globalState->nextFeedPitch();
+      display.update(lockState, enabled);
     }
   }
 }
@@ -334,18 +347,12 @@ void rateDecCall(Button::CALLBACK_EVENT event,
                  uint8_t) {  // decreases feedSelect variable on button press
   Serial.println("Rate Dec Call");
   printState();
-  if (globalState->getMode() == GlobalMajorMode::FEED ||
+  if (globalState->getFeedMode() == GlobalFeedMode::FEED ||
       ((micros() - lastPulse) > safetyDelay && lockState == false)) {
     if (event == Button::PRESSED_EVENT) {
-      if (feedSelect > 0) {
-        feedSelect--;
-      }
+      globalState->prevFeedPitch();
 
-      else {
-        feedSelect = 19;
-      }
-
-      display.update(leadscrew.getRatio(), lockState, enabled);
+      display.update(lockState, enabled);
     }
   }
 }
@@ -355,7 +362,7 @@ void halfNutCall(Button::CALLBACK_EVENT event,
   Serial.println("Half Nut Call");
   printState();
   if (event == Button::PRESSED_EVENT &&
-      globalState->getMode() == GlobalMajorMode::THREAD) {
+      globalState->getFeedMode() == GlobalFeedMode::THREAD) {
     readyToThread = true;
     synced = true;
     hasPreviouslySynced = true;
@@ -388,7 +395,7 @@ void enaCall(Button::CALLBACK_EVENT event,
       enabled = true;
     }
 
-    display.update(leadscrew.getRatio(), lockState, enabled);
+    display.update(lockState, enabled);
   }
 }
 
@@ -399,8 +406,7 @@ void lockCall(Button::CALLBACK_EVENT event,
   if (event == Button::PRESSED_EVENT) {
     lockState = !lockState;
 
-    display.update(leadscrew.getRatio(),
-                   lockState, enabled);
+    display.update(lockState, enabled);
   }
 }
 
@@ -427,19 +433,16 @@ void modeCycleCall(
   printState();
   if (event == Button::PRESSED_EVENT && (micros() - lastPulse) > safetyDelay &&
       lockState == false) {
-    switch (globalState->getMode()) {
-      case GlobalMajorMode::FEED:
-        globalState->setMode(GlobalMajorMode::THREAD);
+    switch (globalState->getFeedMode()) {
+      case GlobalFeedMode::FEED:
+        globalState->setFeedMode(GlobalFeedMode::THREAD);
         break;
-      case GlobalMajorMode::THREAD:
-        globalState->setMode(GlobalMajorMode::FEED);
+      case GlobalFeedMode::THREAD:
+        globalState->setFeedMode(GlobalFeedMode::FEED);
         break;
     }
 
-    display.update(globalState->getMode() == GlobalMajorMode::THREAD
-                       ? threadPitch[feedSelect]
-                       : feedPitch[feedSelect],
-                   lockState, enabled);
+    display.update(lockState, enabled);
   }
 }
 

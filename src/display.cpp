@@ -18,15 +18,15 @@ void Display::init() {
 #endif
 }
 
-void Display::update(float pitch, boolean lock, boolean enabled) {
+void Display::update(boolean lock, boolean enabled) {
   GlobalState *state = GlobalState::getInstance();
 
 #if ELS_DISPLAY == SSD1306_128_64
   m_ssd1306.clearDisplay();
 #endif
 
-  this->drawMode(state->getMode());
-  this->drawPitch(pitch);
+  this->drawMode(state->getFeedMode());
+  this->drawPitch(0, state->getUnitMode());
   this->drawLocked(lock);
   this->drawEnabled(enabled);
 
@@ -35,17 +35,17 @@ void Display::update(float pitch, boolean lock, boolean enabled) {
 #endif
 }
 
-void Display::drawMode(GlobalMajorMode mode) {
+void Display::drawMode(GlobalFeedMode mode) {
 #if ELS_DISPLAY == SSD1306_128_64
-  if (mode == GlobalMajorMode::FEED) {
+  if (mode == GlobalFeedMode::FEED) {
     m_ssd1306.drawBitmap(57, 32, feedSymbol, 64, 32, WHITE);
-  } else if (mode == GlobalMajorMode::THREAD) {
+  } else if (mode == GlobalFeedMode::THREAD) {
     m_ssd1306.drawBitmap(57, 32, threadSymbol, 64, 32, WHITE);
   }
 #endif
 }
 
-void Display::drawPitch(float pitch) {
+void Display::drawPitch(float pitch, GlobalUnitMode unit) {
 #if ELS_DISPLAY == SSD1306_128_64
   m_ssd1306.setCursor(55, 8);
   m_ssd1306.setTextSize(3);
