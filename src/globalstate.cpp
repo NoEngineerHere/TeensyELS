@@ -18,6 +18,7 @@ void GlobalState::setFeedMode(GlobalFeedMode mode) {
 
 GlobalFeedMode GlobalState::getFeedMode() { return m_feedMode; }
 
+int GlobalState::getFeedSelect() { return m_feedSelect; }
 void GlobalState::setFeedSelect(int select) {
   int max_selection = 0;
 

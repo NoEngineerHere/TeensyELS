@@ -36,8 +36,8 @@ class Display {
   void update(boolean lock, boolean enabled);
 
  protected:
-  void drawMode(GlobalFeedMode mode);
-  void drawPitch(float rate, GlobalUnitMode unit);
+  void drawMode();
+  void drawPitch();
   void drawEnabled(boolean enabled);
   void drawLocked(boolean locked);
 };

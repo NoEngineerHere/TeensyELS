@@ -431,8 +431,22 @@ void modeCycleCall(
     uint8_t) {  // toggles between thread / feed modes on button press
   Serial.println("Mode Cycle Call");
   printState();
-  if (event == Button::PRESSED_EVENT && (micros() - lastPulse) > safetyDelay &&
-      lockState == false) {
+  if ((micros() - lastPulse) < safetyDelay || lockState == true) {
+    return;
+  }
+  // holding mode button swaps between metric and imperial
+  if (event == Button::HELD_EVENT) {
+    switch (globalState->getUnitMode()) {
+      case GlobalUnitMode::METRIC:
+        globalState->setUnitMode(GlobalUnitMode::IMPERIAL);
+        break;
+      case GlobalUnitMode::IMPERIAL:
+        globalState->setUnitMode(GlobalUnitMode::METRIC);
+        break;
+    }
+  }
+  // pressing mode button swaps between feed and thread
+  else if (event == Button::PRESSED_EVENT) {
     switch (globalState->getFeedMode()) {
       case GlobalFeedMode::FEED:
         globalState->setFeedMode(GlobalFeedMode::THREAD);

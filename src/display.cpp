@@ -1,5 +1,8 @@
 #include "display.h"
 
+#include "config.h"
+#include "globalstate.h"
+
 // Images
 #include "feedSymbol.h"
 #include "lockedSymbol.h"
@@ -19,14 +22,12 @@ void Display::init() {
 }
 
 void Display::update(boolean lock, boolean enabled) {
-  GlobalState *state = GlobalState::getInstance();
-
 #if ELS_DISPLAY == SSD1306_128_64
   m_ssd1306.clearDisplay();
 #endif
 
-  this->drawMode(state->getFeedMode());
-  this->drawPitch(0, state->getUnitMode());
+  this->drawMode();
+  this->drawPitch();
   this->drawLocked(lock);
   this->drawEnabled(enabled);
 
@@ -35,7 +36,9 @@ void Display::update(boolean lock, boolean enabled) {
 #endif
 }
 
-void Display::drawMode(GlobalFeedMode mode) {
+void Display::drawMode() {
+  GlobalFeedMode mode = GlobalState::getInstance()->getFeedMode();
+
 #if ELS_DISPLAY == SSD1306_128_64
   if (mode == GlobalFeedMode::FEED) {
     m_ssd1306.drawBitmap(57, 32, feedSymbol, 64, 32, WHITE);
@@ -45,10 +48,29 @@ void Display::drawMode(GlobalFeedMode mode) {
 #endif
 }
 
-void Display::drawPitch(float pitch, GlobalUnitMode unit) {
+void Display::drawPitch() {
+  GlobalState *state = GlobalState::getInstance();
+  GlobalUnitMode unit = state->getUnitMode();
+  GlobalFeedMode mode = state->getFeedMode();
+  int feedSelect = state->getFeedSelect();
+  char pitch[10];
+  if (unit == GlobalUnitMode::METRIC) {
+    if (mode == GlobalFeedMode::THREAD) {
+      sprintf(pitch, "%.2fmm", threadPitchMetric[feedSelect]);
+    } else {
+      sprintf(pitch, "%.2fmm", feedPitchMetric[feedSelect]);
+    }
+  } else {
+    if (mode == GlobalFeedMode::THREAD) {
+      sprintf(pitch, "%dTPI", (int)threadPitchImperial[feedSelect]);
+    } else {
+      sprintf(pitch, "%dth", (int)feedPitchImperial[feedSelect] * 1000);
+    }
+  }
+
 #if ELS_DISPLAY == SSD1306_128_64
   m_ssd1306.setCursor(55, 8);
-  m_ssd1306.setTextSize(3);
+  m_ssd1306.setTextSize(2);
   m_ssd1306.setTextColor(WHITE);
   m_ssd1306.print(pitch);
 #endif
