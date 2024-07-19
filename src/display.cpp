@@ -64,7 +64,7 @@ void Display::drawPitch() {
     if (mode == GlobalFeedMode::THREAD) {
       sprintf(pitch, "%dTPI", (int)threadPitchImperial[feedSelect]);
     } else {
-      sprintf(pitch, "%dth", (int)feedPitchImperial[feedSelect] * 1000);
+      sprintf(pitch, "%dth", (int)(feedPitchImperial[feedSelect] * 1000));
     }
   }
 

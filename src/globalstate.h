@@ -81,4 +81,7 @@ class GlobalState {
 
   void setStopPosition(int position, int pulseCount);
   int getStopPosition(int position);
+
+ protected:
+  int getCurrentFeedSelectArraySize();
 };

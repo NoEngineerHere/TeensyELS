@@ -10,11 +10,8 @@
 #define CW digitalWriteFast(3, HIGH);  // direction output pin
 #define CCW digitalWriteFast(3, LOW);  // direction output pin
 
-using Button = AblePullupCallbackButton;  // AblePullupButton; // Using basic
-                                          // pull-up resistor circuit.
-using ButtonList =
-    AblePullupCallbackButtonList;  // AblePullupButtonList; // Using basic
-                                   // pull-up button list.
+using Button = AblePullupCallbackDoubleClickerButton;
+using ButtonList = AblePullupCallbackDoubleClickerButtonList;
 
 void rateIncCall(Button::CALLBACK_EVENT, unsigned char);
 void rateDecCall(Button::CALLBACK_EVENT, unsigned char);
@@ -334,9 +331,8 @@ void rateIncCall(Button::CALLBACK_EVENT event,
   Serial.println("Rate Inc Call");
   printState();
 
-  if (globalState->getFeedMode() == GlobalFeedMode::FEED ||
-      ((micros() - lastPulse) > safetyDelay && lockState == false)) {
-    if (event == Button::PRESSED_EVENT) {
+  if ((micros() - lastPulse) > safetyDelay && lockState == false) {
+    if (event == Button::SINGLE_CLICKED_EVENT) {
       globalState->nextFeedPitch();
       display.update(lockState, enabled);
     }
@@ -347,8 +343,7 @@ void rateDecCall(Button::CALLBACK_EVENT event,
                  uint8_t) {  // decreases feedSelect variable on button press
   Serial.println("Rate Dec Call");
   printState();
-  if (globalState->getFeedMode() == GlobalFeedMode::FEED ||
-      ((micros() - lastPulse) > safetyDelay && lockState == false)) {
+  if (((micros() - lastPulse) > safetyDelay && lockState == false)) {
     if (event == Button::PRESSED_EVENT) {
       globalState->prevFeedPitch();
 
@@ -361,7 +356,7 @@ void halfNutCall(Button::CALLBACK_EVENT event,
                  uint8_t) {  // sets readyToThread to true on button hold
   Serial.println("Half Nut Call");
   printState();
-  if (event == Button::PRESSED_EVENT &&
+  if (event == Button::SINGLE_CLICKED_EVENT &&
       globalState->getFeedMode() == GlobalFeedMode::THREAD) {
     readyToThread = true;
     synced = true;
@@ -429,11 +424,13 @@ void threadSyncCall(Button::CALLBACK_EVENT event,
 void modeCycleCall(
     Button::CALLBACK_EVENT event,
     uint8_t) {  // toggles between thread / feed modes on button press
-  Serial.println("Mode Cycle Call");
+  Serial.print("Mode Cycle Call");
+  Serial.println(event);
   printState();
   if ((micros() - lastPulse) < safetyDelay || lockState == true) {
     return;
   }
+
   // holding mode button swaps between metric and imperial
   if (event == Button::HELD_EVENT) {
     switch (globalState->getUnitMode()) {
@@ -446,7 +443,7 @@ void modeCycleCall(
     }
   }
   // pressing mode button swaps between feed and thread
-  else if (event == Button::PRESSED_EVENT) {
+  else if (event == Button::SINGLE_CLICKED_EVENT) {
     switch (globalState->getFeedMode()) {
       case GlobalFeedMode::FEED:
         globalState->setFeedMode(GlobalFeedMode::THREAD);
@@ -455,9 +452,8 @@ void modeCycleCall(
         globalState->setFeedMode(GlobalFeedMode::FEED);
         break;
     }
-
-    display.update(lockState, enabled);
   }
+  display.update(lockState, enabled);
 }
 
 void jogLeftCall(Button::CALLBACK_EVENT event,

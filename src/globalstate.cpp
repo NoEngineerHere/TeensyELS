@@ -19,26 +19,29 @@ void GlobalState::setFeedMode(GlobalFeedMode mode) {
 GlobalFeedMode GlobalState::getFeedMode() { return m_feedMode; }
 
 int GlobalState::getFeedSelect() { return m_feedSelect; }
-void GlobalState::setFeedSelect(int select) {
-  int max_selection = 0;
-
+int GlobalState::getCurrentFeedSelectArraySize() {
   // this just ensures that the feedSelect doesn't go out of bounds for the
   // current arry
   if (m_unitMode == METRIC) {
     if (m_feedMode == THREAD) {
-      max_selection = ARRAY_SIZE(threadPitchMetric);
+      return ARRAY_SIZE(threadPitchMetric);
     } else {
-      max_selection = ARRAY_SIZE(feedPitchMetric);
+      return ARRAY_SIZE(feedPitchMetric);
     }
   } else {
     if (m_feedMode == THREAD) {
-      max_selection = ARRAY_SIZE(threadPitchImperial);
+      return ARRAY_SIZE(threadPitchImperial);
     } else {
-      max_selection = ARRAY_SIZE(feedPitchImperial);
+      return ARRAY_SIZE(feedPitchImperial);
     }
   }
 
-  if (select >= 0 && select < max_selection) {
+  // invalid - should never get here!
+  return -1;
+}
+
+void GlobalState::setFeedSelect(int select) {
+  if (select >= 0 && select < getCurrentFeedSelectArraySize()) {
     m_feedSelect = select;
   } else {
     // if we're out of bounds, just set the default
@@ -77,13 +80,17 @@ float GlobalState::getCurrentFeedPitch() {
 }
 
 int GlobalState::nextFeedPitch() {
-  setFeedSelect(m_feedSelect + 1);
+  if (m_feedSelect != getCurrentFeedSelectArraySize() - 1) {
+    setFeedSelect(m_feedSelect + 1);
+  }
 
   return m_feedSelect;
 }
 
 int GlobalState::prevFeedPitch() {
-  setFeedSelect(m_feedSelect - 1);
+  if (m_feedSelect != 0) {
+    setFeedSelect(m_feedSelect - 1);
+  }
 
   return m_feedSelect;
 }
