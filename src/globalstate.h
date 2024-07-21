@@ -23,17 +23,26 @@ enum GlobalMotionMode { DISABLED, JOG, ENABLED };
  */
 enum GlobalUnitMode { METRIC, IMPERIAL };
 
+/**
+ * The state of the global thread sync
+ * Sync: The spindle and leadscrew are in sync
+ * Unsync: The spindle and leadscrew are out of sync
+ */
+enum GlobalThreadSyncState { SYNC, UNSYNC };
+
 // this is a singleton class - we don't want more than one of these existing at
 // a time!
 class GlobalState {
  private:
   static GlobalState *m_instance;
 
-  // todo jogging better
+  Spindle m_spindle;
+  Leadscrew m_leadscrew;
 
   GlobalFeedMode m_feedMode;
-  GlobalMotionMode m_minorMode;
+  GlobalMotionMode m_motionMode;
   GlobalUnitMode m_unitMode;
+  GlobalThreadSyncState m_threadSyncState;
 
   int m_feedSelect;
 
@@ -47,11 +56,12 @@ class GlobalState {
   // required
   int m_resyncPulseCount;
 
-  GlobalState() {
-    m_feedSelect = 0;
+  GlobalState() : m_spindle(), m_leadscrew(&m_spindle) {
     setFeedMode(DEFAULT_FEED_MODE);
     setUnitMode(DEFAULT_UNIT_MODE);
-    m_minorMode = DISABLED;
+    setFeedSelect(-1);
+    setThreadSyncState(UNSYNC);
+    m_motionMode = DISABLED;
     m_stop1Position = 0;
     m_stop2Position = 0;
     m_resyncPulseCount = 0;
@@ -63,6 +73,7 @@ class GlobalState {
   void operator=(GlobalState const &) = delete;
 
   static GlobalState *getInstance();
+  void printState();
 
   void setFeedMode(GlobalFeedMode mode);
   GlobalFeedMode getFeedMode();
@@ -73,11 +84,23 @@ class GlobalState {
   void setUnitMode(GlobalUnitMode mode);
   GlobalUnitMode getUnitMode();
 
+  void setThreadSyncState(GlobalThreadSyncState state);
+  GlobalThreadSyncState getThreadSyncState();
+
   void setFeedSelect(int select);
   int getFeedSelect();
   float getCurrentFeedPitch();
   int nextFeedPitch();
   int prevFeedPitch();
+
+  void incrementSpindlePosition(int amount);
+  void resetSpindlePosition();
+
+  int getLeadscrewPositionError();
+  void incrementLeadscrewPosition(int amount);
+  void resetLeadscrewPosition();
+  // todo better name?
+  float getLeadscrewStepAccumulator();
 
   void setStopPosition(int position, int pulseCount);
   int getStopPosition(int position);

@@ -43,8 +43,6 @@ Button setHeldTime(100);
 
 Display display;
 GlobalState* globalState = GlobalState::getInstance();
-Spindle spindle;
-Leadscrew leadscrew(&spindle);
 
 int EncoderMatrix[16] = {
     0, -1, 1, 2, 1, 0,  2, -1, -1,
@@ -72,12 +70,8 @@ int pulsesBackToSync;  // when jogging in thread mode, this stores how many
                        // of the thread
 long long lastPulse;
 
-bool enabled = false;
 bool lockState = true;
 bool readyToThread = false;
-bool synced = false;
-bool hasPreviouslySynced = false;
-int jogRate;
 boolean jogLeftHeld;
 boolean jogRightHeld;
 
@@ -86,78 +80,6 @@ boolean jogRightHeld;
 void Achange();
 void Bchange();
 void modeHandle();
-
-void printState() {
-  Serial.println();
-  Serial.print("Drive Mode: ");
-  switch (globalState->getFeedMode()) {
-    case GlobalFeedMode::FEED:
-      Serial.println("Feed");
-      break;
-    case GlobalFeedMode::THREAD:
-      Serial.println("Thread");
-      break;
-  }
-  Serial.print("Motion Mode: ");
-  switch (globalState->getMotionMode()) {
-    case GlobalMotionMode::DISABLED:
-      Serial.println("Disabled");
-      break;
-    case GlobalMotionMode::JOG:
-      Serial.println("Jog");
-      break;
-    case GlobalMotionMode::ENABLED:
-      Serial.println("Enabled");
-      break;
-  }
-  Serial.print("Lock State: ");
-  Serial.println(lockState ? "True" : "False");
-  Serial.print("Ready to Thread: ");
-  Serial.println(readyToThread ? "True" : "False");
-  Serial.print("Synced: ");
-  Serial.println(synced ? "True" : "False");
-  Serial.print("Feed Mode: ");
-  switch (globalState->getFeedMode()) {
-    case GlobalFeedMode::FEED:
-      Serial.println("Feed");
-      break;
-    case GlobalFeedMode::THREAD:
-      Serial.println("Thread");
-      break;
-  }
-  Serial.print("Feed Select: ");
-  switch (globalState->getFeedMode()) {
-    case GlobalFeedMode::FEED:
-      Serial.println(globalState->getCurrentFeedPitch());
-      break;
-    case GlobalFeedMode::THREAD:
-      Serial.println(globalState->getCurrentFeedPitch());
-      break;
-  }
-  Serial.print("Unit Mode: ");
-  switch (globalState->getUnitMode()) {
-    case GlobalUnitMode::METRIC:
-      Serial.println("Metric");
-      break;
-    case GlobalUnitMode::IMPERIAL:
-      Serial.println("Imperial");
-      break;
-  }
-  Serial.print("Jog Unsynced Count: ");
-  Serial.println(jogUnsyncedCount);
-  Serial.print("Expected Position: ");
-  Serial.println(leadscrew.getExpectedPosition());
-  Serial.print("Current Position: ");
-  Serial.println(leadscrew.getCurrentPosition());
-  Serial.print("Last Pulse: ");
-  Serial.println(lastPulse);
-  Serial.print("Pulses Back to Sync: ");
-  Serial.println(pulsesBackToSync);
-  Serial.print("Has previously synced: ");
-  Serial.println(hasPreviouslySynced);
-  Serial.print("micros: ");
-  Serial.println(micros());
-}
 
 void setup() {
   // config - compile time checks for safety
@@ -197,16 +119,15 @@ void setup() {
 
   display.init();
 
-  display.update(lockState, enabled);
+  display.update(lockState);
 
-  printState();
+  globalState->printState();
 }
 
 void buttonHeldHandle() {
   int currentMicros = micros();
 
-  int positionError =
-      leadscrew.getExpectedPosition() - leadscrew.getCurrentPosition();
+  int positionError = globalState->getLeadscrewPositionError();
 
   if (positionError > 5) {
     return;
@@ -214,21 +135,13 @@ void buttonHeldHandle() {
 
   if (jogLeftHeld) {
     globalState->setMotionMode(GlobalMotionMode::JOG);
-    synced = false;
-    leadscrew.incrementCurrentPosition(-1);
-    jogUnsyncedCount--;
-    if (hasPreviouslySynced) {
-      pulsesBackToSync++;
-    }
+    globalState->setThreadSyncState(GlobalThreadSyncState::UNSYNC);
+    globalState->incrementLeadscrewPosition(-1);
 
   } else if (jogRightHeld) {
     globalState->setMotionMode(GlobalMotionMode::JOG);
-    synced = false;
-    leadscrew.incrementCurrentPosition(1);
-    jogUnsyncedCount++;
-    if (hasPreviouslySynced) {
-      pulsesBackToSync--;
-    }
+    globalState->setThreadSyncState(GlobalThreadSyncState::UNSYNC);
+    globalState->incrementLeadscrewPosition(1);
   }
 }
 
@@ -240,29 +153,39 @@ void loop() {
   uint32_t currentMicros = micros();
   static uint32_t lastPrint = currentMicros;
 
-  if (currentMicros - lastPrint > 1000 * 1000) {
-    printState();
-    lastPrint = currentMicros;
-  }
+  int positionError = globalState->getLeadscrewPositionError();
 
-  int mod = (int)((ELS_SPINDLE_ENCODER_PPR * leadscrew.getRatio()) /
-                  ELS_LEADSCREW_PITCH_MM);
-  int positionError =
-      leadscrew.getExpectedPosition() - leadscrew.getCurrentPosition();
   int directionIncrement = 0;
 
   if (positionError > 0) {
     CW;
     directionIncrement = 1;
-  } else {
+  } else if (positionError < 0) {
     CCW;
     directionIncrement = -1;
+  }
+
+  if (positionError != 0 && currentMicros - lastPrint > 1000) {
+    Serial.print("Position Error: ");
+    Serial.println(positionError);
+    Serial.print("Leadscrew accumulator: ");
+    Serial.println(globalState->getLeadscrewStepAccumulator());
+    Serial.print("pinState");
+    Serial.println(digitalReadFast(3));
+
+    globalState->printState();
+    lastPrint = currentMicros;
+    if (positionError > 0) {
+      Serial.println("CW");
+    } else {
+      Serial.println("CCW");
+    }
   }
 
   switch (globalState->getMotionMode()) {
     case GlobalMotionMode::DISABLED:
       // ignore the spindle, pretend we're in sync all the time
-      leadscrew.resetCurrentPosition();
+      globalState->resetLeadscrewPosition();
       break;
     case GlobalMotionMode::JOG:
       // only send a pulse if we haven't sent one recently
@@ -270,7 +193,7 @@ void loop() {
         break;
       }
       // if jog is complete go back to disabled motion mode
-      if (leadscrew.getCurrentPosition() == leadscrew.getExpectedPosition()) {
+      if (positionError == 0) {
         Serial.println("Jog Complete");
         globalState->setMotionMode(GlobalMotionMode::DISABLED);
       }
@@ -283,12 +206,18 @@ void loop() {
 
       break;
     case GlobalMotionMode::ENABLED:
+
+      if (positionError == 0) {
+        // todo check if we have sync'd before
+        globalState->setThreadSyncState(GlobalThreadSyncState::SYNC);
+        return;
+      }
+
       // attempt to keep in sync with the leadscrew
-      accumulator += ELS_LEADSCREW_STEPS_PER_MM * leadscrew.getRatio() /
-                     ELS_LEADSCREW_STEPPER_PPR;
+      accumulator += globalState->getLeadscrewStepAccumulator();
 
+      // todo there are partial missed steps here? investigate
       while (accumulator >= 0) {  // sends required motor steps to motor
-
         accumulator--;
 
         // todo try and leverage hardware PWM timer to send set amount of
@@ -297,8 +226,8 @@ void loop() {
         delayMicroseconds(2);
         digitalWriteFast(stp, LOW);
         delayMicroseconds(2);
-        leadscrew.incrementCurrentPosition(directionIncrement);
       }
+      globalState->incrementLeadscrewPosition(directionIncrement);
       lastPulse = currentMicros;
 
       break;
@@ -311,7 +240,7 @@ void Achange() {  // validates encoder pulses, adds to pulse variable
   bitWrite(newPos, 0, digitalReadFast(pinA));
   bitWrite(newPos, 1,
            digitalReadFast(pinB));  // adds A to B, converts to integer
-  spindle.incrementCurrentPosition(EncoderMatrix[(oldPos * 4) + newPos]);
+  globalState->incrementSpindlePosition(EncoderMatrix[(oldPos * 4) + newPos]);
 }
 
 void Bchange() {  // validates encoder pulses, adds to pulse variable
@@ -320,7 +249,7 @@ void Bchange() {  // validates encoder pulses, adds to pulse variable
   bitWrite(newPos, 0, digitalReadFast(pinA));
   bitWrite(newPos, 1,
            digitalReadFast(pinB));  // adds A to B, converts to integer
-  spindle.incrementCurrentPosition(
+  globalState->incrementSpindlePosition(
       EncoderMatrix[(oldPos * 4) + newPos]);  // assigns value from encoder
                                               // matrix to determine validity
                                               // and direction of encoder pulse
@@ -329,12 +258,11 @@ void Bchange() {  // validates encoder pulses, adds to pulse variable
 void rateIncCall(Button::CALLBACK_EVENT event,
                  uint8_t) {  // increases feedSelect variable on button press
   Serial.println("Rate Inc Call");
-  printState();
 
   if ((micros() - lastPulse) > safetyDelay && lockState == false) {
     if (event == Button::SINGLE_CLICKED_EVENT) {
       globalState->nextFeedPitch();
-      display.update(lockState, enabled);
+      display.update(lockState);
     }
   }
 }
@@ -342,12 +270,12 @@ void rateIncCall(Button::CALLBACK_EVENT event,
 void rateDecCall(Button::CALLBACK_EVENT event,
                  uint8_t) {  // decreases feedSelect variable on button press
   Serial.println("Rate Dec Call");
-  printState();
+
   if (((micros() - lastPulse) > safetyDelay && lockState == false)) {
     if (event == Button::PRESSED_EVENT) {
       globalState->prevFeedPitch();
 
-      display.update(lockState, enabled);
+      display.update(lockState);
     }
   }
 }
@@ -355,12 +283,12 @@ void rateDecCall(Button::CALLBACK_EVENT event,
 void halfNutCall(Button::CALLBACK_EVENT event,
                  uint8_t) {  // sets readyToThread to true on button hold
   Serial.println("Half Nut Call");
-  printState();
+
   if (event == Button::SINGLE_CLICKED_EVENT &&
       globalState->getFeedMode() == GlobalFeedMode::THREAD) {
     readyToThread = true;
-    synced = true;
-    hasPreviouslySynced = true;
+    globalState->setMotionMode(GlobalMotionMode::ENABLED);
+    globalState->setThreadSyncState(GlobalThreadSyncState::SYNC);
     pulsesBackToSync = 0;
   }
 }
@@ -368,55 +296,40 @@ void halfNutCall(Button::CALLBACK_EVENT event,
 void enaCall(Button::CALLBACK_EVENT event,
              uint8_t) {  // toggles enabled variable on button press
   Serial.println("Enable Call");
-  printState();
+
   if (event == Button::PRESSED_EVENT) {
-    if (enabled == true) {
-      enabled = false;
+    if (globalState->getMotionMode() == GlobalMotionMode::ENABLED) {
+      globalState->setMotionMode(GlobalMotionMode::DISABLED);
     }
 
     else {
-      // set jogUnsyncedCount to remainder of spindle pulses based on current
-      // feed rate
-
-      int mod = (int)((ELS_SPINDLE_ENCODER_PPR * leadscrew.getRatio()) /
-                      ELS_LEADSCREW_PITCH_MM);
-      jogUnsyncedCount = jogUnsyncedCount % mod;
-
-      Serial.print("mod:");
-      Serial.println(mod);
-      Serial.print("reenabling!");
-      Serial.print("Jog Unsynced Count: ");
-      Serial.println(jogUnsyncedCount);
-      enabled = true;
+      globalState->setMotionMode(GlobalMotionMode::ENABLED);
     }
 
-    display.update(lockState, enabled);
+    display.update(lockState);
   }
 }
 
 void lockCall(Button::CALLBACK_EVENT event,
               uint8_t) {  // toggles lockState variable on button press
   Serial.println("Lock Call");
-  printState();
+
   if (event == Button::PRESSED_EVENT) {
     lockState = !lockState;
 
-    display.update(lockState, enabled);
+    display.update(lockState);
   }
 }
 
 void threadSyncCall(Button::CALLBACK_EVENT event,
                     uint8_t) {  // toggles sync status on button hold
   Serial.println("Thread Sync Call");
-  printState();
-  if (event == Button::PRESSED_EVENT) {
-    if (synced == false) {
-      lockState = true;
-      synced = true;
-    }
 
-    else {
-      synced = false;
+  if (event == Button::PRESSED_EVENT) {
+    if (globalState->getMotionMode() == GlobalMotionMode::ENABLED) {
+      globalState->setThreadSyncState(GlobalThreadSyncState::UNSYNC);
+    } else {
+      globalState->setThreadSyncState(GlobalThreadSyncState::SYNC);
     }
   }
 }
@@ -426,7 +339,7 @@ void modeCycleCall(
     uint8_t) {  // toggles between thread / feed modes on button press
   Serial.print("Mode Cycle Call");
   Serial.println(event);
-  printState();
+
   if ((micros() - lastPulse) < safetyDelay || lockState == true) {
     return;
   }
@@ -453,31 +366,41 @@ void modeCycleCall(
         break;
     }
   }
-  display.update(lockState, enabled);
+  display.update(lockState);
 }
 
 void jogLeftCall(Button::CALLBACK_EVENT event,
                  uint8_t) {  // jogs left on button hold (one day)
   Serial.println("Jog Left Call");
-  printState();
 
+  // only allow jogging when disabled
   // this event doesn't repeat, so set a flag to keep track of it
-  if (event == Button::HELD_EVENT && enabled == false) {
+  if (event == Button::HELD_EVENT &&
+      globalState->getMotionMode() == GlobalMotionMode::DISABLED) {
+    globalState->setMotionMode(GlobalMotionMode::JOG);
     jogLeftHeld = true;
+    display.update(lockState);
   } else if (event == Button::RELEASED_EVENT) {
     jogLeftHeld = false;
+    globalState->setMotionMode(GlobalMotionMode::DISABLED);
+    display.update(lockState);
   }
 }
 
 void jogRightCall(Button::CALLBACK_EVENT event,
                   uint8_t) {  /// jogs right on button hold (one day)
   Serial.println("Jog Right Call");
-  printState();
 
+  // only allow jogging when disabled
   // this event doesn't repeat, so set a flag to keep track of it
-  if (event == Button::HELD_EVENT && enabled == false) {
+  if (event == Button::HELD_EVENT &&
+      globalState->getMotionMode() == GlobalMotionMode::DISABLED) {
+    globalState->setMotionMode(GlobalMotionMode::JOG);
     jogRightHeld = true;
+    display.update(lockState);
   } else if (event == Button::RELEASED_EVENT) {
     jogRightHeld = false;
+    globalState->setMotionMode(GlobalMotionMode::DISABLED);
+    display.update(lockState);
   }
 }

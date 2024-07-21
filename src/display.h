@@ -33,11 +33,11 @@ class Display {
   }
 
   void init();
-  void update(boolean lock, boolean enabled);
+  void update(boolean lock);
 
  protected:
   void drawMode();
   void drawPitch();
-  void drawEnabled(boolean enabled);
+  void drawEnabled();
   void drawLocked(boolean locked);
 };

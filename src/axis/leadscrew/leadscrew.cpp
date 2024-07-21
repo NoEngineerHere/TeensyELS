@@ -6,7 +6,11 @@ Leadscrew::Leadscrew(Axis* leadAxis) : DerivedAxis() {
   m_currentPosition = 0;
 }
 
-void Leadscrew::setRatio(float ratio) { m_ratio = ratio; }
+void Leadscrew::setRatio(float ratio) {
+  m_ratio = ratio;
+  // extrapolate the current position based on the new ratio
+  m_currentPosition = m_leadAxis->getCurrentPosition() * m_ratio;
+}
 
 float Leadscrew::getRatio() { return m_ratio; }
 

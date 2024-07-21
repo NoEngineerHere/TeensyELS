@@ -21,7 +21,7 @@ void Display::init() {
 #endif
 }
 
-void Display::update(boolean lock, boolean enabled) {
+void Display::update(boolean lock) {
 #if ELS_DISPLAY == SSD1306_128_64
   m_ssd1306.clearDisplay();
 #endif
@@ -29,7 +29,7 @@ void Display::update(boolean lock, boolean enabled) {
   this->drawMode();
   this->drawPitch();
   this->drawLocked(lock);
-  this->drawEnabled(enabled);
+  this->drawEnabled();
 
 #if ELS_DISPLAY == SSD1306_128_64
   m_ssd1306.display();
@@ -76,14 +76,26 @@ void Display::drawPitch() {
 #endif
 }
 
-void Display::drawEnabled(boolean enabled) {
+void Display::drawEnabled() {
+  GlobalState *state = GlobalState::getInstance();
+  GlobalMotionMode mode = state->getMotionMode();
+
 #if ELS_DISPLAY == SSD1306_128_64
   m_ssd1306.fillRoundRect(26, 40, 20, 20, 2, WHITE);
-
-  if (enabled == true) {
-    m_ssd1306.drawBitmap(28, 42, runSymbol, 16, 16, BLACK);
-  } else {
-    m_ssd1306.drawBitmap(28, 42, pauseSymbol, 16, 16, BLACK);
+  switch (mode) {
+    case GlobalMotionMode::DISABLED:
+      m_ssd1306.drawBitmap(28, 42, pauseSymbol, 16, 16, BLACK);
+      break;
+    case GlobalMotionMode::JOG:
+      // todo bitmap for jogging
+      m_ssd1306.setCursor(28, 42);
+      m_ssd1306.setTextSize(2);
+      m_ssd1306.setTextColor(BLACK);
+      m_ssd1306.print("J");
+      break;
+    case GlobalMotionMode::ENABLED:
+      m_ssd1306.drawBitmap(28, 42, runSymbol, 16, 16, BLACK);
+      break;
   }
 #endif
 }

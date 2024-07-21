@@ -33,7 +33,7 @@
 
 // extra config options
 // Delay between jog pulses in microseconds
-#define JOG_PULSE_DELAY_US 1000
+#define JOG_PULSE_DELAY_US 500
 
 /**
  * The unit mode the system should start up in
