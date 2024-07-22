@@ -6,14 +6,14 @@
  */
 class Axis {
  public:
-  virtual int getCurrentPosition();
-  virtual void resetCurrentPosition();
+  virtual int getCurrentPosition() = 0;
+  virtual void resetCurrentPosition() = 0;
 };
 
 class MobileAxis {
  public:
-  virtual void setCurrentPosition(int position);
-  virtual void incrementCurrentPosition(int amount);
+  virtual void setCurrentPosition(int position) = 0;
+  virtual void incrementCurrentPosition(int amount) = 0;
 };
 
 /**
@@ -22,8 +22,8 @@ class MobileAxis {
  */
 class DerivedAxis {
  public:
-  virtual void setRatio(float ratio);
-  virtual float getRatio();
+  virtual void setRatio(float ratio) = 0;
+  virtual float getRatio() = 0;
 };
 
 /**
@@ -33,5 +33,6 @@ class DerivedAxis {
  */
 class DrivenAxis {
  public:
-  virtual int getExpectedPosition();
+  virtual int getExpectedPosition() = 0;
+  virtual void update() = 0;
 };

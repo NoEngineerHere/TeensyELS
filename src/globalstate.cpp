@@ -50,14 +50,6 @@ void GlobalState::printState() {
       Serial.println("UNSYNC");
       break;
   }
-  Serial.print("Leadscrew position: ");
-  Serial.println(m_leadscrew.getCurrentPosition());
-  Serial.print("Leadscrew expected position: ");
-  Serial.println(m_leadscrew.getExpectedPosition());
-  Serial.print("Leadscrew ratio: ");
-  Serial.println(m_leadscrew.getRatio());
-  Serial.print("Spindle position: ");
-  Serial.println(m_spindle.getCurrentPosition());
 }
 
 void GlobalState::setFeedMode(GlobalFeedMode mode) {
@@ -111,9 +103,6 @@ void GlobalState::setFeedSelect(int select) {
       }
     }
   }
-
-  // update leadscrew ratio
-  m_leadscrew.setRatio(getCurrentFeedPitch());
 }
 
 float GlobalState::getCurrentFeedPitch() {
@@ -150,29 +139,6 @@ int GlobalState::prevFeedPitch() {
   return m_feedSelect;
 }
 
-void GlobalState::incrementSpindlePosition(int amount) {
-  m_spindle.incrementCurrentPosition(amount);
-}
-
-void GlobalState::resetSpindlePosition() { m_spindle.resetCurrentPosition(); }
-
-int GlobalState::getLeadscrewPositionError() {
-  return m_leadscrew.getExpectedPosition() - m_leadscrew.getCurrentPosition();
-}
-
-void GlobalState::incrementLeadscrewPosition(int amount) {
-  m_leadscrew.incrementCurrentPosition(amount);
-}
-
-void GlobalState::resetLeadscrewPosition() {
-  m_leadscrew.resetCurrentPosition();
-}
-
-float GlobalState::getLeadscrewStepAccumulator() {
-  return (ELS_LEADSCREW_STEPS_PER_MM * m_leadscrew.getRatio()) /
-         ELS_LEADSCREW_STEPPER_PPR;
-}
-
 void GlobalState::setMotionMode(GlobalMotionMode mode) { m_motionMode = mode; }
 
 GlobalMotionMode GlobalState::getMotionMode() { return m_motionMode; }
@@ -187,20 +153,4 @@ void GlobalState::setThreadSyncState(GlobalThreadSyncState state) {
 
 GlobalThreadSyncState GlobalState::getThreadSyncState() {
   return m_threadSyncState;
-}
-
-void GlobalState::setStopPosition(int stop, int position) {
-  if (stop == 1) {
-    m_stop1Position = position;
-  } else if (stop == 2) {
-    m_stop2Position = position;
-  }
-}
-
-int GlobalState::getStopPosition(int stop) {
-  if (stop == 1) {
-    return m_stop1Position;
-  } else if (stop == 2) {
-    return m_stop2Position;
-  }
 }

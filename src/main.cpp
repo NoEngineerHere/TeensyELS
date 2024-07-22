@@ -7,8 +7,6 @@
 #include "display.h"
 #include "globalstate.h"
 
-#define CW digitalWriteFast(3, HIGH);  // direction output pin
-#define CCW digitalWriteFast(3, LOW);  // direction output pin
 
 using Button = AblePullupCallbackDoubleClickerButton;
 using ButtonList = AblePullupCallbackDoubleClickerButtonList;
@@ -75,6 +73,9 @@ bool readyToThread = false;
 boolean jogLeftHeld;
 boolean jogRightHeld;
 
+Spindle spindle;
+Leadscrew leadscrew(&spindle);
+
 // UI Values
 
 void Achange();
@@ -115,6 +116,11 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(pinB), Bchange,
                   CHANGE);  // encoder channel B interrupt
 
+#ifdef DEBUG
+  debug.begin(SerialUSB1);
+  halt_cpu();
+#endif
+
   // Display Initalisation
 
   display.init();
@@ -127,7 +133,8 @@ void setup() {
 void buttonHeldHandle() {
   int currentMicros = micros();
 
-  int positionError = globalState->getLeadscrewPositionError();
+  int positionError =
+      leadscrew.getExpectedPosition() - leadscrew.getCurrentPosition();
 
   if (positionError > 5) {
     return;
@@ -136,12 +143,12 @@ void buttonHeldHandle() {
   if (jogLeftHeld) {
     globalState->setMotionMode(GlobalMotionMode::JOG);
     globalState->setThreadSyncState(GlobalThreadSyncState::UNSYNC);
-    globalState->incrementLeadscrewPosition(-1);
+    leadscrew.incrementCurrentPosition(-1);
 
   } else if (jogRightHeld) {
     globalState->setMotionMode(GlobalMotionMode::JOG);
     globalState->setThreadSyncState(GlobalThreadSyncState::UNSYNC);
-    globalState->incrementLeadscrewPosition(1);
+    leadscrew.incrementCurrentPosition(1);
   }
 }
 
@@ -153,85 +160,21 @@ void loop() {
   uint32_t currentMicros = micros();
   static uint32_t lastPrint = currentMicros;
 
-  int positionError = globalState->getLeadscrewPositionError();
-
-  int directionIncrement = 0;
-
-  if (positionError > 0) {
-    CW;
-    directionIncrement = 1;
-  } else if (positionError < 0) {
-    CCW;
-    directionIncrement = -1;
-  }
-
-  if (positionError != 0 && currentMicros - lastPrint > 1000) {
-    Serial.print("Position Error: ");
-    Serial.println(positionError);
-    Serial.print("Leadscrew accumulator: ");
-    Serial.println(globalState->getLeadscrewStepAccumulator());
-    Serial.print("pinState");
-    Serial.println(digitalReadFast(3));
-
+  if (currentMicros - lastPrint > 1000 * 500) {
     globalState->printState();
+    Serial.print("Leadscrew position: ");
+    Serial.println(leadscrew.getCurrentPosition());
+    Serial.print("Leadscrew expected position: ");
+    Serial.println(leadscrew.getExpectedPosition());
+    Serial.print("Leadscrew ratio: ");
+    Serial.println(leadscrew.getRatio());
+    Serial.print("Spindle position: ");
+    Serial.println(spindle.getCurrentPosition());
+
     lastPrint = currentMicros;
-    if (positionError > 0) {
-      Serial.println("CW");
-    } else {
-      Serial.println("CCW");
-    }
   }
 
-  switch (globalState->getMotionMode()) {
-    case GlobalMotionMode::DISABLED:
-      // ignore the spindle, pretend we're in sync all the time
-      globalState->resetLeadscrewPosition();
-      break;
-    case GlobalMotionMode::JOG:
-      // only send a pulse if we haven't sent one recently
-      if (currentMicros - lastPulse < JOG_PULSE_DELAY_US) {
-        break;
-      }
-      // if jog is complete go back to disabled motion mode
-      if (positionError == 0) {
-        Serial.println("Jog Complete");
-        globalState->setMotionMode(GlobalMotionMode::DISABLED);
-      }
-      // jogging is a fixed rate based on JOG_PULSE_DELAY_US
-      digitalWriteFast(stp, HIGH);
-      delayMicroseconds(2);
-      digitalWriteFast(stp, LOW);
-      delayMicroseconds(2);
-      lastPulse = currentMicros;
-
-      break;
-    case GlobalMotionMode::ENABLED:
-
-      if (positionError == 0) {
-        // todo check if we have sync'd before
-        globalState->setThreadSyncState(GlobalThreadSyncState::SYNC);
-        return;
-      }
-
-      // attempt to keep in sync with the leadscrew
-      accumulator += globalState->getLeadscrewStepAccumulator();
-
-      // todo there are partial missed steps here? investigate
-      while (accumulator >= 0) {  // sends required motor steps to motor
-        accumulator--;
-
-        // todo try and leverage hardware PWM timer to send set amount of
-        // pulses
-        digitalWriteFast(stp, HIGH);
-        delayMicroseconds(2);
-        digitalWriteFast(stp, LOW);
-        delayMicroseconds(2);
-      }
-      globalState->incrementLeadscrewPosition(directionIncrement);
-      lastPulse = currentMicros;
-
-      break;
-  }
+  leadscrew.update();
 }
 
 void Achange() {  // validates encoder pulses, adds to pulse variable
@@ -240,7 +183,7 @@ void Achange() {  // validates encoder pulses, adds to pulse variable
   bitWrite(newPos, 0, digitalReadFast(pinA));
   bitWrite(newPos, 1,
            digitalReadFast(pinB));  // adds A to B, converts to integer
-  globalState->incrementSpindlePosition(EncoderMatrix[(oldPos * 4) + newPos]);
+  spindle.incrementCurrentPosition(EncoderMatrix[(oldPos * 4) + newPos]);
 }
 
 void Bchange() {  // validates encoder pulses, adds to pulse variable
@@ -249,7 +192,7 @@ void Bchange() {  // validates encoder pulses, adds to pulse variable
   bitWrite(newPos, 0, digitalReadFast(pinA));
   bitWrite(newPos, 1,
            digitalReadFast(pinB));  // adds A to B, converts to integer
-  globalState->incrementSpindlePosition(
+  spindle.incrementCurrentPosition(
       EncoderMatrix[(oldPos * 4) + newPos]);  // assigns value from encoder
                                               // matrix to determine validity
                                               // and direction of encoder pulse
@@ -262,6 +205,7 @@ void rateIncCall(Button::CALLBACK_EVENT event,
   if ((micros() - lastPulse) > safetyDelay && lockState == false) {
     if (event == Button::SINGLE_CLICKED_EVENT) {
       globalState->nextFeedPitch();
+      leadscrew.setRatio(globalState->getCurrentFeedPitch());
       display.update(lockState);
     }
   }
@@ -274,7 +218,7 @@ void rateDecCall(Button::CALLBACK_EVENT event,
   if (((micros() - lastPulse) > safetyDelay && lockState == false)) {
     if (event == Button::PRESSED_EVENT) {
       globalState->prevFeedPitch();
-
+      leadscrew.setRatio(globalState->getCurrentFeedPitch());
       display.update(lockState);
     }
   }
@@ -366,6 +310,7 @@ void modeCycleCall(
         break;
     }
   }
+  leadscrew.setRatio(globalState->getCurrentFeedPitch());
   display.update(lockState);
 }
 

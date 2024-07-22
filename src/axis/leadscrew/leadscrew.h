@@ -11,6 +11,13 @@ class Leadscrew : public Axis,
   int m_currentPosition;
   float m_ratio;
 
+  int m_lastPulseMicros;
+  int m_currentPulseDelay;
+  float m_accumulator;
+
+  float getAccumulatorUnit();
+  void sendPulse();
+
  public:
   Leadscrew(Axis* leadAxis);
   int getCurrentPosition();
@@ -20,4 +27,5 @@ class Leadscrew : public Axis,
   int getExpectedPosition();
   void setCurrentPosition(int position);
   void incrementCurrentPosition(int amount);
+  void update();
 };

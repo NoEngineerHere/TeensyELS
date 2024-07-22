@@ -36,9 +36,6 @@ class GlobalState {
  private:
   static GlobalState *m_instance;
 
-  Spindle m_spindle;
-  Leadscrew m_leadscrew;
-
   GlobalFeedMode m_feedMode;
   GlobalMotionMode m_motionMode;
   GlobalUnitMode m_unitMode;
@@ -46,24 +43,18 @@ class GlobalState {
 
   int m_feedSelect;
 
-  // pulse count for the "stop" positions of the spindle
-  int m_stop1Position;
-  int m_stop2Position;
-
   // the position at which the spindle will be back in sync with the leadscrew
   // note that this position actually has *two* solutions, left and right
   // but we only use the "left" position and calculate the "right" position when
   // required
   int m_resyncPulseCount;
 
-  GlobalState() : m_spindle(), m_leadscrew(&m_spindle) {
+  GlobalState() {
     setFeedMode(DEFAULT_FEED_MODE);
     setUnitMode(DEFAULT_UNIT_MODE);
     setFeedSelect(-1);
     setThreadSyncState(UNSYNC);
     m_motionMode = DISABLED;
-    m_stop1Position = 0;
-    m_stop2Position = 0;
     m_resyncPulseCount = 0;
   }
 
@@ -92,18 +83,6 @@ class GlobalState {
   float getCurrentFeedPitch();
   int nextFeedPitch();
   int prevFeedPitch();
-
-  void incrementSpindlePosition(int amount);
-  void resetSpindlePosition();
-
-  int getLeadscrewPositionError();
-  void incrementLeadscrewPosition(int amount);
-  void resetLeadscrewPosition();
-  // todo better name?
-  float getLeadscrewStepAccumulator();
-
-  void setStopPosition(int position, int pulseCount);
-  int getStopPosition(int position);
 
  protected:
   int getCurrentFeedSelectArraySize();
