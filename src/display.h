@@ -1,5 +1,6 @@
 
 #include "config.h"
+#include "globalstate.h"
 
 #define SSD1306_128_64 0
 
@@ -32,11 +33,11 @@ class Display {
   }
 
   void init();
-  void update(boolean driveMode, float pitch, boolean lock, boolean enabled);
+  void update(boolean lock);
 
  protected:
-  void drawMode(boolean driveMode);
-  void drawPitch(float rate);
-  void drawEnabled(boolean enabled);
+  void drawMode();
+  void drawPitch();
+  void drawEnabled();
   void drawLocked(boolean locked);
 };
