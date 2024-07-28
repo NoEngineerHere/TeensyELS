@@ -8,8 +8,12 @@ class Axis {
  public:
   virtual int getCurrentPosition() = 0;
   virtual void resetCurrentPosition() = 0;
+  virtual float getEstimatedVelocityInPulsesPerSecond() = 0;
 };
 
+/**
+ * An axis that can have its position set (homed)
+ */
 class MobileAxis {
  public:
   virtual void setCurrentPosition(int position) = 0;
@@ -36,4 +40,14 @@ class DrivenAxis {
   virtual int getExpectedPosition() = 0;
   virtual void update() = 0;
   virtual int getPositionError() = 0;
+};
+
+class RotationalAxis : public Axis {
+ public:
+  virtual float getEstimatedVelocityInRPM() = 0;
+};
+
+class LinearAxis : public Axis {
+ public:
+  virtual float getEstimatedVelocityInMillimetersPerSecond() = 0;
 };

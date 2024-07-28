@@ -4,7 +4,7 @@
 
 #pragma once
 
-class Leadscrew : public Axis,
+class Leadscrew : public LinearAxis,
                   public DerivedAxis,
                   public DrivenAxis,
                   public MobileAxis {
@@ -45,4 +45,6 @@ class Leadscrew : public Axis,
   void incrementCurrentPosition(int amount);
   void update();
   int getPositionError();
+  float getEstimatedVelocityInPulsesPerSecond();
+  float getEstimatedVelocityInMillimetersPerSecond();
 };

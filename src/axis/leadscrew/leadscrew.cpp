@@ -132,3 +132,11 @@ void Leadscrew::update() {
 int Leadscrew::getPositionError() {
   return getExpectedPosition() - getCurrentPosition();
 }
+
+float Leadscrew::getEstimatedVelocityInPulsesPerSecond() {
+  return (float)(1000000 / m_lastPulseMicros);
+}
+
+float Leadscrew::getEstimatedVelocityInMillimetersPerSecond() {
+  return getEstimatedVelocityInPulsesPerSecond() / ELS_LEADSCREW_STEPS_PER_MM;
+}
