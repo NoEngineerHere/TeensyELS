@@ -27,6 +27,7 @@ enum GlobalUnitMode { METRIC, IMPERIAL };
  * The state of the global thread sync
  * Sync: The spindle and leadscrew are in sync
  * Unsync: The spindle and leadscrew are out of sync
+ * Resync:
  */
 enum GlobalThreadSyncState { SYNC, UNSYNC };
 

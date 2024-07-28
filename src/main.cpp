@@ -7,7 +7,6 @@
 #include "display.h"
 #include "globalstate.h"
 
-
 using Button = AblePullupCallbackDoubleClickerButton;
 using ButtonList = AblePullupCallbackDoubleClickerButtonList;
 
@@ -162,6 +161,8 @@ void loop() {
 
   if (currentMicros - lastPrint > 1000 * 500) {
     globalState->printState();
+    Serial.print("Micros: ");
+    Serial.println(currentMicros);
     Serial.print("Leadscrew position: ");
     Serial.println(leadscrew.getCurrentPosition());
     Serial.print("Leadscrew expected position: ");

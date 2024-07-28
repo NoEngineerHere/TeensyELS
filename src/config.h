@@ -55,12 +55,12 @@
 // from 0 do not change - this is a calculated value, to change the initial
 // speed look at the jerk value
 #define LEADSCREW_INITIAL_PULSE_DELAY_US \
-  10000000 * ELS_LEADSCREW_STEPS_PER_MM / LEADSCREW_JERK
+  10000000 / (LEADSCREW_JERK * ELS_LEADSCREW_STEPS_PER_MM)
 
 // The amount of time to increment/decrement the pulse delay by in microseconds
 // for the leadscrew This is calculated based on the acceleration value
 #define LEADSCREW_PULSE_DELAY_STEP_US \
-  10000000 * ELS_LEADSCREW_STEPS_PER_MM / LEADSCREW_ACCEL
+  ELS_LEADSCREW_STEPS_PER_MM / LEADSCREW_ACCEL * 1000000
 
 // metric thread pitch is defined as mm/rev
 const float threadPitchMetric[] = {0.35, 0.40, 0.45, 0.50, 0.60, 0.70, 0.80,

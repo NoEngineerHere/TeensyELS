@@ -42,10 +42,13 @@ float Leadscrew::getAccumulatorUnit() {
   return (ELS_LEADSCREW_STEPS_PER_MM * getRatio()) / ELS_LEADSCREW_STEPPER_PPR;
 }
 
-void Leadscrew::sendPulse() {
-  if (digitalReadFast(2) == HIGH) {
+bool Leadscrew::sendPulse() {
+  uint8_t pinState = digitalReadFast(2);
+
+  // Keep the pulse pin high as long as we're not scheduled to send a pulse
+  if (pinState == HIGH && m_lastPulseMicros - m_currentPulseDelay > 0) {
     digitalWriteFast(2, LOW);
-    m_lastPulseMicros = micros();
+    m_lastPulseMicros -= m_currentPulseDelay;
 
     if (m_accumulator > 1) {
       m_accumulator--;
@@ -56,6 +59,8 @@ void Leadscrew::sendPulse() {
   } else {
     digitalWriteFast(2, HIGH);
   }
+
+  return pinState == HIGH;
 }
 
 void Leadscrew::update() {
@@ -63,7 +68,7 @@ void Leadscrew::update() {
 
   int currentMicros = micros();
 
-  int positionError = getExpectedPosition() - getCurrentPosition();
+  int positionError = getPositionError();
 
   int directionIncrement = 0;
 
@@ -101,17 +106,18 @@ void Leadscrew::update() {
         break;
       }
 
-      if (currentMicros - m_lastPulseMicros < 100) {
+      // todo move to some max velocity value
+      if (m_lastPulseMicros < 100) {
         break;
       }
 
       // attempt to keep in sync with the leadscrew
+      // if sendPulse returns true, we've actually sent a pulse
+      if (sendPulse()) {
+        m_currentPosition += directionIncrement;
+      }
 
-      sendPulse();
-
-      if ((int)(m_accumulator) == 0) {
-        incrementCurrentPosition(directionIncrement);
-      } else {
+      if ((int)(m_accumulator) != 0) {
         m_accumulator += getAccumulatorUnit();
         Serial.print("Accumulator: ");
         Serial.println(m_accumulator);
@@ -121,4 +127,8 @@ void Leadscrew::update() {
 
       break;
   }
+}
+
+int Leadscrew::getPositionError() {
+  return getExpectedPosition() - getCurrentPosition();
 }

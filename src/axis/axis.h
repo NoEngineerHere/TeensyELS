@@ -35,4 +35,5 @@ class DrivenAxis {
  public:
   virtual int getExpectedPosition() = 0;
   virtual void update() = 0;
+  virtual int getPositionError() = 0;
 };
