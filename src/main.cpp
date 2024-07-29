@@ -4,7 +4,7 @@
 #include <Wire.h>
 #include <globalstate.h>
 #include <leadscrew/leadscrew.h>
-#include <spindle/spindle.h>
+#include <spindle.h>
 
 #include "config.h"
 #include "display.h"
