@@ -22,7 +22,7 @@ void Display::init() {
 
 void Display::update(boolean lock) {
 #if ELS_DISPLAY == SSD1306_128_64
-  m_ssd1306.clearDisplay();
+  //
 #endif
 
   this->drawMode();
@@ -32,6 +32,7 @@ void Display::update(boolean lock) {
 
 #if ELS_DISPLAY == SSD1306_128_64
   m_ssd1306.display();
+  m_ssd1306.clearDisplay();
 #endif
 }
 
@@ -39,7 +40,7 @@ void Display::drawSpindleRpm(int rpm) {
 #if ELS_DISPLAY == SSD1306_128_64
   char rpmString[10];
   m_ssd1306.setCursor(0, 0);
-  m_ssd1306.setTextSize(2);
+  m_ssd1306.setTextSize(1);
   m_ssd1306.setTextColor(WHITE);
   // pad the rpm with spaces so the RPM text stays in the same place
   sprintf(rpmString, "%4dRPM", rpm);

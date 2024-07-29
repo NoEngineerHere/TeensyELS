@@ -23,7 +23,7 @@ class Axis {
       return 0;
     }
 
-    return (float)(1000000 / m_lastPulseMicros);
+    return (float)(1000000 / (micros() - m_lastPulseMicros));
   }
 
  public:

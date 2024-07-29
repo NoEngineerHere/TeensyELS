@@ -40,6 +40,8 @@ Button* keys[] = {&rateInc, &rateDec, &modeCycle, &threadSync, &halfNut,
 ButtonList keyPad(keys);
 Button setHeldTime(100);
 
+IntervalTimer timer;
+
 Display display;
 GlobalState* globalState = GlobalState::getInstance();
 
@@ -82,6 +84,10 @@ Leadscrew leadscrew(&spindle);
 void Achange();
 void Bchange();
 void modeHandle();
+
+// have to handle the leadscrew updates in a timer callback so we can update the
+// screen independently without losing pulses
+void timerCallback() { leadscrew.update(); }
 
 void setup() {
   // config - compile time checks for safety
@@ -129,6 +135,8 @@ void setup() {
   display.update(lockState);
 
   globalState->printState();
+
+  timer.begin(timerCallback, 50);
 }
 
 void buttonHeldHandle() {
@@ -175,11 +183,16 @@ void loop() {
     Serial.println(spindle.getCurrentPosition());
     Serial.print("Spindle velocity: ");
     Serial.println(spindle.getEstimatedVelocityInRPM());
+    Serial.print("Spindle velocity pulses: ");
+    Serial.println(spindle.getEstimatedVelocityInPulsesPerSecond());
 
     lastPrint = currentMicros;
   }
 
-  leadscrew.update();
+  display.drawSpindleRpm(spindle.getEstimatedVelocityInRPM());
+  display.update(lockState);
+
+  // leadscrew.update();
 }
 
 void Achange() {  // validates encoder pulses, adds to pulse variable

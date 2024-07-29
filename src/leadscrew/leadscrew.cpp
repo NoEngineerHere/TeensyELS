@@ -105,11 +105,6 @@ void Leadscrew::update() {
         break;
       }
 
-      // todo move to some max velocity value
-      if (m_lastPulseMicros < 100) {
-        break;
-      }
-
       // attempt to keep in sync with the leadscrew
       // if sendPulse returns true, we've actually sent a pulse
       if (sendPulse()) {
