@@ -7,3 +7,7 @@ We use [https://platformio.org/](platformio) as the infrastructure to build this
 # Installation
 You will currently need to setup platformio to build this, it can also handle installation to your teensy as well.
 NOTE: you will have to modify some of the configuration to get this set up for your particular lathe, instructions coming soon.
+
+# Testing
+We aim to have the business logic of this testable locally without having to program any hardware or run tests on hardware (for the most part)
+To test you just need to run the `pio test --environment native` command to run what tests we have written
