@@ -2,10 +2,12 @@
 #include <AbleButtons.h>
 #include <SPI.h>
 #include <Wire.h>
+#include <globalstate.h>
+#include <leadscrew/leadscrew.h>
+#include <spindle/spindle.h>
 
 #include "config.h"
 #include "display.h"
-#include "globalstate.h"
 
 using Button = AblePullupCallbackDoubleClickerButton;
 using ButtonList = AblePullupCallbackDoubleClickerButtonList;
@@ -171,6 +173,8 @@ void loop() {
     Serial.println(leadscrew.getRatio());
     Serial.print("Spindle position: ");
     Serial.println(spindle.getCurrentPosition());
+    Serial.print("Spindle velocity: ");
+    Serial.println(spindle.getEstimatedVelocityInRPM());
 
     lastPrint = currentMicros;
   }
