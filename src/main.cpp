@@ -20,24 +20,14 @@ int EncoderMatrix[16] = {
 volatile int oldPos;
 volatile int newPos;
 
-int jogUnsyncedCount;  // when we jog in thread mode we may be "in between"
-                       // threads, this stores how many pulses we require to be
-                       // back in line
-int pulsesBackToSync;  // when jogging in thread mode, this stores how many
-                       // pulses we need to get back in sync i.e: the stop point
-                       // of the thread
-
 GlobalState* globalState = GlobalState::getInstance();
 Spindle spindle;
 Leadscrew leadscrew(&spindle);
 ButtonHandler keyPad(&spindle, &leadscrew);
 Display display(&spindle, &leadscrew);
 
-// UI Values
-
 void Achange();
 void Bchange();
-void modeHandle();
 
 // have to handle the leadscrew updates in a timer callback so we can update the
 // screen independently without losing pulses
