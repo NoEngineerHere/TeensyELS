@@ -20,14 +20,14 @@ void Display::init() {
 #endif
 }
 
-void Display::update(boolean lock) {
+void Display::update() {
 #if ELS_DISPLAY == SSD1306_128_64
   //
 #endif
 
   this->drawMode();
   this->drawPitch();
-  this->drawLocked(lock);
+  this->drawLocked();
   this->drawEnabled();
 
 #if ELS_DISPLAY == SSD1306_128_64
@@ -112,14 +112,17 @@ void Display::drawEnabled() {
 #endif
 }
 
-void Display::drawLocked(boolean locked) {
+void Display::drawLocked() {
+  GlobalButtonLock lock = GlobalState::getInstance()->getButtonLock();
 #if ELS_DISPLAY == SSD1306_128_64
   m_ssd1306.fillRoundRect(2, 40, 20, 20, 2, WHITE);
-
-  if (locked == true) {
-    m_ssd1306.drawBitmap(4, 42, lockedSymbol, 16, 16, BLACK);
-  } else {
-    m_ssd1306.drawBitmap(4, 42, unlockedSymbol, 16, 16, BLACK);
+  switch (lock) {
+    case GlobalButtonLock::LOCKED:
+      m_ssd1306.drawBitmap(4, 42, lockedSymbol, 16, 16, BLACK);
+      break;
+    case GlobalButtonLock::UNLOCKED:
+      m_ssd1306.drawBitmap(4, 42, unlockedSymbol, 16, 16, BLACK);
+      break;
   }
 #endif
 }

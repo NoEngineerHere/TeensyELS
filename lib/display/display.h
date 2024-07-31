@@ -33,14 +33,13 @@ class Display {
   }
 
   void init();
-  void update(boolean lock);
-  // this is seperate from update because it is called from the main loop
-  // and doesn't redraw the entire screen
+  void update();
+
   void drawSpindleRpm(int rpm);
 
  protected:
   void drawMode();
   void drawPitch();
   void drawEnabled();
-  void drawLocked(boolean locked);
+  void drawLocked();
 };
