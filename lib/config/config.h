@@ -9,6 +9,38 @@
   static_assert(idx < ARRAY_SIZE(arr), error)
 
 /**
+ * Uncomment this line if your spindle is driven by a motor controlled by this
+ * application. If it is uncommented we will assume you have an encoder attached
+ * to your spindle
+ */
+// #define ELS_SPINDLE_DRIVEN
+
+/**
+ * IO Pins
+ */
+#ifdef ELS_SPINDLE_DRIVEN
+// set your spindle driver pins here
+#define ELS_SPINDLE_STEP -1
+#define ELS_SPINDLE_DIR -1
+#else
+#define ELS_SPINDLE_ENCODER_A 14
+#define ELS_SPINDLE_ENCODER_B 15
+#endif
+
+#define ELS_LEADSCREW_STEP 2
+#define ELS_LEADSCREW_DIR 3
+
+#define ELS_RATE_INCREASE_BUTTON 4
+#define ELS_RATE_DECREASE_BUTTON 5
+#define ELS_MODE_CYCLE_BUTTON 6
+#define ELS_THREAD_SYNC_BUTTON 7
+#define ELS_HALF_NUT_BUTTON 8
+#define ELS_ENABLE_BUTTON 9
+#define ELS_LOCK_BUTTON 10
+#define ELS_JOG_LEFT_BUTTON 24
+#define ELS_JOG_RIGHT_BUTTON 25
+
+/**
  * Display
  *
  * This setting allows you to select what type of display you want to use.

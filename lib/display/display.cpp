@@ -22,22 +22,23 @@ void Display::init() {
 
 void Display::update() {
 #if ELS_DISPLAY == SSD1306_128_64
-  //
+  m_ssd1306.clearDisplay();
 #endif
 
-  this->drawMode();
-  this->drawPitch();
-  this->drawLocked();
-  this->drawEnabled();
+  drawMode();
+  drawPitch();
+  drawLocked();
+  drawEnabled();
+  drawSpindleRpm();
 
 #if ELS_DISPLAY == SSD1306_128_64
   m_ssd1306.display();
-  m_ssd1306.clearDisplay();
 #endif
 }
 
-void Display::drawSpindleRpm(int rpm) {
+void Display::drawSpindleRpm() {
 #if ELS_DISPLAY == SSD1306_128_64
+  int rpm = m_spindle->getEstimatedVelocityInRPM();
   char rpmString[10];
   m_ssd1306.setCursor(0, 0);
   m_ssd1306.setTextSize(1);

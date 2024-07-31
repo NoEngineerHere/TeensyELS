@@ -1,6 +1,8 @@
 
 #include <config.h>
 #include <globalstate.h>
+#include <leadscrew/leadscrew.h>
+#include <spindle.h>
 
 #define SSD1306_128_64 0
 
@@ -21,11 +23,19 @@
 #endif
 
 class Display {
+ private:
+  Spindle* m_spindle;
+  Leadscrew* m_leadscrew;
+  GlobalState* m_globalState;
+
  public:
 #if ELS_DISPLAY == SSD1306_128_64
   Adafruit_SSD1306 m_ssd1306;
 #endif
-  Display() {
+  Display(Spindle* spindle, Leadscrew* leadscrew) {
+    this->m_spindle = spindle;
+    this->m_leadscrew = leadscrew;
+    this->m_globalState = GlobalState::getInstance();
 #if ELS_DISPLAY == SSD1306_128_64
     this->m_ssd1306 =
         Adafruit_SSD1306(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, PIN_DISPLAY_RESET);
@@ -35,11 +45,10 @@ class Display {
   void init();
   void update();
 
-  void drawSpindleRpm(int rpm);
-
- protected:
+  protected:
   void drawMode();
   void drawPitch();
   void drawEnabled();
   void drawLocked();
+  void drawSpindleRpm();
 };
