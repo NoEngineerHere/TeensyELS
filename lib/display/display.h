@@ -1,7 +1,7 @@
 
 #include <config.h>
 #include <globalstate.h>
-#include <leadscrew/leadscrew.h>
+#include <leadscrew.h>
 #include <spindle.h>
 
 #define SSD1306_128_64 0
@@ -45,7 +45,7 @@ class Display {
   void init();
   void update();
 
-  protected:
+ protected:
   void drawMode();
   void drawPitch();
   void drawEnabled();

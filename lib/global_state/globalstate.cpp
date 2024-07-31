@@ -87,6 +87,10 @@ int GlobalState::getCurrentFeedSelectArraySize() {
   return -1;
 }
 
+void GlobalState::setButtonLock(GlobalButtonLock lock) { m_buttonLock = lock; }
+
+GlobalButtonLock GlobalState::getButtonLock() { return m_buttonLock; }
+
 void GlobalState::setFeedSelect(int select) {
   if (select >= 0 && select < getCurrentFeedSelectArraySize()) {
     m_feedSelect = select;

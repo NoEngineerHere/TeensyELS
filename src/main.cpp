@@ -3,7 +3,7 @@
 #include <SPI.h>
 #include <Wire.h>
 #include <globalstate.h>
-#include <leadscrew/leadscrew.h>
+#include <leadscrew.h>
 #include <spindle.h>
 
 #include "buttons.h"

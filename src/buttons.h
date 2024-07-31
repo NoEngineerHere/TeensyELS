@@ -1,5 +1,5 @@
 #include <AbleButtons.h>
-#include <leadscrew/leadscrew.h>
+#include <leadscrew.h>
 #include <spindle.h>
 
 using Button = AblePullupDoubleClickerButton;
