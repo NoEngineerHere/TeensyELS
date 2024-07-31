@@ -12,6 +12,7 @@
  * Uncomment this line if your spindle is driven by a motor controlled by this
  * application. If it is uncommented we will assume you have an encoder attached
  * to your spindle
+ * TODO: Implement this for real
  */
 // #define ELS_SPINDLE_DRIVEN
 
