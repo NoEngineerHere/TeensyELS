@@ -71,6 +71,9 @@ void ButtonHandler::halfNutHandler() {
 
   GlobalButtonLock lockState = GlobalState::getInstance()->getButtonLock();
   if (lockState == GlobalButtonLock::LOCKED) {
+    m_halfNut.resetClicked();
+    m_halfNut.resetSingleClicked();
+    m_halfNut.resetDoubleClicked();
     return;
   }
 
@@ -90,11 +93,13 @@ void ButtonHandler::enableHandler() {
 
   GlobalButtonLock lockState = GlobalState::getInstance()->getButtonLock();
   if (lockState == GlobalButtonLock::LOCKED) {
+    m_enable.resetClicked();
+    m_enable.resetSingleClicked();
+    m_enable.resetDoubleClicked();
     return;
   }
 
-  if (m_enable.isClicked()) {
-    m_enable.resetClicked();
+  if (m_enable.resetClicked()) {
     if (GlobalState::getInstance()->getMotionMode() ==
         GlobalMotionMode::ENABLED) {
       GlobalState::getInstance()->setMotionMode(GlobalMotionMode::DISABLED);
@@ -109,8 +114,7 @@ void ButtonHandler::lockHandler() {
 
   GlobalState* globalState = GlobalState::getInstance();
 
-  if (m_lock.isClicked()) {
-    m_lock.resetClicked();
+  if (m_lock.resetClicked()) {
     if (globalState->getButtonLock() == GlobalButtonLock::LOCKED) {
       globalState->setButtonLock(GlobalButtonLock::UNLOCKED);
     } else {
@@ -124,11 +128,13 @@ void ButtonHandler::threadSyncHandler() {
 
   GlobalButtonLock lockState = GlobalState::getInstance()->getButtonLock();
   if (lockState == GlobalButtonLock::LOCKED) {
+    m_threadSync.resetClicked();
+    m_threadSync.resetSingleClicked();
+    m_threadSync.resetDoubleClicked();
     return;
   }
 
-  if (m_threadSync.isClicked()) {
-    m_threadSync.resetClicked();
+  if (m_threadSync.resetClicked()) {
     if (GlobalState::getInstance()->getMotionMode() ==
         GlobalMotionMode::ENABLED) {
       GlobalState::getInstance()->setThreadSyncState(
@@ -147,12 +153,14 @@ void ButtonHandler::modeCycleHandler() {
   GlobalButtonLock lockState = globalState->getButtonLock();
 
   if (lockState == GlobalButtonLock::LOCKED) {
+    m_modeCycle.resetClicked();
+    m_modeCycle.resetSingleClicked();
+    m_modeCycle.resetDoubleClicked();
     return;
   }
 
   // pressing mode button swaps between feed and thread
-  if (m_modeCycle.isClicked()) {
-    m_modeCycle.resetClicked();
+  if (m_modeCycle.resetClicked()) {
     switch (GlobalState::getInstance()->getFeedMode()) {
       case GlobalFeedMode::FEED:
         GlobalState::getInstance()->setFeedMode(GlobalFeedMode::THREAD);
@@ -188,18 +196,22 @@ void ButtonHandler::jogHandler(JogDirection direction) {
   GlobalButtonLock lockState = globalState->getButtonLock();
   GlobalMotionMode motionMode = globalState->getMotionMode();
 
+  Button* jogButton =
+      direction == JogDirection::LEFT ? &m_jogLeft : &m_jogRight;
+
   // no jogging functionality allowed during lock or enable
   if (lockState == GlobalButtonLock::LOCKED ||
       motionMode == GlobalMotionMode::ENABLED) {
+    jogButton->resetClicked();
+    jogButton->resetSingleClicked();
+    jogButton->resetDoubleClicked();
     return;
   }
 
-  if (m_jogLeft.isDoubleClicked()) {
+  if (jogButton->isDoubleClicked()) {
     // todo set the leadscrew stop position
   }
 
-  Button* jogButton =
-      direction == JogDirection::LEFT ? &m_jogLeft : &m_jogRight;
   static elapsedMicros jogTimer;
 
   if (jogButton->isHeld() && jogTimer > JOG_PULSE_DELAY_US) {
