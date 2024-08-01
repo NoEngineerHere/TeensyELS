@@ -66,11 +66,11 @@ void setup() {
 
   // Display Initalisation
 
+  delay(5000);
+
   display.init();
 
   display.update();
-
-  globalState->printState();
 
   timer.begin(timerCallback, 50);
 }

@@ -15,18 +15,10 @@ ButtonHandler::ButtonHandler(Spindle* spindle, Leadscrew* leadscrew)
       m_lock(ELS_LOCK_BUTTON),
       m_jogLeft(ELS_JOG_LEFT_BUTTON),
       m_jogRight(ELS_JOG_RIGHT_BUTTON) {
-  Button* keys[] = {&m_rateIncrease, &m_rateDecrease, &m_modeCycle,
-                    &m_threadSync,   &m_halfNut,      &m_enable,
-                    &m_lock,         &m_jogLeft,      &m_jogRight};
-
-  ButtonList keyPad(keys);
-  m_keyPad = &keyPad;
   Button setHeldTime(100);
 }
 
 void ButtonHandler::handle() {
-  // update the button state
-  m_keyPad->handle();
   // update the state of the application based on the button state
   rateIncreaseHandler();
   rateDecreaseHandler();
@@ -40,35 +32,42 @@ void ButtonHandler::handle() {
 }
 
 void ButtonHandler::rateIncreaseHandler() {
-  Serial.println("Rate Inc Call");
-  GlobalButtonLock lockState = GlobalState::getInstance()->getButtonLock();
+  m_rateIncrease.handle();
 
+  GlobalButtonLock lockState = GlobalState::getInstance()->getButtonLock();
   if (lockState == GlobalButtonLock::LOCKED) {
+    m_rateIncrease.resetClicked();
+    m_rateIncrease.resetSingleClicked();
+    m_rateIncrease.resetDoubleClicked();
+
     return;
   }
 
-  if (m_rateIncrease.isClicked()) {
+  if (m_rateIncrease.resetSingleClicked()) {
     GlobalState::getInstance()->nextFeedPitch();
     m_leadscrew->setRatio(GlobalState::getInstance()->getCurrentFeedPitch());
   }
 }
 
 void ButtonHandler::rateDecreaseHandler() {
-  Serial.println("Rate Dec Call");
+  m_rateDecrease.handle();
 
   GlobalButtonLock lockState = GlobalState::getInstance()->getButtonLock();
   if (lockState == GlobalButtonLock::LOCKED) {
+    m_rateDecrease.resetClicked();
+    m_rateDecrease.resetSingleClicked();
+    m_rateDecrease.resetDoubleClicked();
     return;
   }
 
-  if (m_rateDecrease.isClicked()) {
+  if (m_rateDecrease.resetSingleClicked()) {
     GlobalState::getInstance()->prevFeedPitch();
     m_leadscrew->setRatio(GlobalState::getInstance()->getCurrentFeedPitch());
   }
 }
 
 void ButtonHandler::halfNutHandler() {
-  Serial.println("Half Nut Call");
+  m_halfNut.handle();
 
   GlobalButtonLock lockState = GlobalState::getInstance()->getButtonLock();
   if (lockState == GlobalButtonLock::LOCKED) {
@@ -87,7 +86,7 @@ void ButtonHandler::halfNutHandler() {
 }
 
 void ButtonHandler::enableHandler() {
-  Serial.println("Enable Call");
+  m_enable.handle();
 
   GlobalButtonLock lockState = GlobalState::getInstance()->getButtonLock();
   if (lockState == GlobalButtonLock::LOCKED) {
@@ -95,6 +94,7 @@ void ButtonHandler::enableHandler() {
   }
 
   if (m_enable.isClicked()) {
+    m_enable.resetClicked();
     if (GlobalState::getInstance()->getMotionMode() ==
         GlobalMotionMode::ENABLED) {
       GlobalState::getInstance()->setMotionMode(GlobalMotionMode::DISABLED);
@@ -105,11 +105,12 @@ void ButtonHandler::enableHandler() {
 }
 
 void ButtonHandler::lockHandler() {
-  Serial.println("Lock Call");
+  m_lock.handle();
 
   GlobalState* globalState = GlobalState::getInstance();
 
   if (m_lock.isClicked()) {
+    m_lock.resetClicked();
     if (globalState->getButtonLock() == GlobalButtonLock::LOCKED) {
       globalState->setButtonLock(GlobalButtonLock::UNLOCKED);
     } else {
@@ -119,7 +120,7 @@ void ButtonHandler::lockHandler() {
 }
 
 void ButtonHandler::threadSyncHandler() {
-  Serial.println("Thread Sync Call");
+  m_threadSync.handle();
 
   GlobalButtonLock lockState = GlobalState::getInstance()->getButtonLock();
   if (lockState == GlobalButtonLock::LOCKED) {
@@ -127,6 +128,7 @@ void ButtonHandler::threadSyncHandler() {
   }
 
   if (m_threadSync.isClicked()) {
+    m_threadSync.resetClicked();
     if (GlobalState::getInstance()->getMotionMode() ==
         GlobalMotionMode::ENABLED) {
       GlobalState::getInstance()->setThreadSyncState(
@@ -139,7 +141,8 @@ void ButtonHandler::threadSyncHandler() {
 }
 
 void ButtonHandler::modeCycleHandler() {
-  Serial.print("Mode Cycle Call");
+  m_modeCycle.handle();
+
   GlobalState* globalState = GlobalState::getInstance();
   GlobalButtonLock lockState = globalState->getButtonLock();
 
@@ -149,6 +152,7 @@ void ButtonHandler::modeCycleHandler() {
 
   // pressing mode button swaps between feed and thread
   if (m_modeCycle.isClicked()) {
+    m_modeCycle.resetClicked();
     switch (GlobalState::getInstance()->getFeedMode()) {
       case GlobalFeedMode::FEED:
         GlobalState::getInstance()->setFeedMode(GlobalFeedMode::THREAD);
@@ -209,12 +213,13 @@ void ButtonHandler::jogHandler(JogDirection direction) {
 }
 
 void ButtonHandler::jogLeftHandler() {
-  Serial.println("Jog Left Call");
+  m_jogLeft.handle();
+
   jogHandler(JogDirection::LEFT);
 }
 
 void ButtonHandler::jogRightHandler() {
-  Serial.println("Jog Right Call");
+  m_jogRight.handle();
 
   jogHandler(JogDirection::RIGHT);
 }

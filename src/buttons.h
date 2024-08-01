@@ -19,7 +19,6 @@ class ButtonHandler {
   Button m_lock;
   Button m_jogLeft;
   Button m_jogRight;
-  ButtonList *m_keyPad;
 
   void rateIncreaseHandler();
   void rateDecreaseHandler();
