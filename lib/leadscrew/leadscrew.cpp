@@ -117,6 +117,7 @@ void Leadscrew::update() {
         Serial.println(m_accumulator);
       }
 
+      m_lastFullPulseDurationMicros = currentMicros - m_lastPulseMicros;
       m_lastPulseMicros = currentMicros;
 
       break;

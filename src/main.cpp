@@ -66,8 +66,6 @@ void setup() {
 
   // Display Initalisation
 
-  delay(5000);
-
   display.init();
 
   display.update();
@@ -78,13 +76,12 @@ void setup() {
 void loop() {
   keyPad.handle();
 
-  uint32_t currentMicros = micros();
-  static uint32_t lastPrint = currentMicros;
-
-  if (currentMicros - lastPrint > 1000 * 500) {
+  static elapsedMicros lastPrint;
+  if (lastPrint > 1000 * 500) {
+    lastPrint = 0;
     globalState->printState();
     Serial.print("Micros: ");
-    Serial.println(currentMicros);
+    Serial.println(micros());
     Serial.print("Leadscrew position: ");
     Serial.println(leadscrew.getCurrentPosition());
     Serial.print("Leadscrew expected position: ");
@@ -97,8 +94,6 @@ void loop() {
     Serial.println(spindle.getEstimatedVelocityInRPM());
     Serial.print("Spindle velocity pulses: ");
     Serial.println(spindle.getEstimatedVelocityInPulsesPerSecond());
-
-    lastPrint = currentMicros;
   }
 
   display.update();

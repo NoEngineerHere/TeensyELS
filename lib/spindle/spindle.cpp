@@ -2,10 +2,14 @@
 
 #include <config.h>
 #include <els_elapsedMillis.h>
+#include <math.h>
 
 void Spindle::incrementCurrentPosition(int amount) {
   setCurrentPosition(getCurrentPosition() + amount);
-  m_lastPulseMicros = micros();
+  if (amount != 0) {
+    m_lastFullPulseDurationMicros = m_lastPulseMicros / abs(amount);
+    m_lastPulseMicros = 0;
+  }
 }
 
 float Spindle::getEstimatedVelocityInRPM() {

@@ -13,17 +13,21 @@ class Axis {
   // the timestamp of the last pulse
   elapsedMicros m_lastPulseMicros;
 
+  // the elapsed time for the last full pulse duration
+  uint32_t m_lastFullPulseDurationMicros;
+
  public:
   virtual int getCurrentPosition() { return m_currentPosition; }
   virtual void resetCurrentPosition() { m_currentPosition = 0; }
-  virtual float getEstimatedVelocityInPulsesPerSecond() {
-    // ideally we would average out over the last few pulses
-    // but that would take effort
-    if (m_lastPulseMicros == 0) {
+  virtual uint32_t getEstimatedVelocityInPulsesPerSecond() {
+    // ensure that we're not in some ridiculous state where the spindle has
+    // stopped for a long time
+    if (m_lastFullPulseDurationMicros == 0 ||
+        m_lastFullPulseDurationMicros > 1000) {
       return 0;
     }
 
-    return (float)(1000000 / (micros() - m_lastPulseMicros));
+    return 1000000 / m_lastFullPulseDurationMicros;
   }
 
  public:
