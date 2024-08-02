@@ -86,7 +86,7 @@ void Leadscrew::update() {
       break;
     case GlobalMotionMode::JOG:
       // only send a pulse if we haven't sent one recently
-      if (currentMicros - m_lastPulseMicros < JOG_PULSE_DELAY_US) {
+      if (m_lastPulseMicros < JOG_PULSE_DELAY_US) {
         break;
       }
       // if jog is complete go back to disabled motion mode
@@ -117,8 +117,8 @@ void Leadscrew::update() {
         Serial.println(m_accumulator);
       }
 
-      m_lastFullPulseDurationMicros = currentMicros - m_lastPulseMicros;
-      m_lastPulseMicros = currentMicros;
+      m_lastFullPulseDurationMicros = m_lastPulseMicros;
+      m_lastPulseMicros = 0;
 
       break;
   }
