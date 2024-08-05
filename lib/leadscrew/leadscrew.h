@@ -10,11 +10,16 @@ class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
   float m_ratio;
 
   // The current delay between pulses in microseconds
-  int m_currentPulseDelay;
+  uint32_t m_currentPulseDelay;
 
   float m_accumulator;
 
   int m_cycleModulo;
+
+  // we may want more sophisticated control over positions, but for now this is
+  // fine
+  int m_leftStopPosition;
+  int m_rightStopPosition;
 
   /**
    * This gets the "unit" of the accumulator, i.e the amount the accumulator
@@ -28,6 +33,10 @@ class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
   Leadscrew(Axis* leadAxis);
   int getCurrentPosition();
   void resetCurrentPosition();
+
+  enum StopPosition { LEFT, RIGHT };
+  void setStopPosition(StopPosition position, int stopPosition);
+  int getStopPosition(StopPosition position);
   void setRatio(float ratio);
   float getRatio();
   int getExpectedPosition();

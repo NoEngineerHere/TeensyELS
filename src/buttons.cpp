@@ -209,6 +209,17 @@ void ButtonHandler::jogHandler(JogDirection direction) {
   }
 
   if (jogButton->isDoubleClicked()) {
+    switch (direction) {
+      case JogDirection::LEFT:
+        m_leadscrew->setStopPosition(Leadscrew::StopPosition::LEFT,
+                                     m_leadscrew->getCurrentPosition());
+        break;
+      case JogDirection::RIGHT:
+        m_leadscrew->setStopPosition(Leadscrew::StopPosition::RIGHT,
+                                     m_leadscrew->getCurrentPosition());
+
+        break;
+    }
     // todo set the leadscrew stop position
   }
 

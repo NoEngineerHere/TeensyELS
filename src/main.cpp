@@ -70,7 +70,7 @@ void setup() {
 
   display.update();
 
-  timer.begin(timerCallback, 50);
+  timer.begin(timerCallback, 10);
 }
 
 void loop() {
@@ -86,6 +86,10 @@ void loop() {
     Serial.println(leadscrew.getCurrentPosition());
     Serial.print("Leadscrew expected position: ");
     Serial.println(leadscrew.getExpectedPosition());
+    Serial.print("Leadscrew left stop position: ");
+    Serial.println(leadscrew.getStopPosition(Leadscrew::StopPosition::LEFT));
+    Serial.print("Leadscrew right stop position: ");
+    Serial.println(leadscrew.getStopPosition(Leadscrew::StopPosition::RIGHT));
     Serial.print("Leadscrew ratio: ");
     Serial.println(leadscrew.getRatio());
     Serial.print("Spindle position: ");

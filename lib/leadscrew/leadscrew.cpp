@@ -29,6 +29,27 @@ void Leadscrew::resetCurrentPosition() {
   m_currentPosition = m_leadAxis->getCurrentPosition() * m_ratio;
 }
 
+void Leadscrew::setStopPosition(StopPosition position, int stopPosition) {
+  switch (position) {
+    case LEFT:
+      m_leftStopPosition = stopPosition;
+      break;
+    case RIGHT:
+      m_rightStopPosition = stopPosition;
+      break;
+  }
+}
+
+int Leadscrew::getStopPosition(StopPosition position) {
+  switch (position) {
+    case LEFT:
+      return m_leftStopPosition;
+    case RIGHT:
+      return m_rightStopPosition;
+  }
+  return 0;
+}
+
 void Leadscrew::setCurrentPosition(int position) {
   m_currentPosition = position;
 }
@@ -45,9 +66,10 @@ bool Leadscrew::sendPulse() {
   uint8_t pinState = digitalReadFast(2);
 
   // Keep the pulse pin high as long as we're not scheduled to send a pulse
-  if (pinState == HIGH && m_lastPulseMicros - m_currentPulseDelay > 0) {
+  if (pinState == HIGH && m_lastPulseMicros > m_currentPulseDelay) {
     digitalWriteFast(2, LOW);
-    m_lastPulseMicros -= m_currentPulseDelay;
+    m_lastFullPulseDurationMicros = m_lastPulseMicros;
+    m_lastPulseMicros = 0;
 
     if (m_accumulator > 1) {
       m_accumulator--;
@@ -109,6 +131,45 @@ void Leadscrew::update() {
       // if sendPulse returns true, we've actually sent a pulse
       if (sendPulse()) {
         m_currentPosition += directionIncrement;
+
+        // calculate the stopping distance based on current speed and set accel
+        int stoppingDistanceInPulses =
+            (LEADSCREW_INITIAL_PULSE_DELAY_US - m_currentPulseDelay) /
+            LEADSCREW_PULSE_DELAY_STEP_US / LEADSCREW_TIMER_US;
+
+        // if this is true we should start decelerating to stop at the correct
+        // position
+        bool shouldStop = directionIncrement > 0
+                              ? m_currentPosition + stoppingDistanceInPulses >=
+                                    m_rightStopPosition
+                              : m_currentPosition - stoppingDistanceInPulses <=
+                                    m_leftStopPosition;
+
+        float expectedPulseDuration =
+            m_leadAxis->m_lastFullPulseDurationMicros * m_ratio;
+
+        if (shouldStop) {
+          // if we're close to the stopping position we should start
+          // decelerating
+          m_currentPulseDelay += LEADSCREW_PULSE_DELAY_STEP_US;
+          // todo last pulse duration variable should be a getter instead
+        } else if (expectedPulseDuration < m_currentPulseDelay) {
+          // if the last pulse was shorter than the current delay we should
+          // speed up
+          m_currentPulseDelay -= LEADSCREW_PULSE_DELAY_STEP_US;
+        }
+
+        // if pulse is sent we want to calculate how much to change the timing
+        // for the next pulse
+        // depending on accel and current speed etc
+        // inital pulse delay is upper timing limit
+        //
+        if (m_currentPulseDelay > LEADSCREW_INITIAL_PULSE_DELAY_US) {
+          m_currentPulseDelay = LEADSCREW_INITIAL_PULSE_DELAY_US;
+        }
+        if (m_currentPulseDelay < 0) {
+          m_currentPulseDelay = 0;
+        }
       }
 
       if ((int)(m_accumulator) != 0) {
