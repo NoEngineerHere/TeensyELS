@@ -4,6 +4,11 @@
 #include <els_elapsedMillis.h>
 #include <math.h>
 
+Spindle::Spindle() {
+  m_lastPulseMicros = 0;
+  m_lastFullPulseDurationMicros = 0;
+}
+
 void Spindle::incrementCurrentPosition(int amount) {
   setCurrentPosition(getCurrentPosition() + amount);
   if (amount != 0) {
