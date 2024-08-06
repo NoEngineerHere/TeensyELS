@@ -4,6 +4,7 @@
 #include <Wire.h>
 #include <globalstate.h>
 #include <leadscrew.h>
+#include <leadscrew_io_impl.h>
 #include <spindle.h>
 
 #include "buttons.h"
@@ -14,7 +15,8 @@ IntervalTimer timer;
 
 GlobalState* globalState = GlobalState::getInstance();
 Spindle spindle;
-Leadscrew leadscrew(&spindle);
+LeadscrewIOImpl leadscrewIOImpl;
+Leadscrew leadscrew(&spindle, &leadscrewIOImpl);
 ButtonHandler keyPad(&spindle, &leadscrew);
 Display display(&spindle, &leadscrew);
 

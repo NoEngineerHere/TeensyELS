@@ -1,13 +1,14 @@
 #include "leadscrew.h"
 
-#include <Wire.h>
 #include <globalstate.h>
+
+#include <cstdint>
 
 #include "leadscrew_io.h"
 
-Leadscrew::Leadscrew(Axis* leadAxis) : DerivedAxis() {
+Leadscrew::Leadscrew(Axis* leadAxis, LeadscrewIO* io) {
   m_leadAxis = leadAxis;
-  m_io = new LeadscrewIOImpl();
+  m_io = io;
   m_ratio = 1.0;
   Axis::m_currentPosition = 0;
   m_lastPulseMicros = 0;
@@ -69,8 +70,8 @@ bool Leadscrew::sendPulse() {
   uint8_t pinState = m_io->readStepPin();
 
   // Keep the pulse pin high as long as we're not scheduled to send a pulse
-  if (pinState == HIGH && m_lastPulseMicros > m_currentPulseDelay) {
-    m_io->writeStepPin(LOW);
+  if (pinState == 1 && m_lastPulseMicros > m_currentPulseDelay) {
+    m_io->writeStepPin(0);
     m_lastFullPulseDurationMicros = m_lastPulseMicros;
     m_lastPulseMicros = 0;
 
@@ -81,26 +82,24 @@ bool Leadscrew::sendPulse() {
       m_accumulator++;
     }
   } else {
-    m_io->writeStepPin(HIGH);
+    m_io->writeStepPin(1);
   }
 
-  return pinState == HIGH;
+  return pinState == 1;
 }
 
 void Leadscrew::update() {
   GlobalState* globalState = GlobalState::getInstance();
-
-  int currentMicros = micros();
 
   int positionError = getPositionError();
 
   int directionIncrement = 0;
 
   if (positionError > 0) {
-    m_io->writeDirPin(HIGH);
+    m_io->writeDirPin(1);
     directionIncrement = 1;
   } else if (positionError < 0) {
-    m_io->writeDirPin(LOW);
+    m_io->writeDirPin(0);
     directionIncrement = -1;
   }
 
@@ -172,8 +171,6 @@ void Leadscrew::update() {
 
       if ((int)(m_accumulator) != 0) {
         m_accumulator += getAccumulatorUnit();
-        Serial.print("Accumulator: ");
-        Serial.println(m_accumulator);
       }
 
       m_lastFullPulseDurationMicros = m_lastPulseMicros;

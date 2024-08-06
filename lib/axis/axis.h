@@ -1,5 +1,7 @@
 #include <els_elapsedMillis.h>
 
+#include <cstdint>
+
 #pragma once
 
 /**

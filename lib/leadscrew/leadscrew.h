@@ -33,7 +33,7 @@ class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
   // int getStoppingDistanceInPulses();
 
  public:
-  Leadscrew(Axis* leadAxis);
+  Leadscrew(Axis* leadAxis, LeadscrewIO* io);
   int getCurrentPosition();
   void resetCurrentPosition();
 
