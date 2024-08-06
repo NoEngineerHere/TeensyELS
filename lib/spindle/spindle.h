@@ -5,7 +5,6 @@
 
 class Spindle : public RotationalAxis {
  public:
-  Spindle();
   void incrementCurrentPosition(int amount);
   float getEstimatedVelocityInRPM();
 };

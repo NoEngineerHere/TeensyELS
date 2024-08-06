@@ -19,6 +19,11 @@ class Axis {
   uint32_t m_lastFullPulseDurationMicros;
 
  public:
+  Axis() {
+    m_lastPulseMicros = 0;
+    m_lastFullPulseDurationMicros = 0;
+    m_currentPosition = 0;
+  }
   virtual int getCurrentPosition() { return m_currentPosition; }
   virtual void resetCurrentPosition() { m_currentPosition = 0; }
   virtual uint32_t getEstimatedVelocityInPulsesPerSecond() {

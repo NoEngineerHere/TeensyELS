@@ -1,12 +1,18 @@
 // This file contains all hardware configs for your system
 
-#pragma once
+// not using pragma once to allow for multiple inclusion in tests, do not
+// remove!
+#ifndef ELS_CONFIG_H
+#define ELS_CONFIG_H
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof(arr[0]))
 
 // Macro to check at compile time if an index is out of bounds
 #define CHECK_BOUNDS(idx, arr, error) \
   static_assert(idx < ARRAY_SIZE(arr), error)
+
+// the amount of microseconds in a second
+#define US_PER_SECOND 1000000
 
 /**
  * Uncomment this line if your spindle is driven by a motor controlled by this
@@ -90,12 +96,12 @@
 // from 0 do not change - this is a calculated value, to change the initial
 // speed look at the jerk value
 #define LEADSCREW_INITIAL_PULSE_DELAY_US \
-  10000000 / (LEADSCREW_JERK * ELS_LEADSCREW_STEPS_PER_MM)
+  US_PER_SECOND / (LEADSCREW_JERK * ELS_LEADSCREW_STEPS_PER_MM)
 
 // The amount of time to increment/decrement the pulse delay by in microseconds
 // for the leadscrew This is calculated based on the acceleration value
 #define LEADSCREW_PULSE_DELAY_STEP_US \
-  ELS_LEADSCREW_STEPS_PER_MM / LEADSCREW_ACCEL * 1000000
+  (ELS_LEADSCREW_STEPS_PER_MM / LEADSCREW_ACCEL) * US_PER_SECOND
 
 // metric thread pitch is defined as mm/rev
 const float threadPitchMetric[] = {0.35, 0.40, 0.45, 0.50, 0.60, 0.70, 0.80,
@@ -119,3 +125,5 @@ const float feedPitchImperial[] = {
     0.002, 0.003, 0.004, 0.005, 0.006, 0.007, 0.008, 0.009, 0.010, 0.011,
     0.012, 0.014, 0.016, 0.018, 0.020, 0.022, 0.024, 0.026, 0.028, 0.030};
 #define DEFAULT_IMPERIAL_FEED_PITCH_IDX 8
+
+#endif

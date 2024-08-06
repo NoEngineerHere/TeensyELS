@@ -1,13 +1,11 @@
-#pragma once
+
+// no pragma once, this file is meant to be included multiple times to reset
+// between tests
 
 // this file unsets all user config when included
 // used for tests only to have a consistent environment
 
-#undef ELS_SPINDLE_ENCODER_PPR
-#undef ELS_LEADSCREW_STEPPER_PPR
-#undef ELS_LEADSCREW_PITCH_MM
-#undef LEADSCREW_JERK
-#undef LEADSCREW_ACCEL
+#include "reset_config_undef.h"
 
 // makes the math easier...
 #define ELS_SPINDLE_ENCODER_PPR 360

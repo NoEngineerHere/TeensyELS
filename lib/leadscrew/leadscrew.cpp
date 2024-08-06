@@ -13,6 +13,7 @@ Leadscrew::Leadscrew(Axis* leadAxis, LeadscrewIO* io) {
   Axis::m_currentPosition = 0;
   m_lastPulseMicros = 0;
   m_currentPulseDelay = LEADSCREW_INITIAL_PULSE_DELAY_US;
+  m_accumulator = 0;
 }
 
 void Leadscrew::setRatio(float ratio) {

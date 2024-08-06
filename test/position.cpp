@@ -34,5 +34,8 @@ TEST(PositionTest, TestPositionUpdateOverTime) {
   spindle.setCurrentPosition(100);
   micros.setMicros(10);
   leadscrew.update();
-  EXPECT_EQ(leadscrew.getCurrentPosition(), 100);
+  EXPECT_EQ(leadscrew.getCurrentPosition(), 0);
+  micros.setMicros(20);
+  leadscrew.update();
+  EXPECT_EQ(leadscrew.getCurrentPosition(), 1);
 }
