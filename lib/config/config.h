@@ -84,6 +84,8 @@
 // The acceleration of the leadscrew in mm/s^2
 #define LEADSCREW_ACCEL 20
 
+#define LEADSCREW_TIMER_US 10
+
 // The initial delay between pulses in microseconds for the leadscrew starting
 // from 0 do not change - this is a calculated value, to change the initial
 // speed look at the jerk value

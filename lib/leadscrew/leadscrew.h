@@ -1,10 +1,13 @@
 #include <axis.h>
 #include <els_elapsedMillis.h>
+
+#include "leadscrew_io.h"
 #pragma once
 
 class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
  private:
   Axis* m_leadAxis;
+  LeadscrewIO* m_io;
 
   // the ratio of how much the leadscrew moves per spindle rotation
   float m_ratio;

@@ -3,8 +3,11 @@
 #include <Wire.h>
 #include <globalstate.h>
 
+#include "leadscrew_io.h"
+
 Leadscrew::Leadscrew(Axis* leadAxis) : DerivedAxis() {
   m_leadAxis = leadAxis;
+  m_io = new LeadscrewIOImpl();
   m_ratio = 1.0;
   Axis::m_currentPosition = 0;
   m_lastPulseMicros = 0;
@@ -63,11 +66,11 @@ float Leadscrew::getAccumulatorUnit() {
 }
 
 bool Leadscrew::sendPulse() {
-  uint8_t pinState = digitalReadFast(2);
+  uint8_t pinState = m_io->readStepPin();
 
   // Keep the pulse pin high as long as we're not scheduled to send a pulse
   if (pinState == HIGH && m_lastPulseMicros > m_currentPulseDelay) {
-    digitalWriteFast(2, LOW);
+    m_io->writeStepPin(LOW);
     m_lastFullPulseDurationMicros = m_lastPulseMicros;
     m_lastPulseMicros = 0;
 
@@ -78,7 +81,7 @@ bool Leadscrew::sendPulse() {
       m_accumulator++;
     }
   } else {
-    digitalWriteFast(2, HIGH);
+    m_io->writeStepPin(HIGH);
   }
 
   return pinState == HIGH;
@@ -94,10 +97,10 @@ void Leadscrew::update() {
   int directionIncrement = 0;
 
   if (positionError > 0) {
-    digitalWriteFast(3, HIGH);
+    m_io->writeDirPin(HIGH);
     directionIncrement = 1;
   } else if (positionError < 0) {
-    digitalWriteFast(3, LOW);
+    m_io->writeDirPin(LOW);
     directionIncrement = -1;
   }
 
@@ -145,17 +148,12 @@ void Leadscrew::update() {
                               : m_currentPosition - stoppingDistanceInPulses <=
                                     m_leftStopPosition;
 
-        float expectedPulseDuration =
-            m_leadAxis->m_lastFullPulseDurationMicros * m_ratio;
-
         if (shouldStop) {
           // if we're close to the stopping position we should start
           // decelerating
           m_currentPulseDelay += LEADSCREW_PULSE_DELAY_STEP_US;
           // todo last pulse duration variable should be a getter instead
-        } else if (expectedPulseDuration < m_currentPulseDelay) {
-          // if the last pulse was shorter than the current delay we should
-          // speed up
+        } else if (getPositionError() > 0) {
           m_currentPulseDelay -= LEADSCREW_PULSE_DELAY_STEP_US;
         }
 
