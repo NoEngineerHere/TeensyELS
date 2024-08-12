@@ -3,6 +3,7 @@
 #include <globalstate.h>
 
 #include <cstdint>
+#include <cstdio>
 
 #include "leadscrew_io.h"
 
@@ -14,6 +15,9 @@ Leadscrew::Leadscrew(Axis* leadAxis, LeadscrewIO* io) {
   m_lastPulseMicros = 0;
   m_currentPulseDelay = LEADSCREW_INITIAL_PULSE_DELAY_US;
   m_accumulator = 0;
+  m_cycleModulo = ELS_LEADSCREW_STEPPER_PPR;
+  m_leftStopState = LeadscrewStopState::UNSET;
+  m_rightStopState = LeadscrewStopState::UNSET;
 }
 
 void Leadscrew::setRatio(float ratio) {
@@ -34,23 +38,43 @@ void Leadscrew::resetCurrentPosition() {
   m_currentPosition = m_leadAxis->getCurrentPosition() * m_ratio;
 }
 
+void Leadscrew::unsetStopPosition(StopPosition position) {
+  switch (position) {
+    case LEFT:
+      m_leftStopState = LeadscrewStopState::UNSET;
+      break;
+    case RIGHT:
+      m_rightStopState = LeadscrewStopState::UNSET;
+      break;
+  }
+}
+
 void Leadscrew::setStopPosition(StopPosition position, int stopPosition) {
   switch (position) {
     case LEFT:
       m_leftStopPosition = stopPosition;
+      m_leftStopState = LeadscrewStopState::SET;
       break;
     case RIGHT:
       m_rightStopPosition = stopPosition;
+      m_rightStopState = LeadscrewStopState::SET;
       break;
   }
 }
 
 int Leadscrew::getStopPosition(StopPosition position) {
+  // todo better default values when unset
   switch (position) {
     case LEFT:
-      return m_leftStopPosition;
+      if (m_leftStopState == LeadscrewStopState::SET) {
+        return m_leftStopPosition;
+      }
+      return INT32_MIN;
     case RIGHT:
-      return m_rightStopPosition;
+      if (m_rightStopState == LeadscrewStopState::SET) {
+        return m_rightStopPosition;
+      }
+      return INT32_MAX;
   }
   return 0;
 }
@@ -124,9 +148,20 @@ void Leadscrew::update() {
       break;
     case GlobalMotionMode::ENABLED:
 
+      uint32_t currentMicros = micros();
+
       if (positionError == 0) {
         // todo check if we have sync'd before
         globalState->setThreadSyncState(GlobalThreadSyncState::SYNC);
+        break;
+      }
+
+      // minor bug in testing, m_lastPulseMicros appears to always be zero when
+      // comparing directly
+      uint32_t timeSinceLastPulse = m_lastPulseMicros;
+
+      // check if we're scheduled for a pulse
+      if (timeSinceLastPulse < m_currentPulseDelay) {
         break;
       }
 
@@ -168,14 +203,14 @@ void Leadscrew::update() {
         if (m_currentPulseDelay < 0) {
           m_currentPulseDelay = 0;
         }
-      }
 
-      if ((int)(m_accumulator) != 0) {
-        m_accumulator += getAccumulatorUnit();
-      }
+        if ((int)(m_accumulator) != 0) {
+          m_accumulator += getAccumulatorUnit();
+        }
 
-      m_lastFullPulseDurationMicros = m_lastPulseMicros;
-      m_lastPulseMicros = 0;
+        m_lastFullPulseDurationMicros = m_lastPulseMicros;
+        m_lastPulseMicros = 0;
+      }
 
       break;
   }

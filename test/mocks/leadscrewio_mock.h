@@ -1,11 +1,14 @@
-#include <gmock/gmock.h>
+
 
 #pragma once
 
 class LeadscrewIOMock : public LeadscrewIO {
+  uint8_t m_stepPinState;
+  uint8_t m_dirPinState;
+
  public:
-  MOCK_METHOD(void, writeStepPin, (uint8_t val), (override));
-  MOCK_METHOD(uint8_t, readStepPin, (), (override));
-  MOCK_METHOD(void, writeDirPin, (uint8_t val), (override));
-  MOCK_METHOD(uint8_t, readDirPin, (), (override));
+  void writeStepPin(uint8_t state) override { m_stepPinState = state; }
+  void writeDirPin(uint8_t state) override { m_dirPinState = state; }
+  uint8_t readStepPin() override { return m_stepPinState; }
+  uint8_t readDirPin() override { return m_dirPinState; }
 };

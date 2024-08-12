@@ -20,6 +20,7 @@ class MillisSingleton {
   MillisSingleton() : m_millis(0) {}
   unsigned long millis() { return m_millis; }
   void incrementMillis() { m_millis++; }
+  void incrementMillis(unsigned long millis) { m_millis += millis; }
   void setMillis(unsigned long millis) { m_millis = millis; }
 
   static MillisSingleton &getInstance() {
@@ -36,6 +37,7 @@ class MicrosSingleton {
   MicrosSingleton() : m_micros(0) {}
   unsigned long micros() { return m_micros; }
   void incrementMicros() { m_micros++; }
+  void incrementMicros(unsigned long micros) { m_micros += micros; }
   void setMicros(unsigned long micros) { m_micros = micros; }
 
   static MicrosSingleton &getInstance() {

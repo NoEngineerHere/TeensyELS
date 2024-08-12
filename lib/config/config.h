@@ -101,7 +101,7 @@
 // The amount of time to increment/decrement the pulse delay by in microseconds
 // for the leadscrew This is calculated based on the acceleration value
 #define LEADSCREW_PULSE_DELAY_STEP_US \
-  (ELS_LEADSCREW_STEPS_PER_MM / LEADSCREW_ACCEL) * US_PER_SECOND
+  US_PER_SECOND / (LEADSCREW_ACCEL * ELS_LEADSCREW_STEPS_PER_MM)
 
 // metric thread pitch is defined as mm/rev
 const float threadPitchMetric[] = {0.35, 0.40, 0.45, 0.50, 0.60, 0.70, 0.80,

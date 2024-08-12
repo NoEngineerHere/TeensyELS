@@ -4,6 +4,8 @@
 #include "leadscrew_io.h"
 #pragma once
 
+enum LeadscrewStopState { SET, UNSET };
+
 class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
  private:
   Axis* m_leadAxis;
@@ -13,7 +15,7 @@ class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
   float m_ratio;
 
   // The current delay between pulses in microseconds
-  uint32_t m_currentPulseDelay;
+  int m_currentPulseDelay;
 
   float m_accumulator;
 
@@ -21,7 +23,9 @@ class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
 
   // we may want more sophisticated control over positions, but for now this is
   // fine
+  LeadscrewStopState m_leftStopState;
   int m_leftStopPosition;
+  LeadscrewStopState m_rightStopState;
   int m_rightStopPosition;
 
   /**
@@ -39,6 +43,7 @@ class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
 
   enum StopPosition { LEFT, RIGHT };
   void setStopPosition(StopPosition position, int stopPosition);
+  void unsetStopPosition(StopPosition position);
   int getStopPosition(StopPosition position);
   void setRatio(float ratio);
   float getRatio();

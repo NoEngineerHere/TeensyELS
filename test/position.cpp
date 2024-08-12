@@ -3,6 +3,7 @@
                           // classes
 #endif
 
+#include <config.h>
 #include <els_elapsedMillis.h>
 #include <globalstate.h>
 #include <gmock/gmock.h>
@@ -10,32 +11,90 @@
 #include <spindle.h>
 
 #include <cstdint>
+#include <vector>
+
+using std::vector;
 
 #include "mocks/axis_mock.h"
 #include "mocks/leadscrewio_mock.h"
-#include "mocks/reset_config.h"
 
-TEST(PositionTest, TestPositionUpdateOverTime) {
+struct position {
+  unsigned long micros;
+  int leadscrewPosition;
+};
+
+unsigned long roundUp(unsigned long numToRound, unsigned long multiple) {
+  assert(multiple);
+  return ((numToRound + multiple - 1) / multiple) * multiple;
+}
+
+TEST(PositionTest, TestInitialPulseDelay) {
   MicrosSingleton& micros = MicrosSingleton::getInstance();
   GlobalState* globalState = GlobalState::getInstance();
   LeadscrewIOMock leadscrewIOMock;
   Spindle spindle;
   Leadscrew leadscrew(&spindle, &leadscrewIOMock);
 
-  micros.setMicros(0);
-  leadscrew.setCurrentPosition(0);
-  leadscrew.setRatio(1.0);
+  // log the current settings in config.h
+  printf("LEADSCREW_INITIAL_PULSE_DELAY_US: %f\n",
+         LEADSCREW_INITIAL_PULSE_DELAY_US);
+  printf("LEADSCREW_PULSE_DELAY_STEP_US: %f\n", LEADSCREW_PULSE_DELAY_STEP_US);
+
+  // test data
+  // define the time and the expected position of the leadscrew
+
   globalState->setMotionMode(GlobalMotionMode::ENABLED);
-
-  // test that the position tracks the given axis 1:1 following the accel curve
-  leadscrew.update();
-  EXPECT_EQ(leadscrew.getCurrentPosition(), 0);
-
   spindle.setCurrentPosition(100);
-  micros.setMicros(10);
-  leadscrew.update();
-  EXPECT_EQ(leadscrew.getCurrentPosition(), 0);
-  micros.setMicros(20);
-  leadscrew.update();
-  EXPECT_EQ(leadscrew.getCurrentPosition(), 1);
+
+  printf("Step1 timing: %d\n",
+         roundUp(LEADSCREW_INITIAL_PULSE_DELAY_US + 10, 10));
+  printf("Step2 timing: %d\n", roundUp(LEADSCREW_INITIAL_PULSE_DELAY_US * 2 -
+                                           LEADSCREW_PULSE_DELAY_STEP_US + 10,
+                                       10));
+
+  // todo more accurate predictions of when we should step
+  vector<position> expectedStepPositions = {
+      {0, 0},  // initial position
+      {roundUp((int)(LEADSCREW_INITIAL_PULSE_DELAY_US + 10), 10), 1},
+      {roundUp((int)(LEADSCREW_INITIAL_PULSE_DELAY_US * 2 -
+                     LEADSCREW_PULSE_DELAY_STEP_US + 20),
+               10),
+       2}};
+
+  // find the max time in the expectedStepPositions
+  unsigned long maxTime = 0;
+  for (auto& step : expectedStepPositions) {
+    if (step.micros > maxTime) {
+      maxTime = step.micros;
+    }
+  }
+  maxTime += 1000;  // add a little extra time to make sure the test runs long
+                    // enough
+
+  printf("maxTime: %lu\n", maxTime);
+
+  while (micros.micros() < maxTime) {
+    micros.incrementMicros(LEADSCREW_TIMER_US);
+    leadscrew.update();
+
+    // assert when the time matches the expected position
+    for (auto& step : expectedStepPositions) {
+      if (step.micros == micros.micros()) {
+        ASSERT_EQ(leadscrew.getCurrentPosition(), step.leadscrewPosition);
+        break;
+      }
+      // if we're not at a set value in the position list, we should be at the
+      // one immediately previous defined by the time find the previous position
+      // based on the time
+      position* previousPosition = &expectedStepPositions[0];
+      for (auto& step : expectedStepPositions) {
+        if (step.micros > micros.micros()) {
+          break;
+        }
+        previousPosition = &step;
+      }
+      ASSERT_EQ(leadscrew.getCurrentPosition(),
+                previousPosition->leadscrewPosition);
+    }
+  }
 }
