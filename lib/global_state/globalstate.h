@@ -1,8 +1,6 @@
 
-#include "axis/axis.h"
-#include "axis/leadscrew/leadscrew.h"
-#include "axis/spindle/spindle.h"
-#include "config.h"
+#include <axis.h>
+#include <config.h>
 
 #pragma once
 
@@ -27,8 +25,16 @@ enum GlobalUnitMode { METRIC, IMPERIAL };
  * The state of the global thread sync
  * Sync: The spindle and leadscrew are in sync
  * Unsync: The spindle and leadscrew are out of sync
+ * Resync:
  */
 enum GlobalThreadSyncState { SYNC, UNSYNC };
+
+/**
+ * The state of the global button lock
+ * Unlocked: The buttons are unlocked
+ * Locked: The buttons are locked
+ */
+enum GlobalButtonLock { UNLOCKED, LOCKED };
 
 // this is a singleton class - we don't want more than one of these existing at
 // a time!
@@ -40,6 +46,7 @@ class GlobalState {
   GlobalMotionMode m_motionMode;
   GlobalUnitMode m_unitMode;
   GlobalThreadSyncState m_threadSyncState;
+  GlobalButtonLock m_buttonLock;
 
   int m_feedSelect;
 
@@ -52,6 +59,7 @@ class GlobalState {
   GlobalState() {
     setFeedMode(DEFAULT_FEED_MODE);
     setUnitMode(DEFAULT_UNIT_MODE);
+    setButtonLock(LOCKED);
     setFeedSelect(-1);
     setThreadSyncState(UNSYNC);
     m_motionMode = DISABLED;
@@ -77,6 +85,9 @@ class GlobalState {
 
   void setThreadSyncState(GlobalThreadSyncState state);
   GlobalThreadSyncState getThreadSyncState();
+
+  void setButtonLock(GlobalButtonLock lock);
+  GlobalButtonLock getButtonLock();
 
   void setFeedSelect(int select);
   int getFeedSelect();

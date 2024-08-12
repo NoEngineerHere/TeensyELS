@@ -1,15 +1,14 @@
-#include "display.h"
-
-#include "config.h"
-#include "globalstate.h"
+#include <config.h>
+#include <display.h>
+#include <globalstate.h>
 
 // Images
-#include "feedSymbol.h"
-#include "lockedSymbol.h"
-#include "pauseSymbol.h"
-#include "runSymbol.h"
-#include "threadSymbol.h"
-#include "unlockedSymbol.h"
+#include <icons/feedSymbol.h>
+#include <icons/lockedSymbol.h>
+#include <icons/pauseSymbol.h>
+#include <icons/runSymbol.h>
+#include <icons/threadSymbol.h>
+#include <icons/unlockedSymbol.h>
 
 void Display::init() {
 #if ELS_DISPLAY == SSD1306_128_64
@@ -21,18 +20,32 @@ void Display::init() {
 #endif
 }
 
-void Display::update(boolean lock) {
+void Display::update() {
 #if ELS_DISPLAY == SSD1306_128_64
   m_ssd1306.clearDisplay();
 #endif
 
-  this->drawMode();
-  this->drawPitch();
-  this->drawLocked(lock);
-  this->drawEnabled();
+  drawMode();
+  drawPitch();
+  drawLocked();
+  drawEnabled();
+  drawSpindleRpm();
 
 #if ELS_DISPLAY == SSD1306_128_64
   m_ssd1306.display();
+#endif
+}
+
+void Display::drawSpindleRpm() {
+#if ELS_DISPLAY == SSD1306_128_64
+  int rpm = m_spindle->getEstimatedVelocityInRPM();
+  char rpmString[10];
+  m_ssd1306.setCursor(0, 0);
+  m_ssd1306.setTextSize(1);
+  m_ssd1306.setTextColor(WHITE);
+  // pad the rpm with spaces so the RPM text stays in the same place
+  sprintf(rpmString, "%4dRPM", rpm);
+  m_ssd1306.print(rpmString);
 #endif
 }
 
@@ -100,14 +113,17 @@ void Display::drawEnabled() {
 #endif
 }
 
-void Display::drawLocked(boolean locked) {
+void Display::drawLocked() {
+  GlobalButtonLock lock = GlobalState::getInstance()->getButtonLock();
 #if ELS_DISPLAY == SSD1306_128_64
   m_ssd1306.fillRoundRect(2, 40, 20, 20, 2, WHITE);
-
-  if (locked == true) {
-    m_ssd1306.drawBitmap(4, 42, lockedSymbol, 16, 16, BLACK);
-  } else {
-    m_ssd1306.drawBitmap(4, 42, unlockedSymbol, 16, 16, BLACK);
+  switch (lock) {
+    case GlobalButtonLock::LOCKED:
+      m_ssd1306.drawBitmap(4, 42, lockedSymbol, 16, 16, BLACK);
+      break;
+    case GlobalButtonLock::UNLOCKED:
+      m_ssd1306.drawBitmap(4, 42, unlockedSymbol, 16, 16, BLACK);
+      break;
   }
 #endif
 }

@@ -1,12 +1,51 @@
 // This file contains all hardware configs for your system
 
-#pragma once
+// not using pragma once to allow for multiple inclusion in tests, do not
+// remove!
+#ifndef ELS_CONFIG_H
+#define ELS_CONFIG_H
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof(arr[0]))
 
 // Macro to check at compile time if an index is out of bounds
 #define CHECK_BOUNDS(idx, arr, error) \
   static_assert(idx < ARRAY_SIZE(arr), error)
+
+// the amount of microseconds in a second
+#define US_PER_SECOND 1000000
+
+/**
+ * Uncomment this line if your spindle is driven by a motor controlled by this
+ * application. If it is uncommented we will assume you have an encoder attached
+ * to your spindle
+ * TODO: Implement this for real
+ */
+// #define ELS_SPINDLE_DRIVEN
+
+/**
+ * IO Pins
+ */
+#ifdef ELS_SPINDLE_DRIVEN
+// set your spindle driver pins here
+#define ELS_SPINDLE_STEP -1
+#define ELS_SPINDLE_DIR -1
+#else
+#define ELS_SPINDLE_ENCODER_A 14
+#define ELS_SPINDLE_ENCODER_B 15
+#endif
+
+#define ELS_LEADSCREW_STEP 2
+#define ELS_LEADSCREW_DIR 3
+
+#define ELS_RATE_INCREASE_BUTTON 4
+#define ELS_RATE_DECREASE_BUTTON 5
+#define ELS_MODE_CYCLE_BUTTON 6
+#define ELS_THREAD_SYNC_BUTTON 7
+#define ELS_HALF_NUT_BUTTON 8
+#define ELS_ENABLE_BUTTON 9
+#define ELS_LOCK_BUTTON 10
+#define ELS_JOG_LEFT_BUTTON 24
+#define ELS_JOG_RIGHT_BUTTON 25
 
 /**
  * Display
@@ -51,16 +90,18 @@
 // The acceleration of the leadscrew in mm/s^2
 #define LEADSCREW_ACCEL 20
 
+#define LEADSCREW_TIMER_US 10
+
 // The initial delay between pulses in microseconds for the leadscrew starting
 // from 0 do not change - this is a calculated value, to change the initial
 // speed look at the jerk value
 #define LEADSCREW_INITIAL_PULSE_DELAY_US \
-  10000000 * ELS_LEADSCREW_STEPS_PER_MM / LEADSCREW_JERK
+  US_PER_SECOND / (LEADSCREW_JERK * ELS_LEADSCREW_STEPS_PER_MM)
 
 // The amount of time to increment/decrement the pulse delay by in microseconds
 // for the leadscrew This is calculated based on the acceleration value
 #define LEADSCREW_PULSE_DELAY_STEP_US \
-  10000000 * ELS_LEADSCREW_STEPS_PER_MM / LEADSCREW_ACCEL
+  US_PER_SECOND / (LEADSCREW_ACCEL * ELS_LEADSCREW_STEPS_PER_MM)
 
 // metric thread pitch is defined as mm/rev
 const float threadPitchMetric[] = {0.35, 0.40, 0.45, 0.50, 0.60, 0.70, 0.80,
@@ -84,3 +125,5 @@ const float feedPitchImperial[] = {
     0.002, 0.003, 0.004, 0.005, 0.006, 0.007, 0.008, 0.009, 0.010, 0.011,
     0.012, 0.014, 0.016, 0.018, 0.020, 0.022, 0.024, 0.026, 0.028, 0.030};
 #define DEFAULT_IMPERIAL_FEED_PITCH_IDX 8
+
+#endif

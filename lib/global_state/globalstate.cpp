@@ -1,6 +1,7 @@
-#include "globalstate.h"
-
+#ifndef PIO_UNIT_TESTING
 #include <Wire.h>
+#endif
+#include <globalstate.h>
 
 GlobalState *GlobalState::m_instance = nullptr;
 GlobalState *GlobalState::getInstance() {
@@ -11,6 +12,7 @@ GlobalState *GlobalState::getInstance() {
 }
 
 void GlobalState::printState() {
+#ifndef PIO_UNIT_TESTING
   Serial.print("Drive Mode: ");
   switch (m_motionMode) {
     case DISABLED:
@@ -50,6 +52,7 @@ void GlobalState::printState() {
       Serial.println("UNSYNC");
       break;
   }
+#endif
 }
 
 void GlobalState::setFeedMode(GlobalFeedMode mode) {
@@ -83,6 +86,10 @@ int GlobalState::getCurrentFeedSelectArraySize() {
   // invalid - should never get here!
   return -1;
 }
+
+void GlobalState::setButtonLock(GlobalButtonLock lock) { m_buttonLock = lock; }
+
+GlobalButtonLock GlobalState::getButtonLock() { return m_buttonLock; }
 
 void GlobalState::setFeedSelect(int select) {
   if (select >= 0 && select < getCurrentFeedSelectArraySize()) {
