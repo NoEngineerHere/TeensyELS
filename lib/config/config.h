@@ -81,14 +81,15 @@
  *  GlobalUnitMode::IMPERIAL: Imperial system
  */
 #define DEFAULT_UNIT_MODE GlobalUnitMode::METRIC
-#define DEFAULT_FEED_MODE GlobalFeedMode::FEED
+#define DEFAULT_FEED_MODE GlobalFeedMode::THREAD
 
 // The default starting speed for leadscrew in mm/s
 // this is the maximum allowable speed for the leadscrew to instantaneously
 // start moving from 0
-#define LEADSCREW_JERK 0.1
+#define LEADSCREW_JERK 0.2
 // The acceleration of the leadscrew in mm/s^2
-#define LEADSCREW_ACCEL 20
+
+#define LEADSCREW_ACCEL ELS_LEADSCREW_PITCH_MM
 
 #define LEADSCREW_TIMER_US 10
 
@@ -100,6 +101,7 @@
 
 // The amount of time to increment/decrement the pulse delay by in microseconds
 // for the leadscrew This is calculated based on the acceleration value
+// todo my math is wrong here, this is not the correct value
 #define LEADSCREW_PULSE_DELAY_STEP_US \
   US_PER_SECOND / (LEADSCREW_ACCEL * ELS_LEADSCREW_STEPS_PER_MM)
 
@@ -107,7 +109,8 @@
 const float threadPitchMetric[] = {0.35, 0.40, 0.45, 0.50, 0.60, 0.70, 0.80,
                                    1.00, 1.25, 1.50, 1.75, 2.00, 2.50, 3.00,
                                    3.50, 4.00, 4.50, 5.00, 5.50, 6.00};
-#define DEFAULT_METRIC_THREAD_PITCH_IDX 8
+// #define DEFAULT_METRIC_THREAD_PITCH_IDX 8
+#define DEFAULT_METRIC_THREAD_PITCH_IDX 19
 
 // defined as mm/rev
 const float feedPitchMetric[] = {0.05, 0.08, 0.10, 0.12, 0.15, 0.18, 0.20,

@@ -8,7 +8,7 @@ class LeadscrewIOImpl : public LeadscrewIO {
   inline void writeStepPin(uint8_t val) {
     digitalWriteFast(ELS_LEADSCREW_STEP, val);
   }
-  inline uint8_t readStepPin() { return digitalReadFast(ELS_LEADSCREW_DIR); }
+  inline uint8_t readStepPin() { return digitalReadFast(ELS_LEADSCREW_STEP); }
 
   inline void writeDirPin(uint8_t val) {
     digitalWriteFast(ELS_LEADSCREW_DIR, val);

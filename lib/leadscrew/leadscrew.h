@@ -5,6 +5,7 @@
 #pragma once
 
 enum LeadscrewStopState { SET, UNSET };
+enum LeadscrewDirection { LEFT = -1, RIGHT = 1, UNKNOWN = 0 };
 
 class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
  private:
@@ -15,7 +16,8 @@ class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
   float m_ratio;
 
   // The current delay between pulses in microseconds
-  int m_currentPulseDelay;
+  float m_currentPulseDelay;
+  LeadscrewDirection m_currentDirection;
 
   float m_accumulator;
 

@@ -70,9 +70,11 @@ void setup() {
 
   display.init();
 
+  leadscrew.setRatio(globalState->getCurrentFeedPitch());
+
   display.update();
 
-  timer.begin(timerCallback, 10);
+  timer.begin(timerCallback, LEADSCREW_TIMER_US);
 }
 
 void loop() {
@@ -94,6 +96,9 @@ void loop() {
     Serial.println(leadscrew.getStopPosition(Leadscrew::StopPosition::RIGHT));
     Serial.print("Leadscrew ratio: ");
     Serial.println(leadscrew.getRatio());
+    Serial.print("Leadscrew accumulator unit:");
+    Serial.println((ELS_LEADSCREW_STEPS_PER_MM * leadscrew.getRatio()) /
+                   ELS_LEADSCREW_STEPPER_PPR);
     Serial.print("Spindle position: ");
     Serial.println(spindle.getCurrentPosition());
     Serial.print("Spindle velocity: ");
