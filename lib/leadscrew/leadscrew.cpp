@@ -8,25 +8,31 @@
 
 #include "leadscrew_io.h"
 
-Leadscrew::Leadscrew(Axis* leadAxis, LeadscrewIO* io) {
-  m_leadAxis = leadAxis;
-  m_io = io;
-  m_ratio = 1.0;
-  Axis::m_currentPosition = 0;
-  m_lastPulseMicros = micros();
+Leadscrew::Leadscrew(Axis* leadAxis, LeadscrewIO* io, float initialPulseDelay,
+                     float pulseDelayIncrement, int motorPulsePerRevolution,
+                     float leadscrewPitch)
+    : motorPulsePerRevolution(motorPulsePerRevolution),
+      leadscrewPitch(leadscrewPitch),
+      initialPulseDelay(initialPulseDelay),
+      pulseDelayIncrement(pulseDelayIncrement),
+      m_io(io),
+      m_leadAxis(leadAxis),
+      m_accumulator(0),
+      m_currentDirection(LeadscrewDirection::UNKNOWN),
+      m_leftStopState(LeadscrewStopState::UNSET),
+      m_rightStopState(LeadscrewStopState::UNSET),
+      m_currentPulseDelay(initialPulseDelay) {
+  setRatio(GlobalState::getInstance()->getCurrentFeedPitch());
+  m_lastPulseMicros = 0;
   m_lastFullPulseDurationMicros = 0;
-  m_currentPulseDelay = LEADSCREW_INITIAL_PULSE_DELAY_US;
-  m_accumulator = 0;
-  m_cycleModulo = ELS_LEADSCREW_STEPPER_PPR;
-  m_leftStopState = LeadscrewStopState::UNSET;
-  m_rightStopState = LeadscrewStopState::UNSET;
-  m_currentDirection = LeadscrewDirection::UNKNOWN;
+  m_currentPosition = 0;
 }
 
 void Leadscrew::setRatio(float ratio) {
   m_ratio = ratio;
   // extrapolate the current position based on the new ratio
   m_currentPosition = m_leadAxis->getCurrentPosition() * m_ratio;
+  m_cycleModulo = motorPulsePerRevolution * m_ratio;
 }
 
 float Leadscrew::getRatio() { return m_ratio; }
@@ -90,9 +96,7 @@ void Leadscrew::incrementCurrentPosition(int amount) {
   m_currentPosition += amount;
 }
 
-float Leadscrew::getAccumulatorUnit() {
-  return (ELS_LEADSCREW_STEPS_PER_MM * getRatio()) / ELS_LEADSCREW_STEPPER_PPR;
-}
+float Leadscrew::getAccumulatorUnit() { return getRatio() / leadscrewPitch; }
 
 bool Leadscrew::sendPulse() {
   uint8_t pinState = m_io->readStepPin();
@@ -136,50 +140,33 @@ void Leadscrew::update() {
 
       if (positionError > 0) {
         nextDirection = LeadscrewDirection::RIGHT;
-        if (m_currentPulseDelay == LEADSCREW_INITIAL_PULSE_DELAY_US) {
+        if (m_currentDirection == LeadscrewDirection::UNKNOWN) {
           m_io->writeDirPin(1);
           m_currentDirection = LeadscrewDirection::RIGHT;
-          m_lastPulseMicros = 0;
         }
 
       } else if (positionError < 0) {
         nextDirection = LeadscrewDirection::LEFT;
-        if (m_currentPulseDelay == LEADSCREW_INITIAL_PULSE_DELAY_US) {
+        if (m_currentDirection == LeadscrewDirection::UNKNOWN) {
           m_io->writeDirPin(0);
           m_currentDirection = LeadscrewDirection::LEFT;
-          m_lastPulseMicros = 0;
         }
       } else {
+        // positionError == 0
         // at a standstill, we don't know which direction is next.
         m_currentDirection = LeadscrewDirection::UNKNOWN;
-        break;
-      }
-
-      // minor bug in testing, m_lastPulseMicros appears to always be zero when
-      // comparing directly
-      uint32_t timeSinceLastPulse = m_lastPulseMicros;
-
-      float accelChange = LEADSCREW_PULSE_DELAY_STEP_US * timeSinceLastPulse;
-      if (accelChange == 0) {
-        accelChange = LEADSCREW_PULSE_DELAY_STEP_US;
-      }
-
-      // if we've missed the schedule, decelerate
-      if (timeSinceLastPulse >
-              m_currentPulseDelay + LEADSCREW_PULSE_DELAY_STEP_US &&
-          m_currentPulseDelay + accelChange <
-              LEADSCREW_INITIAL_PULSE_DELAY_US) {
-        m_currentPulseDelay += accelChange;
-      }
-
-      if (positionError == 0) {
+        m_currentPulseDelay = initialPulseDelay;
+        // make sure we're ready to send the next pulse
+        m_lastPulseMicros = -initialPulseDelay;
         // todo check if we have sync'd before
         globalState->setThreadSyncState(GlobalThreadSyncState::SYNC);
         break;
       }
 
+      float accelChange = pulseDelayIncrement * m_lastPulseMicros;
+
       // check if we're scheduled for a pulse
-      if (timeSinceLastPulse < m_currentPulseDelay) {
+      if (m_lastPulseMicros < m_currentPulseDelay) {
         break;
       }
 
@@ -188,22 +175,26 @@ void Leadscrew::update() {
       if (sendPulse()) {
         m_lastFullPulseDurationMicros = m_lastPulseMicros;
         m_lastPulseMicros = 0;
-        m_accumulator += m_currentDirection * getAccumulatorUnit();
 
-        // calculate the stopping distance based on current speed and set accel
-        int stoppingDistanceInPulses =
-            (LEADSCREW_INITIAL_PULSE_DELAY_US - m_currentPulseDelay) /
-            accelChange;
+        // handle position update
+        if (m_accumulator > 1 || m_accumulator < -1) {
+          m_accumulator += m_currentDirection * getAccumulatorUnit();
+          m_currentPosition += m_currentDirection;
+        }
+
+        // calculate the stopping time
+        int timeToStopUs = initialPulseDelay - m_currentPulseDelay;
+        // calculate the amount of pulses we can send in the stopping time
+        // todo actually make this math correct, we're mean to have some kind of
+        // integration?
+        int pulsesToStop = timeToStopUs / pulseDelayIncrement;
 
         // if this is true we should start decelerating to stop at the correct
         // position
-        bool shouldStop = abs(positionError) - stoppingDistanceInPulses <= 0;
+        bool shouldStop = abs(positionError) - pulsesToStop <= 0;
         shouldStop |= nextDirection != m_currentDirection;
-        /*shouldStop |=
-            m_currentPosition + stoppingDistanceInPulses >= m_rightStopPosition;
-        shouldStop |=
-            m_currentPosition - stoppingDistanceInPulses <=
-        m_leftStopPosition;*/
+        /*shouldStop |= m_currentPosition + timeToStopUs >= m_rightStopPosition;
+        shouldStop |= m_currentPosition - timeToStopUs <= m_leftStopPosition;*/
 
         if (shouldStop) {
           m_currentPulseDelay += accelChange;
@@ -216,16 +207,11 @@ void Leadscrew::update() {
         // depending on accel and current speed etc
         // inital pulse delay is upper timing limit
         //
-        if (m_currentPulseDelay > LEADSCREW_INITIAL_PULSE_DELAY_US) {
-          m_currentPulseDelay = LEADSCREW_INITIAL_PULSE_DELAY_US;
+        if (m_currentPulseDelay > initialPulseDelay) {
+          m_currentPulseDelay = initialPulseDelay;
         }
         if (m_currentPulseDelay < 0) {
           m_currentPulseDelay = 0;
-        }
-
-        if (m_accumulator > 1 || m_accumulator < -1) {
-          m_accumulator += m_currentDirection;
-          m_currentPosition += m_currentDirection;
         }
       }
 
@@ -238,5 +224,6 @@ int Leadscrew::getPositionError() {
 }
 
 float Leadscrew::getEstimatedVelocityInMillimetersPerSecond() {
-  return getEstimatedVelocityInPulsesPerSecond() / ELS_LEADSCREW_STEPS_PER_MM;
+  return (getEstimatedVelocityInPulsesPerSecond() * leadscrewPitch) /
+         motorPulsePerRevolution;
 }

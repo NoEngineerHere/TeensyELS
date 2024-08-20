@@ -11,6 +11,9 @@
 #define CHECK_BOUNDS(idx, arr, error) \
   static_assert(idx < ARRAY_SIZE(arr), error)
 
+#define XSTR(x) STR(x)
+#define STR(x) #x
+
 // the amount of microseconds in a second
 #define US_PER_SECOND 1000000
 
@@ -68,7 +71,7 @@
 #define ELS_LEADSCREW_PITCH_MM 1.25
 
 #define ELS_LEADSCREW_STEPS_PER_MM \
-  (ELS_LEADSCREW_STEPPER_PPR / ELS_LEADSCREW_PITCH_MM)
+  (float)(ELS_LEADSCREW_STEPPER_PPR / ELS_LEADSCREW_PITCH_MM)
 
 // extra config options
 // Delay between jog pulses in microseconds
@@ -84,26 +87,31 @@
 #define DEFAULT_FEED_MODE GlobalFeedMode::THREAD
 
 // The default starting speed for leadscrew in mm/s
-// this is the maximum allowable speed for the leadscrew to instantaneously
-// start moving from 0
-#define LEADSCREW_JERK 0.2
+// this is the maximum allowable speed (in mm/s) for the leadscrew to
+// instantaneously start moving from 0
+#define LEADSCREW_JERK 0.5
 // The acceleration of the leadscrew in mm/s^2
 
-#define LEADSCREW_ACCEL ELS_LEADSCREW_PITCH_MM
+#define LEADSCREW_ACCEL 5000
 
-#define LEADSCREW_TIMER_US 10
+#define LEADSCREW_TIMER_US 100
 
 // The initial delay between pulses in microseconds for the leadscrew starting
 // from 0 do not change - this is a calculated value, to change the initial
 // speed look at the jerk value
 #define LEADSCREW_INITIAL_PULSE_DELAY_US \
-  US_PER_SECOND / (LEADSCREW_JERK * ELS_LEADSCREW_STEPS_PER_MM)
+  ((float)US_PER_SECOND /                \
+   ((float)LEADSCREW_JERK * (float)ELS_LEADSCREW_STEPS_PER_MM))
 
 // The amount of time to increment/decrement the pulse delay by in microseconds
 // for the leadscrew This is calculated based on the acceleration value
 // todo my math is wrong here, this is not the correct value
 #define LEADSCREW_PULSE_DELAY_STEP_US \
-  US_PER_SECOND / (LEADSCREW_ACCEL * ELS_LEADSCREW_STEPS_PER_MM)
+  ((float)LEADSCREW_ACCEL / ((float)ELS_LEADSCREW_STEPS_PER_MM))
+
+#pragma message \
+    "Leadscrew initial pulse delay " XSTR(LEADSCREW_INITIAL_PULSE_DELAY_US)
+#pragma message "Leadscrew pulse delay step" XSTR(LEADSCREW_PULSE_DELAY_STEP_US)
 
 // metric thread pitch is defined as mm/rev
 const float threadPitchMetric[] = {0.35, 0.40, 0.45, 0.50, 0.60, 0.70, 0.80,

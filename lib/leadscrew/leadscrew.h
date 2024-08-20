@@ -13,9 +13,13 @@ class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
   LeadscrewIO* m_io;
 
   // the ratio of how much the leadscrew moves per spindle rotation
+  const int motorPulsePerRevolution;
+  const float leadscrewPitch;
   float m_ratio;
 
   // The current delay between pulses in microseconds
+  const float initialPulseDelay;
+  const float pulseDelayIncrement;
   float m_currentPulseDelay;
   LeadscrewDirection m_currentDirection;
 
@@ -39,7 +43,9 @@ class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
   // int getStoppingDistanceInPulses();
 
  public:
-  Leadscrew(Axis* leadAxis, LeadscrewIO* io);
+  Leadscrew(Axis* leadAxis, LeadscrewIO* io, float initialPulseDelay,
+            float pulseDelayIncrement, int motorPulsePerRevolution,
+            float leadscrewPitch);
   int getCurrentPosition();
   void resetCurrentPosition();
 

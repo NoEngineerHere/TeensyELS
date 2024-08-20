@@ -16,7 +16,10 @@ IntervalTimer timer;
 GlobalState* globalState = GlobalState::getInstance();
 Spindle spindle;
 LeadscrewIOImpl leadscrewIOImpl;
-Leadscrew leadscrew(&spindle, &leadscrewIOImpl);
+Leadscrew leadscrew(&spindle, &leadscrewIOImpl,
+                    LEADSCREW_INITIAL_PULSE_DELAY_US,
+                    LEADSCREW_PULSE_DELAY_STEP_US, ELS_LEADSCREW_STEPPER_PPR,
+                    ELS_LEADSCREW_PITCH_MM);
 ButtonHandler keyPad(&spindle, &leadscrew);
 Display display(&spindle, &leadscrew);
 
@@ -75,12 +78,19 @@ void setup() {
   display.update();
 
   timer.begin(timerCallback, LEADSCREW_TIMER_US);
+
+  delay(2000);
+
+  Serial.print("Initial pulse delay: ");
+  Serial.println(LEADSCREW_INITIAL_PULSE_DELAY_US);
+  Serial.print("Pulse delay step: ");
+  Serial.println(LEADSCREW_PULSE_DELAY_STEP_US);
 }
 
 void loop() {
   keyPad.handle();
 
-  static elapsedMicros lastPrint;
+  /*static elapsedMicros lastPrint;
   if (lastPrint > 1000 * 500) {
     lastPrint = 0;
     globalState->printState();
@@ -105,7 +115,7 @@ void loop() {
     Serial.println(spindle.getEstimatedVelocityInRPM());
     Serial.print("Spindle velocity pulses: ");
     Serial.println(spindle.getEstimatedVelocityInPulsesPerSecond());
-  }
+  }*/
 
   display.update();
 }
