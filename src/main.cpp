@@ -90,7 +90,7 @@ void setup() {
 void loop() {
   keyPad.handle();
 
-  /*static elapsedMicros lastPrint;
+  static elapsedMicros lastPrint;
   if (lastPrint > 1000 * 500) {
     lastPrint = 0;
     globalState->printState();
@@ -115,7 +115,7 @@ void loop() {
     Serial.println(spindle.getEstimatedVelocityInRPM());
     Serial.print("Spindle velocity pulses: ");
     Serial.println(spindle.getEstimatedVelocityInPulsesPerSecond());
-  }*/
+  }
 
   display.update();
 }

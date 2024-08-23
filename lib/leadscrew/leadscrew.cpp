@@ -112,6 +112,36 @@ bool Leadscrew::sendPulse() {
   return pinState == 1;
 }
 
+/**
+ * Due to the cumulative nature of the pulses when stopping, we can model the
+ * stopping distance as a quadratic equation.
+ * This function calculates the number of pulses required to stop the leadscrew
+ * from a given pulse delay
+ */
+int calculate_pulses_to_stop(float currentPulseDelay, float initialPulseDelay,
+                             float pulseDelayIncrement) {
+  // Calculate the discriminant
+  float discriminant = currentPulseDelay * currentPulseDelay -
+                       4 * (pulseDelayIncrement / 2.0) * (-initialPulseDelay);
+
+  // Ensure the discriminant is non-negative for real roots
+  if (discriminant >= 0) {
+    // Calculate the square root of the discriminant
+    float sqrtDiscriminant = sqrt(discriminant);
+
+    // Calculate the positive root using the quadratic formula
+    float n =
+        (-currentPulseDelay + sqrtDiscriminant) / (2 * pulseDelayIncrement);
+
+    // Round up to the nearest integer because pulses must be whole numbers
+    return (int)ceil(n);
+  } else {
+    // If the discriminant is negative, return 0 as a fallback (no real
+    // solution)
+    return 0;
+  }
+}
+
 void Leadscrew::update() {
   GlobalState* globalState = GlobalState::getInstance();
 
@@ -132,17 +162,29 @@ void Leadscrew::update() {
         globalState->setMotionMode(GlobalMotionMode::DISABLED);
       }
       // jogging is a fixed rate based on JOG_PULSE_DELAY_US
-      sendPulse();
+      if (sendPulse()) {
+        m_lastFullPulseDurationMicros = m_lastPulseMicros;
+        m_lastPulseMicros = 0;
+        m_currentPosition += m_currentDirection;
+      }
 
       break;
     case GlobalMotionMode::ENABLED:
       LeadscrewDirection nextDirection = LeadscrewDirection::UNKNOWN;
-
+      /**
+       * Attempt to find the "next" direction to move in, if the current
+       * direction is unknown i.e: at a standstill - we know we have to start
+       * moving in that direction
+       *
+       * If the next direction is different from the current direction, we
+       * should start decelerating to move in the intended direction
+       */
       if (positionError > 0) {
         nextDirection = LeadscrewDirection::RIGHT;
         if (m_currentDirection == LeadscrewDirection::UNKNOWN) {
           m_io->writeDirPin(1);
           m_currentDirection = LeadscrewDirection::RIGHT;
+          m_accumulator = m_currentDirection * getAccumulatorUnit();
         }
 
       } else if (positionError < 0) {
@@ -150,6 +192,7 @@ void Leadscrew::update() {
         if (m_currentDirection == LeadscrewDirection::UNKNOWN) {
           m_io->writeDirPin(0);
           m_currentDirection = LeadscrewDirection::LEFT;
+          m_accumulator = m_currentDirection * getAccumulatorUnit();
         }
       } else {
         // positionError == 0
@@ -158,12 +201,13 @@ void Leadscrew::update() {
         m_currentPulseDelay = initialPulseDelay;
         // make sure we're ready to send the next pulse
         m_lastPulseMicros = -initialPulseDelay;
+
         // todo check if we have sync'd before
         globalState->setThreadSyncState(GlobalThreadSyncState::SYNC);
+        // we're at a standstill (no position error) so we shouldn't send any
+        // pulses at all
         break;
       }
-
-      float accelChange = pulseDelayIncrement * m_lastPulseMicros;
 
       // check if we're scheduled for a pulse
       if (m_lastPulseMicros < m_currentPulseDelay) {
@@ -177,24 +221,26 @@ void Leadscrew::update() {
         m_lastPulseMicros = 0;
 
         // handle position update
-        if (m_accumulator > 1 || m_accumulator < -1) {
-          m_accumulator += m_currentDirection * getAccumulatorUnit();
+        if (abs(m_accumulator) > 1) {
+          m_accumulator -= m_currentDirection;
+        } else {
           m_currentPosition += m_currentDirection;
+          m_accumulator += m_currentDirection * getAccumulatorUnit();
         }
 
         // calculate the stopping time
-        int timeToStopUs = initialPulseDelay - m_currentPulseDelay;
-        // calculate the amount of pulses we can send in the stopping time
-        // todo actually make this math correct, we're mean to have some kind of
-        // integration?
-        int pulsesToStop = timeToStopUs / pulseDelayIncrement;
+        int pulsesToStop = calculate_pulses_to_stop(
+            m_currentPulseDelay, initialPulseDelay, pulseDelayIncrement);
 
-        // if this is true we should start decelerating to stop at the correct
-        // position
+        // if this is true we should start decelerating to stop at the
+        // correct position
         bool shouldStop = abs(positionError) - pulsesToStop <= 0;
         shouldStop |= nextDirection != m_currentDirection;
-        /*shouldStop |= m_currentPosition + timeToStopUs >= m_rightStopPosition;
-        shouldStop |= m_currentPosition - timeToStopUs <= m_leftStopPosition;*/
+        /*shouldStop |= m_currentPosition + pulseDelayDelta >=
+        m_rightStopPosition; shouldStop |= m_currentPosition - pulseDelayDelta
+        <= m_leftStopPosition;*/
+
+        float accelChange = pulseDelayIncrement * m_lastFullPulseDurationMicros;
 
         if (shouldStop) {
           m_currentPulseDelay += accelChange;

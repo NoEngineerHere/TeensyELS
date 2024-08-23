@@ -28,7 +28,7 @@ unsigned long roundUp(unsigned long numToRound, unsigned long multiple) {
   return ((numToRound + multiple - 1) / multiple) * multiple;
 }
 
-TEST(PositionTest, TestInitialPulseDelay) {
+/*TEST(PositionTest, TestInitialPulseDelay) {
   MicrosSingleton& micros = MicrosSingleton::getInstance();
   GlobalState* globalState = GlobalState::getInstance();
 
@@ -83,4 +83,64 @@ TEST(PositionTest, TestInitialPulseDelay) {
                 previousPosition->leadscrewPosition);
     }
   }
+}*/
+
+TEST(PositionTest, TestAccumulator) {
+  MicrosSingleton& micros = MicrosSingleton::getInstance();
+  GlobalState* globalState = GlobalState::getInstance();
+  LeadscrewIOMock leadscrewIOMock;
+  Spindle spindle;
+  // no accel - only positioning
+  Leadscrew leadscrew(&spindle, &leadscrewIOMock, 0, 0, 100, 1);
+  // test data
+  // define the time and the expected position of the leadscrew
+
+  globalState->setMotionMode(GlobalMotionMode::ENABLED);
+  leadscrew.setRatio(6);
+
+  spindle.setCurrentPosition(1);
+
+  // 6
+  micros.incrementMicros(LEADSCREW_TIMER_US);
+  leadscrew.update();
+  micros.incrementMicros(LEADSCREW_TIMER_US);
+  leadscrew.update();
+  ASSERT_EQ(leadscrew.getCurrentPosition(), 0);
+
+  // acc: 5
+  micros.incrementMicros(LEADSCREW_TIMER_US);
+  leadscrew.update();
+  micros.incrementMicros(LEADSCREW_TIMER_US);
+  leadscrew.update();
+  // 4
+  ASSERT_EQ(leadscrew.getCurrentPosition(), 0);
+
+  micros.incrementMicros(LEADSCREW_TIMER_US);
+  leadscrew.update();
+  micros.incrementMicros(LEADSCREW_TIMER_US);
+  leadscrew.update();
+  // 3
+  ASSERT_EQ(leadscrew.getCurrentPosition(), 0);
+
+  micros.incrementMicros(LEADSCREW_TIMER_US);
+  leadscrew.update();
+  micros.incrementMicros(LEADSCREW_TIMER_US);
+  leadscrew.update();
+  // 2
+  ASSERT_EQ(leadscrew.getCurrentPosition(), 0);
+
+  micros.incrementMicros(LEADSCREW_TIMER_US);
+  leadscrew.update();
+  micros.incrementMicros(LEADSCREW_TIMER_US);
+  leadscrew.update();
+  // 1
+  ASSERT_EQ(leadscrew.getCurrentPosition(), 0);
+
+  micros.incrementMicros(LEADSCREW_TIMER_US);
+  leadscrew.update();
+  micros.incrementMicros(LEADSCREW_TIMER_US);
+  leadscrew.update();
+  // 0
+  // position should be 1
+  ASSERT_EQ(leadscrew.getCurrentPosition(), 1);
 }

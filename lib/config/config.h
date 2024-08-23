@@ -11,9 +11,6 @@
 #define CHECK_BOUNDS(idx, arr, error) \
   static_assert(idx < ARRAY_SIZE(arr), error)
 
-#define XSTR(x) STR(x)
-#define STR(x) #x
-
 // the amount of microseconds in a second
 #define US_PER_SECOND 1000000
 
@@ -89,29 +86,34 @@
 // The default starting speed for leadscrew in mm/s
 // this is the maximum allowable speed (in mm/s) for the leadscrew to
 // instantaneously start moving from 0
-#define LEADSCREW_JERK 0.5
+// set to 0 to disable acceleration
+#define LEADSCREW_JERK 1
 // The acceleration of the leadscrew in mm/s^2
 
-#define LEADSCREW_ACCEL 5000
+#define LEADSCREW_ACCEL 5
 
 #define LEADSCREW_TIMER_US 100
 
 // The initial delay between pulses in microseconds for the leadscrew starting
 // from 0 do not change - this is a calculated value, to change the initial
 // speed look at the jerk value
+#if LEADSCREW_JERK == 0
+#define LEADSCREW_INITIAL_PULSE_DELAY_US 0
+#else
 #define LEADSCREW_INITIAL_PULSE_DELAY_US \
   ((float)US_PER_SECOND /                \
    ((float)LEADSCREW_JERK * (float)ELS_LEADSCREW_STEPS_PER_MM))
+#endif
 
 // The amount of time to increment/decrement the pulse delay by in microseconds
 // for the leadscrew This is calculated based on the acceleration value
 // todo my math is wrong here, this is not the correct value
+#if LEADSCREW_JERK == 0
+#define LEADSCREW_PULSE_DELAY_STEP_US 0
+#else
 #define LEADSCREW_PULSE_DELAY_STEP_US \
   ((float)LEADSCREW_ACCEL / ((float)ELS_LEADSCREW_STEPS_PER_MM))
-
-#pragma message \
-    "Leadscrew initial pulse delay " XSTR(LEADSCREW_INITIAL_PULSE_DELAY_US)
-#pragma message "Leadscrew pulse delay step" XSTR(LEADSCREW_PULSE_DELAY_STEP_US)
+#endif
 
 // metric thread pitch is defined as mm/rev
 const float threadPitchMetric[] = {0.35, 0.40, 0.45, 0.50, 0.60, 0.70, 0.80,
