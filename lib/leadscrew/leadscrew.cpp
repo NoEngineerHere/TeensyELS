@@ -134,7 +134,7 @@ int calculate_pulses_to_stop(float currentPulseDelay, float initialPulseDelay,
         (-currentPulseDelay + sqrtDiscriminant) / (2 * pulseDelayIncrement);
 
     // Round up to the nearest integer because pulses must be whole numbers
-    return (int)ceil(n);
+    return abs((int)ceil(n));
   } else {
     // If the discriminant is negative, return 0 as a fallback (no real
     // solution)
@@ -234,11 +234,10 @@ void Leadscrew::update() {
 
         // if this is true we should start decelerating to stop at the
         // correct position
-        bool shouldStop = abs(positionError) - pulsesToStop <= 0;
+        bool shouldStop = abs(positionError) <= pulsesToStop;
         shouldStop |= nextDirection != m_currentDirection;
-        /*shouldStop |= m_currentPosition + pulseDelayDelta >=
-        m_rightStopPosition; shouldStop |= m_currentPosition - pulseDelayDelta
-        <= m_leftStopPosition;*/
+        /*shouldStop |= m_currentPosition + pulsesToStop >= m_rightStopPosition;
+        shouldStop |= m_currentPosition - pulsesToStop <= m_leftStopPosition;*/
 
         float accelChange = pulseDelayIncrement * m_lastFullPulseDurationMicros;
 

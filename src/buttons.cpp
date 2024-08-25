@@ -184,11 +184,10 @@ void ButtonHandler::modeCycleHandler() {
         GlobalState::getInstance()->setUnitMode(GlobalUnitMode::METRIC);
         break;
     }
+    m_leadscrew->setRatio(globalState->getCurrentFeedPitch());
   } else {
     heldHandled = false;
   }
-
-  m_leadscrew->setRatio(globalState->getCurrentFeedPitch());
 }
 
 void ButtonHandler::jogHandler(JogDirection direction) {

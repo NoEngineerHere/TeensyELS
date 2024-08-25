@@ -86,18 +86,18 @@
 // The default starting speed for leadscrew in mm/s
 // this is the maximum allowable speed (in mm/s) for the leadscrew to
 // instantaneously start moving from 0
-// set to 0 to disable acceleration
-#define LEADSCREW_JERK 1
+// #define ACCEL_DISABLED
+#define LEADSCREW_JERK 0.5
 // The acceleration of the leadscrew in mm/s^2
 
-#define LEADSCREW_ACCEL 5
+#define LEADSCREW_ACCEL 2
 
-#define LEADSCREW_TIMER_US 100
+#define LEADSCREW_TIMER_US 20
 
 // The initial delay between pulses in microseconds for the leadscrew starting
 // from 0 do not change - this is a calculated value, to change the initial
 // speed look at the jerk value
-#if LEADSCREW_JERK == 0
+#ifdef ACCEL_DISABLED
 #define LEADSCREW_INITIAL_PULSE_DELAY_US 0
 #else
 #define LEADSCREW_INITIAL_PULSE_DELAY_US \
@@ -107,8 +107,7 @@
 
 // The amount of time to increment/decrement the pulse delay by in microseconds
 // for the leadscrew This is calculated based on the acceleration value
-// todo my math is wrong here, this is not the correct value
-#if LEADSCREW_JERK == 0
+#ifdef ACCEL_DISABLED
 #define LEADSCREW_PULSE_DELAY_STEP_US 0
 #else
 #define LEADSCREW_PULSE_DELAY_STEP_US \
