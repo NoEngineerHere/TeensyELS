@@ -81,7 +81,7 @@
  *  GlobalUnitMode::IMPERIAL: Imperial system
  */
 #define DEFAULT_UNIT_MODE GlobalUnitMode::METRIC
-#define DEFAULT_FEED_MODE GlobalFeedMode::THREAD
+#define DEFAULT_FEED_MODE GlobalFeedMode::FEED
 
 // The default starting speed for leadscrew in mm/s
 // this is the maximum allowable speed (in mm/s) for the leadscrew to
@@ -118,8 +118,7 @@
 const float threadPitchMetric[] = {0.35, 0.40, 0.45, 0.50, 0.60, 0.70, 0.80,
                                    1.00, 1.25, 1.50, 1.75, 2.00, 2.50, 3.00,
                                    3.50, 4.00, 4.50, 5.00, 5.50, 6.00};
-// #define DEFAULT_METRIC_THREAD_PITCH_IDX 8
-#define DEFAULT_METRIC_THREAD_PITCH_IDX 19
+#define DEFAULT_METRIC_THREAD_PITCH_IDX 8
 
 // defined as mm/rev
 const float feedPitchMetric[] = {0.05, 0.08, 0.10, 0.12, 0.15, 0.18, 0.20,
