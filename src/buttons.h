@@ -28,7 +28,7 @@ class ButtonHandler {
   void enableHandler();
   void lockHandler();
 
-  enum JogDirection { LEFT, RIGHT };
+  enum JogDirection { LEFT = -1, RIGHT = 1 };
 
   void jogHandler(JogDirection direction);
   void jogLeftHandler();

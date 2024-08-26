@@ -51,6 +51,7 @@ class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
 
   enum StopPosition { LEFT, RIGHT };
   void setStopPosition(StopPosition position, int stopPosition);
+  LeadscrewStopState getStopPositionState(StopPosition position);
   void unsetStopPosition(StopPosition position);
   int getStopPosition(StopPosition position);
   void setRatio(float ratio);

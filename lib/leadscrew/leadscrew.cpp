@@ -58,9 +58,11 @@ void Leadscrew::unsetStopPosition(StopPosition position) {
   switch (position) {
     case LEFT:
       m_leftStopState = LeadscrewStopState::UNSET;
+      m_leftStopPosition = INT32_MIN;
       break;
     case RIGHT:
       m_rightStopState = LeadscrewStopState::UNSET;
+      m_rightStopPosition = INT32_MAX;
       break;
   }
 }
@@ -75,6 +77,15 @@ void Leadscrew::setStopPosition(StopPosition position, int stopPosition) {
       m_rightStopPosition = stopPosition;
       m_rightStopState = LeadscrewStopState::SET;
       break;
+  }
+}
+
+LeadscrewStopState Leadscrew::getStopPositionState(StopPosition position) {
+  switch (position) {
+    case LEFT:
+      return m_leftStopState;
+    case RIGHT:
+      return m_rightStopState;
   }
 }
 
@@ -215,8 +226,15 @@ void Leadscrew::update() {
         break;
       }
 
+      bool hitEndstop = (m_rightStopState == LeadscrewStopState::SET &&
+                         m_currentPosition >= m_rightStopPosition &&
+                         m_currentDirection == LeadscrewDirection::RIGHT) ||
+                        (m_leftStopState == LeadscrewStopState::SET &&
+                         m_currentPosition <= m_leftStopPosition &&
+                         m_currentDirection == LeadscrewDirection::LEFT);
+
       // check if we're scheduled for a pulse
-      if (m_lastPulseMicros < m_currentPulseDelay) {
+      if (m_lastPulseMicros < m_currentPulseDelay || hitEndstop) {
         break;
       }
 
@@ -241,12 +259,13 @@ void Leadscrew::update() {
 
         // if this is true we should start decelerating to stop at the
         // correct position
-        bool shouldStop = abs(positionError) <= pulsesToStop;
-        shouldStop |= nextDirection != m_currentDirection;
-        shouldStop |= m_rightStopState == LeadscrewStopState::SET &&
-                      m_currentPosition + pulsesToStop >= m_rightStopPosition;
-        shouldStop |= m_leftStopState == LeadscrewStopState::SET &&
-                      m_currentPosition - pulsesToStop <= m_leftStopPosition;
+        bool shouldStop =
+            abs(positionError) <= pulsesToStop ||
+            nextDirection != m_currentDirection ||
+            (m_rightStopState == LeadscrewStopState::SET &&
+             m_currentPosition + pulsesToStop >= m_rightStopPosition) ||
+            (m_leftStopState == LeadscrewStopState::SET &&
+             m_currentPosition - pulsesToStop <= m_leftStopPosition);
 
         float accelChange = pulseDelayIncrement * m_lastFullPulseDurationMicros;
 

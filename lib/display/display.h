@@ -51,4 +51,5 @@ class Display {
   void drawEnabled();
   void drawLocked();
   void drawSpindleRpm();
+  void drawStopStatus();
 };
