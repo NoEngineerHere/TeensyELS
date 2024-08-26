@@ -16,7 +16,10 @@ IntervalTimer timer;
 GlobalState* globalState = GlobalState::getInstance();
 Spindle spindle;
 LeadscrewIOImpl leadscrewIOImpl;
-Leadscrew leadscrew(&spindle, &leadscrewIOImpl);
+Leadscrew leadscrew(&spindle, &leadscrewIOImpl,
+                    LEADSCREW_INITIAL_PULSE_DELAY_US,
+                    LEADSCREW_PULSE_DELAY_STEP_US, ELS_LEADSCREW_STEPPER_PPR,
+                    ELS_LEADSCREW_PITCH_MM);
 ButtonHandler keyPad(&spindle, &leadscrew);
 Display display(&spindle, &leadscrew);
 
@@ -70,9 +73,18 @@ void setup() {
 
   display.init();
 
+  leadscrew.setRatio(globalState->getCurrentFeedPitch());
+
   display.update();
 
-  timer.begin(timerCallback, 10);
+  timer.begin(timerCallback, LEADSCREW_TIMER_US);
+
+  delay(2000);
+
+  Serial.print("Initial pulse delay: ");
+  Serial.println(LEADSCREW_INITIAL_PULSE_DELAY_US);
+  Serial.print("Pulse delay step: ");
+  Serial.println(LEADSCREW_PULSE_DELAY_STEP_US);
 }
 
 void loop() {
@@ -84,16 +96,7 @@ void loop() {
     globalState->printState();
     Serial.print("Micros: ");
     Serial.println(micros());
-    Serial.print("Leadscrew position: ");
-    Serial.println(leadscrew.getCurrentPosition());
-    Serial.print("Leadscrew expected position: ");
-    Serial.println(leadscrew.getExpectedPosition());
-    Serial.print("Leadscrew left stop position: ");
-    Serial.println(leadscrew.getStopPosition(Leadscrew::StopPosition::LEFT));
-    Serial.print("Leadscrew right stop position: ");
-    Serial.println(leadscrew.getStopPosition(Leadscrew::StopPosition::RIGHT));
-    Serial.print("Leadscrew ratio: ");
-    Serial.println(leadscrew.getRatio());
+    leadscrew.printState();
     Serial.print("Spindle position: ");
     Serial.println(spindle.getCurrentPosition());
     Serial.print("Spindle velocity: ");

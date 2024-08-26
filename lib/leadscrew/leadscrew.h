@@ -5,6 +5,7 @@
 #pragma once
 
 enum LeadscrewStopState { SET, UNSET };
+enum LeadscrewDirection { LEFT = -1, RIGHT = 1, UNKNOWN = 0 };
 
 class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
  private:
@@ -12,10 +13,15 @@ class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
   LeadscrewIO* m_io;
 
   // the ratio of how much the leadscrew moves per spindle rotation
+  const int motorPulsePerRevolution;
+  const float leadscrewPitch;
   float m_ratio;
 
   // The current delay between pulses in microseconds
-  int m_currentPulseDelay;
+  const float initialPulseDelay;
+  const float pulseDelayIncrement;
+  float m_currentPulseDelay;
+  LeadscrewDirection m_currentDirection;
 
   float m_accumulator;
 
@@ -37,12 +43,15 @@ class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
   // int getStoppingDistanceInPulses();
 
  public:
-  Leadscrew(Axis* leadAxis, LeadscrewIO* io);
+  Leadscrew(Axis* leadAxis, LeadscrewIO* io, float initialPulseDelay,
+            float pulseDelayIncrement, int motorPulsePerRevolution,
+            float leadscrewPitch);
   int getCurrentPosition();
   void resetCurrentPosition();
 
   enum StopPosition { LEFT, RIGHT };
   void setStopPosition(StopPosition position, int stopPosition);
+  LeadscrewStopState getStopPositionState(StopPosition position);
   void unsetStopPosition(StopPosition position);
   int getStopPosition(StopPosition position);
   void setRatio(float ratio);
@@ -52,5 +61,8 @@ class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
   void incrementCurrentPosition(int amount);
   void update();
   int getPositionError();
+  LeadscrewDirection getCurrentDirection();
   float getEstimatedVelocityInMillimetersPerSecond();
+
+  void printState();
 };

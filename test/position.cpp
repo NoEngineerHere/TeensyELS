@@ -31,35 +31,21 @@ unsigned long roundUp(unsigned long numToRound, unsigned long multiple) {
 TEST(PositionTest, TestInitialPulseDelay) {
   MicrosSingleton& micros = MicrosSingleton::getInstance();
   GlobalState* globalState = GlobalState::getInstance();
+
   LeadscrewIOMock leadscrewIOMock;
   Spindle spindle;
-  Leadscrew leadscrew(&spindle, &leadscrewIOMock);
-
-  // log the current settings in config.h
-  printf("LEADSCREW_INITIAL_PULSE_DELAY_US: %f\n",
-         LEADSCREW_INITIAL_PULSE_DELAY_US);
-  printf("LEADSCREW_PULSE_DELAY_STEP_US: %f\n", LEADSCREW_PULSE_DELAY_STEP_US);
-
+  Leadscrew leadscrew(&spindle, &leadscrewIOMock, 100, 0.1, 100, 1);
   // test data
   // define the time and the expected position of the leadscrew
 
   globalState->setMotionMode(GlobalMotionMode::ENABLED);
   spindle.setCurrentPosition(100);
 
-  printf("Step1 timing: %d\n",
-         roundUp(LEADSCREW_INITIAL_PULSE_DELAY_US + 10, 10));
-  printf("Step2 timing: %d\n", roundUp(LEADSCREW_INITIAL_PULSE_DELAY_US * 2 -
-                                           LEADSCREW_PULSE_DELAY_STEP_US + 10,
-                                       10));
-
-  // todo more accurate predictions of when we should step
   vector<position> expectedStepPositions = {
-      {0, 0},  // initial position
-      {roundUp((int)(LEADSCREW_INITIAL_PULSE_DELAY_US + 10), 10), 1},
-      {roundUp((int)(LEADSCREW_INITIAL_PULSE_DELAY_US * 2 -
-                     LEADSCREW_PULSE_DELAY_STEP_US + 20),
-               10),
-       2}};
+      {0, 0},                  // initial position
+      {100 + 20, 1},           // first step after initial delay + step time
+      {100 + 20 + 90 + 20, 2}  // second step with accel math
+  };
 
   // find the max time in the expectedStepPositions
   unsigned long maxTime = 0;
@@ -97,4 +83,64 @@ TEST(PositionTest, TestInitialPulseDelay) {
                 previousPosition->leadscrewPosition);
     }
   }
+}
+
+TEST(PositionTest, TestAccumulator) {
+  MicrosSingleton& micros = MicrosSingleton::getInstance();
+  GlobalState* globalState = GlobalState::getInstance();
+  LeadscrewIOMock leadscrewIOMock;
+  Spindle spindle;
+  // no accel - only positioning
+  Leadscrew leadscrew(&spindle, &leadscrewIOMock, 0, 0, 100, 1);
+  // test data
+  // define the time and the expected position of the leadscrew
+
+  globalState->setMotionMode(GlobalMotionMode::ENABLED);
+  leadscrew.setRatio(6);
+
+  spindle.setCurrentPosition(1);
+
+  // 6
+  micros.incrementMicros(LEADSCREW_TIMER_US);
+  leadscrew.update();
+  micros.incrementMicros(LEADSCREW_TIMER_US);
+  leadscrew.update();
+  ASSERT_EQ(leadscrew.getCurrentPosition(), 0);
+
+  // acc: 5
+  micros.incrementMicros(LEADSCREW_TIMER_US);
+  leadscrew.update();
+  micros.incrementMicros(LEADSCREW_TIMER_US);
+  leadscrew.update();
+  // 4
+  ASSERT_EQ(leadscrew.getCurrentPosition(), 0);
+
+  micros.incrementMicros(LEADSCREW_TIMER_US);
+  leadscrew.update();
+  micros.incrementMicros(LEADSCREW_TIMER_US);
+  leadscrew.update();
+  // 3
+  ASSERT_EQ(leadscrew.getCurrentPosition(), 0);
+
+  micros.incrementMicros(LEADSCREW_TIMER_US);
+  leadscrew.update();
+  micros.incrementMicros(LEADSCREW_TIMER_US);
+  leadscrew.update();
+  // 2
+  ASSERT_EQ(leadscrew.getCurrentPosition(), 0);
+
+  micros.incrementMicros(LEADSCREW_TIMER_US);
+  leadscrew.update();
+  micros.incrementMicros(LEADSCREW_TIMER_US);
+  leadscrew.update();
+  // 1
+  ASSERT_EQ(leadscrew.getCurrentPosition(), 0);
+
+  micros.incrementMicros(LEADSCREW_TIMER_US);
+  leadscrew.update();
+  micros.incrementMicros(LEADSCREW_TIMER_US);
+  leadscrew.update();
+  // 0
+  // position should be 1
+  ASSERT_EQ(leadscrew.getCurrentPosition(), 1);
 }

@@ -68,7 +68,7 @@
 #define ELS_LEADSCREW_PITCH_MM 1.25
 
 #define ELS_LEADSCREW_STEPS_PER_MM \
-  (ELS_LEADSCREW_STEPPER_PPR / ELS_LEADSCREW_PITCH_MM)
+  (float)(ELS_LEADSCREW_STEPPER_PPR / ELS_LEADSCREW_PITCH_MM)
 
 // extra config options
 // Delay between jog pulses in microseconds
@@ -84,24 +84,35 @@
 #define DEFAULT_FEED_MODE GlobalFeedMode::FEED
 
 // The default starting speed for leadscrew in mm/s
-// this is the maximum allowable speed for the leadscrew to instantaneously
-// start moving from 0
-#define LEADSCREW_JERK 0.1
+// this is the maximum allowable speed (in mm/s) for the leadscrew to
+// instantaneously start moving from 0
+// #define ACCEL_DISABLED
+#define LEADSCREW_JERK 0.5
 // The acceleration of the leadscrew in mm/s^2
-#define LEADSCREW_ACCEL 20
 
-#define LEADSCREW_TIMER_US 10
+#define LEADSCREW_ACCEL 100
+
+#define LEADSCREW_TIMER_US 20
 
 // The initial delay between pulses in microseconds for the leadscrew starting
 // from 0 do not change - this is a calculated value, to change the initial
 // speed look at the jerk value
+#ifdef ACCEL_DISABLED
+#define LEADSCREW_INITIAL_PULSE_DELAY_US 0
+#else
 #define LEADSCREW_INITIAL_PULSE_DELAY_US \
-  US_PER_SECOND / (LEADSCREW_JERK * ELS_LEADSCREW_STEPS_PER_MM)
+  ((float)US_PER_SECOND /                \
+   ((float)LEADSCREW_JERK * (float)ELS_LEADSCREW_STEPS_PER_MM))
+#endif
 
 // The amount of time to increment/decrement the pulse delay by in microseconds
 // for the leadscrew This is calculated based on the acceleration value
+#ifdef ACCEL_DISABLED
+#define LEADSCREW_PULSE_DELAY_STEP_US 0
+#else
 #define LEADSCREW_PULSE_DELAY_STEP_US \
-  US_PER_SECOND / (LEADSCREW_ACCEL * ELS_LEADSCREW_STEPS_PER_MM)
+  ((float)LEADSCREW_ACCEL / ((float)ELS_LEADSCREW_STEPS_PER_MM))
+#endif
 
 // metric thread pitch is defined as mm/rev
 const float threadPitchMetric[] = {0.35, 0.40, 0.45, 0.50, 0.60, 0.70, 0.80,

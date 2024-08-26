@@ -169,13 +169,11 @@ void ButtonHandler::modeCycleHandler() {
         GlobalState::getInstance()->setFeedMode(GlobalFeedMode::FEED);
         break;
     }
+    m_leadscrew->setRatio(globalState->getCurrentFeedPitch());
   }
 
   // holding mode button swaps between metric and imperial
-  static boolean heldHandled = false;  // keep track of whether or not we have
-                                       // handled the "held" event yet
   if (m_modeCycle.isHeld()) {
-    heldHandled = true;
     switch (GlobalState::getInstance()->getUnitMode()) {
       case GlobalUnitMode::METRIC:
         GlobalState::getInstance()->setUnitMode(GlobalUnitMode::IMPERIAL);
@@ -184,11 +182,8 @@ void ButtonHandler::modeCycleHandler() {
         GlobalState::getInstance()->setUnitMode(GlobalUnitMode::METRIC);
         break;
     }
-  } else {
-    heldHandled = false;
+    m_leadscrew->setRatio(globalState->getCurrentFeedPitch());
   }
-
-  m_leadscrew->setRatio(globalState->getCurrentFeedPitch());
 }
 
 void ButtonHandler::jogHandler(JogDirection direction) {
@@ -211,25 +206,34 @@ void ButtonHandler::jogHandler(JogDirection direction) {
   if (jogButton->isDoubleClicked()) {
     switch (direction) {
       case JogDirection::LEFT:
-        m_leadscrew->setStopPosition(Leadscrew::StopPosition::LEFT,
-                                     m_leadscrew->getCurrentPosition());
+        if (m_leadscrew->getStopPositionState(Leadscrew::StopPosition::LEFT) ==
+            LeadscrewStopState::UNSET) {
+          m_leadscrew->setStopPosition(Leadscrew::StopPosition::LEFT,
+                                       m_leadscrew->getCurrentPosition());
+        } else {
+          m_leadscrew->unsetStopPosition(Leadscrew::StopPosition::LEFT);
+        }
         break;
       case JogDirection::RIGHT:
-        m_leadscrew->setStopPosition(Leadscrew::StopPosition::RIGHT,
-                                     m_leadscrew->getCurrentPosition());
-
+        if (m_leadscrew->getStopPositionState(Leadscrew::StopPosition::RIGHT) ==
+            LeadscrewStopState::UNSET) {
+          m_leadscrew->setStopPosition(Leadscrew::StopPosition::RIGHT,
+                                       m_leadscrew->getCurrentPosition());
+        } else {
+          m_leadscrew->unsetStopPosition(Leadscrew::StopPosition::RIGHT);
+        }
         break;
     }
-    // todo set the leadscrew stop position
+    jogButton->resetDoubleClicked();
   }
 
   static elapsedMicros jogTimer;
 
   if (jogButton->isHeld() && jogTimer > JOG_PULSE_DELAY_US) {
-    jogTimer -= JOG_PULSE_DELAY_US;
+    jogTimer = 0;
     globalState->setMotionMode(GlobalMotionMode::JOG);
     globalState->setThreadSyncState(GlobalThreadSyncState::UNSYNC);
-    m_leadscrew->incrementCurrentPosition(-1);
+    m_leadscrew->incrementCurrentPosition(direction);
   } else if (!jogButton->isPressed()) {
     globalState->setMotionMode(GlobalMotionMode::DISABLED);
   }

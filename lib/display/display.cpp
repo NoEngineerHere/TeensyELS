@@ -30,6 +30,7 @@ void Display::update() {
   drawLocked();
   drawEnabled();
   drawSpindleRpm();
+  drawStopStatus();
 
 #if ELS_DISPLAY == SSD1306_128_64
   m_ssd1306.display();
@@ -46,6 +47,26 @@ void Display::drawSpindleRpm() {
   // pad the rpm with spaces so the RPM text stays in the same place
   sprintf(rpmString, "%4dRPM", rpm);
   m_ssd1306.print(rpmString);
+#endif
+}
+
+void Display::drawStopStatus() {
+#if ELS_DISPLAY == SSD1306_128_64
+  m_ssd1306.setCursor(0, 8);
+  m_ssd1306.setTextSize(1);
+  m_ssd1306.setTextColor(WHITE);
+  if (m_leadscrew->getStopPositionState(Leadscrew::StopPosition::LEFT) ==
+      LeadscrewStopState::SET) {
+    m_ssd1306.print("[");
+  } else {
+    m_ssd1306.print(" ");
+  }
+  if (m_leadscrew->getStopPositionState(Leadscrew::StopPosition::RIGHT) ==
+      LeadscrewStopState::SET) {
+    m_ssd1306.print("]");
+  } else {
+    m_ssd1306.print(" ");
+  }
 #endif
 }
 
