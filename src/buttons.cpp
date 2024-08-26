@@ -169,6 +169,7 @@ void ButtonHandler::modeCycleHandler() {
         GlobalState::getInstance()->setFeedMode(GlobalFeedMode::FEED);
         break;
     }
+    m_leadscrew->setRatio(globalState->getCurrentFeedPitch());
   }
 
   // holding mode button swaps between metric and imperial

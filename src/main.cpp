@@ -96,19 +96,7 @@ void loop() {
     globalState->printState();
     Serial.print("Micros: ");
     Serial.println(micros());
-    Serial.print("Leadscrew position: ");
-    Serial.println(leadscrew.getCurrentPosition());
-    Serial.print("Leadscrew expected position: ");
-    Serial.println(leadscrew.getExpectedPosition());
-    Serial.print("Leadscrew left stop position: ");
-    Serial.println(leadscrew.getStopPosition(Leadscrew::StopPosition::LEFT));
-    Serial.print("Leadscrew right stop position: ");
-    Serial.println(leadscrew.getStopPosition(Leadscrew::StopPosition::RIGHT));
-    Serial.print("Leadscrew ratio: ");
-    Serial.println(leadscrew.getRatio());
-    Serial.print("Leadscrew accumulator unit:");
-    Serial.println((ELS_LEADSCREW_STEPS_PER_MM * leadscrew.getRatio()) /
-                   ELS_LEADSCREW_STEPPER_PPR);
+    leadscrew.printState();
     Serial.print("Spindle position: ");
     Serial.println(spindle.getCurrentPosition());
     Serial.print("Spindle velocity: ");

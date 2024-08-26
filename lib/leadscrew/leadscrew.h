@@ -60,5 +60,8 @@ class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
   void incrementCurrentPosition(int amount);
   void update();
   int getPositionError();
+  LeadscrewDirection getCurrentDirection();
   float getEstimatedVelocityInMillimetersPerSecond();
+
+  void printState();
 };

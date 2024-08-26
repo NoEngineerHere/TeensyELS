@@ -90,7 +90,7 @@
 #define LEADSCREW_JERK 0.5
 // The acceleration of the leadscrew in mm/s^2
 
-#define LEADSCREW_ACCEL 2
+#define LEADSCREW_ACCEL 100
 
 #define LEADSCREW_TIMER_US 20
 

@@ -7,6 +7,7 @@
 #include <cstdio>
 
 #include "leadscrew_io.h"
+using namespace std;
 
 Leadscrew::Leadscrew(Axis* leadAxis, LeadscrewIO* io, float initialPulseDelay,
                      float pulseDelayIncrement, int motorPulsePerRevolution,
@@ -32,6 +33,12 @@ void Leadscrew::setRatio(float ratio) {
   m_ratio = ratio;
   // extrapolate the current position based on the new ratio
   m_currentPosition = m_leadAxis->getCurrentPosition() * m_ratio;
+  if (m_leftStopState == LeadscrewStopState::SET) {
+    m_leftStopPosition = m_leftStopPosition * m_ratio;
+  }
+  if (m_rightStopState == LeadscrewStopState::SET) {
+    m_rightStopPosition = m_rightStopPosition * m_ratio;
+  }
   m_cycleModulo = motorPulsePerRevolution * m_ratio;
 }
 
@@ -171,6 +178,7 @@ void Leadscrew::update() {
       break;
     case GlobalMotionMode::ENABLED:
       LeadscrewDirection nextDirection = LeadscrewDirection::UNKNOWN;
+
       /**
        * Attempt to find the "next" direction to move in, if the current
        * direction is unknown i.e: at a standstill - we know we have to start
@@ -181,6 +189,10 @@ void Leadscrew::update() {
        */
       if (positionError > 0) {
         nextDirection = LeadscrewDirection::RIGHT;
+        if (m_currentDirection == LeadscrewDirection::LEFT &&
+            m_currentPulseDelay == initialPulseDelay) {
+          m_currentDirection = LeadscrewDirection::UNKNOWN;
+        }
         if (m_currentDirection == LeadscrewDirection::UNKNOWN) {
           m_io->writeDirPin(1);
           m_currentDirection = LeadscrewDirection::RIGHT;
@@ -189,23 +201,17 @@ void Leadscrew::update() {
 
       } else if (positionError < 0) {
         nextDirection = LeadscrewDirection::LEFT;
+        if (m_currentDirection == LeadscrewDirection::RIGHT &&
+            m_currentPulseDelay == initialPulseDelay) {
+          m_currentDirection = LeadscrewDirection::UNKNOWN;
+        }
         if (m_currentDirection == LeadscrewDirection::UNKNOWN) {
           m_io->writeDirPin(0);
           m_currentDirection = LeadscrewDirection::LEFT;
           m_accumulator = m_currentDirection * getAccumulatorUnit();
         }
       } else {
-        // positionError == 0
-        // at a standstill, we don't know which direction is next.
         m_currentDirection = LeadscrewDirection::UNKNOWN;
-        m_currentPulseDelay = initialPulseDelay;
-        // make sure we're ready to send the next pulse
-        m_lastPulseMicros = -initialPulseDelay;
-
-        // todo check if we have sync'd before
-        globalState->setThreadSyncState(GlobalThreadSyncState::SYNC);
-        // we're at a standstill (no position error) so we shouldn't send any
-        // pulses at all
         break;
       }
 
@@ -217,11 +223,12 @@ void Leadscrew::update() {
       // attempt to keep in sync with the leadscrew
       // if sendPulse returns true, we've actually sent a pulse
       if (sendPulse()) {
-        m_lastFullPulseDurationMicros = m_lastPulseMicros;
+        m_lastFullPulseDurationMicros =
+            min((uint32_t)m_lastPulseMicros, (uint32_t)initialPulseDelay);
         m_lastPulseMicros = 0;
 
         // handle position update
-        if (abs(m_accumulator) > 1) {
+        if (m_accumulator > 1 || m_accumulator < -1) {
           m_accumulator -= m_currentDirection;
         } else {
           m_currentPosition += m_currentDirection;
@@ -236,8 +243,10 @@ void Leadscrew::update() {
         // correct position
         bool shouldStop = abs(positionError) <= pulsesToStop;
         shouldStop |= nextDirection != m_currentDirection;
-        /*shouldStop |= m_currentPosition + pulsesToStop >= m_rightStopPosition;
-        shouldStop |= m_currentPosition - pulsesToStop <= m_leftStopPosition;*/
+        shouldStop |= m_rightStopState == LeadscrewStopState::SET &&
+                      m_currentPosition + pulsesToStop >= m_rightStopPosition;
+        shouldStop |= m_leftStopState == LeadscrewStopState::SET &&
+                      m_currentPosition - pulsesToStop <= m_leftStopPosition;
 
         float accelChange = pulseDelayIncrement * m_lastFullPulseDurationMicros;
 
@@ -268,7 +277,49 @@ int Leadscrew::getPositionError() {
   return getExpectedPosition() - getCurrentPosition();
 }
 
+LeadscrewDirection Leadscrew::getCurrentDirection() {
+  return m_currentDirection;
+}
+
 float Leadscrew::getEstimatedVelocityInMillimetersPerSecond() {
   return (getEstimatedVelocityInPulsesPerSecond() * leadscrewPitch) /
          motorPulsePerRevolution;
+}
+
+void Leadscrew::printState() {
+  Serial.print("Leadscrew position: ");
+  Serial.println(getCurrentPosition());
+  Serial.print("Leadscrew expected position: ");
+  Serial.println(getExpectedPosition());
+  Serial.print("Leadscrew left stop position: ");
+  Serial.println(getStopPosition(Leadscrew::StopPosition::LEFT));
+  Serial.print("Leadscrew right stop position: ");
+  Serial.println(getStopPosition(Leadscrew::StopPosition::RIGHT));
+  Serial.print("Leadscrew ratio: ");
+  Serial.println(getRatio());
+  Serial.print("Leadscrew accumulator unit:");
+  Serial.println(getAccumulatorUnit());
+  Serial.print("Current leadscrew accumulator: ");
+  Serial.println(m_accumulator);
+  Serial.print("Leadscrew direction: ");
+  switch (getCurrentDirection()) {
+    case LeadscrewDirection::LEFT:
+      Serial.println("LEFT");
+      break;
+    case LeadscrewDirection::RIGHT:
+      Serial.println("RIGHT");
+      break;
+    case LeadscrewDirection::UNKNOWN:
+      Serial.println("UNKNOWN");
+      break;
+  }
+  Serial.print("Leadscrew current pulse delay: ");
+  Serial.println(m_currentPulseDelay);
+  Serial.print("Leadscrew position error: ");
+  Serial.println(getPositionError());
+  Serial.print("Leadscrew estimated velocity: ");
+  Serial.println(getEstimatedVelocityInMillimetersPerSecond());
+  Serial.print("Leadscrew pulses to stop: ");
+  Serial.println(calculate_pulses_to_stop(
+      m_currentPulseDelay, initialPulseDelay, pulseDelayIncrement));
 }

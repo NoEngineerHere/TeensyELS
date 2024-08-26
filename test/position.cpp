@@ -28,7 +28,7 @@ unsigned long roundUp(unsigned long numToRound, unsigned long multiple) {
   return ((numToRound + multiple - 1) / multiple) * multiple;
 }
 
-/*TEST(PositionTest, TestInitialPulseDelay) {
+TEST(PositionTest, TestInitialPulseDelay) {
   MicrosSingleton& micros = MicrosSingleton::getInstance();
   GlobalState* globalState = GlobalState::getInstance();
 
@@ -83,7 +83,7 @@ unsigned long roundUp(unsigned long numToRound, unsigned long multiple) {
                 previousPosition->leadscrewPosition);
     }
   }
-}*/
+}
 
 TEST(PositionTest, TestAccumulator) {
   MicrosSingleton& micros = MicrosSingleton::getInstance();
