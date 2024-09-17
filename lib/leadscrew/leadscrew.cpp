@@ -171,22 +171,6 @@ void Leadscrew::update() {
       resetCurrentPosition();
       break;
     case GlobalMotionMode::JOG:
-      // only send a pulse if we haven't sent one recently
-      if (m_lastPulseMicros < JOG_PULSE_DELAY_US) {
-        break;
-      }
-      // if jog is complete go back to disabled motion mode
-      if (positionError == 0) {
-        globalState->setMotionMode(GlobalMotionMode::DISABLED);
-      }
-      // jogging is a fixed rate based on JOG_PULSE_DELAY_US
-      if (sendPulse()) {
-        m_lastFullPulseDurationMicros = m_lastPulseMicros;
-        m_lastPulseMicros = 0;
-        m_currentPosition += m_currentDirection;
-      }
-
-      break;
     case GlobalMotionMode::ENABLED:
       LeadscrewDirection nextDirection = LeadscrewDirection::UNKNOWN;
 
@@ -259,13 +243,8 @@ void Leadscrew::update() {
 
         // if this is true we should start decelerating to stop at the
         // correct position
-        bool shouldStop =
-            abs(positionError) <= pulsesToStop ||
-            nextDirection != m_currentDirection ||
-            (m_rightStopState == LeadscrewStopState::SET &&
-             m_currentPosition + pulsesToStop >= m_rightStopPosition) ||
-            (m_leftStopState == LeadscrewStopState::SET &&
-             m_currentPosition - pulsesToStop <= m_leftStopPosition);
+        bool shouldStop = abs(positionError) <= pulsesToStop ||
+                          nextDirection != m_currentDirection || hitEndstop;
 
         float accelChange = pulseDelayIncrement * m_lastFullPulseDurationMicros;
 
