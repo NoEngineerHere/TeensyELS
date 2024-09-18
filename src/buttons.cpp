@@ -245,10 +245,8 @@ void ButtonHandler::jogDirectionHandler(JogDirection direction) {
             LeadscrewStopState::UNSET) {
           m_leadscrew->setStopPosition(Leadscrew::StopPosition::LEFT,
                                        m_leadscrew->getCurrentPosition());
-          m_spindle->setPositionLimit(SpindleLimitOption::LEFT, m_spindle->getCurrentPosition())
         } else {
           m_leadscrew->unsetStopPosition(Leadscrew::StopPosition::LEFT);
-          m_spindle->unsetPositionLimit(SpindleLimitOption::LEFT);
         }
         break;
       case JogDirection::RIGHT:
@@ -256,10 +254,8 @@ void ButtonHandler::jogDirectionHandler(JogDirection direction) {
             LeadscrewStopState::UNSET) {
           m_leadscrew->setStopPosition(Leadscrew::StopPosition::RIGHT,
                                        m_leadscrew->getCurrentPosition());
-          m_spindle->setPositionLimit(SpindleLimitOption::RIGHT, m_spindle->getCurrentPosition())
         } else {
           m_leadscrew->unsetStopPosition(Leadscrew::StopPosition::RIGHT);
-          m_spindle->unsetPositionLimit(SpindleLimitOption::RIGHT);
         }
         break;
     }

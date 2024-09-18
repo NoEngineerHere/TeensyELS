@@ -1,4 +1,4 @@
-#include <axis.h>
+#include <spindle.h>
 #include <els_elapsedMillis.h>
 
 #include "leadscrew_io.h"
@@ -9,8 +9,10 @@ enum LeadscrewDirection { LEFT = -1, RIGHT = 1, UNKNOWN = 0 };
 
 class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
  private:
-  Axis* m_leadAxis;
+  Spindle* m_spindle;
   LeadscrewIO* m_io;
+
+  float m_expectedPosition;
 
   // the ratio of how much the leadscrew moves per spindle rotation
   const int motorPulsePerRevolution;
@@ -24,8 +26,6 @@ class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
   LeadscrewDirection m_currentDirection;
 
   float m_accumulator;
-
-  int m_cycleModulo;
 
   // we may want more sophisticated control over positions, but for now this is
   // fine
@@ -43,7 +43,7 @@ class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
   // int getStoppingDistanceInPulses();
 
  public:
-  Leadscrew(Axis* leadAxis, LeadscrewIO* io, float initialPulseDelay,
+  Leadscrew(Spindle* spindle, LeadscrewIO* io, float initialPulseDelay,
             float pulseDelayIncrement, int motorPulsePerRevolution,
             float leadscrewPitch);
   int getCurrentPosition();
