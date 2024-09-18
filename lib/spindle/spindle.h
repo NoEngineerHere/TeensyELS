@@ -3,28 +3,18 @@
 
 #pragma once
 
-enum SpindleLimitState { SET, UNSET };
-enum SpindleLimitOption {
-  LEFT,
-  RIGHT
-}
-
 class Spindle : public RotationalAxis {
  private:
-  SpindleLimitState m_leftLimitState;
-  int m_leftLimitPosition;
-  SpindleLimitState m_rightLimitState;
-  int m_rightLimitPosition;
+ // the unconsumed position is the position that has been read from the encoder
+ // but hasn't been used to update the current position of any driven axes
+  int m_unconsumedPosition;
 
  public:
   void incrementCurrentPosition(int amount);
-  float getEstimatedVelocityInRPM();
-
   /**
-   * These will limit the position to one rotation within the position set
-   * Left will be within position and position- ELS_SPINDLE_ENCODER_PPR
-   * Right will be within position and position + ELS_SPINDLE_ENCODER_PPR
+   * This will return the unconsumed position and reset it to 0
+   * used for updating the expected position of any driven axes
    */
-  void setPositionLimit(SpindleLimitOption option, int position);
-  void unsetPositionLimit(SpindleLimitOption option);
+  int consumePosition();
+  float getEstimatedVelocityInRPM();
 };

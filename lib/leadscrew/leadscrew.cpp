@@ -9,7 +9,7 @@
 #include "leadscrew_io.h"
 using namespace std;
 
-Leadscrew::Leadscrew(Axis* leadAxis, LeadscrewIO* io, float initialPulseDelay,
+Leadscrew::Leadscrew(Spindle* spindle, LeadscrewIO* io, float initialPulseDelay,
                      float pulseDelayIncrement, int motorPulsePerRevolution,
                      float leadscrewPitch)
     : motorPulsePerRevolution(motorPulsePerRevolution),
@@ -17,7 +17,7 @@ Leadscrew::Leadscrew(Axis* leadAxis, LeadscrewIO* io, float initialPulseDelay,
       initialPulseDelay(initialPulseDelay),
       pulseDelayIncrement(pulseDelayIncrement),
       m_io(io),
-      m_leadAxis(leadAxis),
+      m_spindle(spindle),
       m_accumulator(0),
       m_currentDirection(LeadscrewDirection::UNKNOWN),
       m_leftStopState(LeadscrewStopState::UNSET),
@@ -26,26 +26,35 @@ Leadscrew::Leadscrew(Axis* leadAxis, LeadscrewIO* io, float initialPulseDelay,
   setRatio(GlobalState::getInstance()->getCurrentFeedPitch());
   m_lastPulseMicros = 0;
   m_lastFullPulseDurationMicros = 0;
+  m_expectedPosition = 0;
   m_currentPosition = 0;
 }
 
 void Leadscrew::setRatio(float ratio) {
-  m_ratio = ratio;
-  // extrapolate the current position based on the new ratio
-  m_currentPosition = m_leadAxis->getCurrentPosition() * m_ratio;
+  // reset the positions to base values
+  m_currentPosition /= m_ratio;
   if (m_leftStopState == LeadscrewStopState::SET) {
-    m_leftStopPosition = m_leftStopPosition * m_ratio;
+    m_leftStopPosition /= m_ratio;
   }
   if (m_rightStopState == LeadscrewStopState::SET) {
-    m_rightStopPosition = m_rightStopPosition * m_ratio;
+    m_rightStopPosition /= m_ratio;
   }
-  m_cycleModulo = motorPulsePerRevolution * m_ratio;
+
+  m_ratio = ratio;
+  // extrapolate the current position based on the new ratio
+  m_currentPosition *= m_ratio;
+  if (m_leftStopState == LeadscrewStopState::SET) {
+    m_leftStopPosition *= m_ratio;
+  }
+  if (m_rightStopState == LeadscrewStopState::SET) {
+    m_rightStopPosition *= m_ratio;
+  }
 }
 
 float Leadscrew::getRatio() { return m_ratio; }
 
 int Leadscrew::getExpectedPosition() {
-  return m_leadAxis->getCurrentPosition() * m_ratio;
+  return m_expectedPosition;
 }
 
 int Leadscrew::getCurrentPosition() { return m_currentPosition; }
@@ -162,6 +171,10 @@ int calculate_pulses_to_stop(float currentPulseDelay, float initialPulseDelay,
 
 void Leadscrew::update() {
   GlobalState* globalState = GlobalState::getInstance();
+
+  // consume the pulses from the spindle
+  // since the spindle is a rotational axis, it keeps track of the pulses that 
+  m_expectedPosition += m_spindle->consumePosition() * getRatio();
 
   int positionError = getPositionError();
 
