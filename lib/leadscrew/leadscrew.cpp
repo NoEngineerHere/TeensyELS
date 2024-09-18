@@ -55,52 +55,27 @@ void Leadscrew::resetCurrentPosition() {
 }
 
 void Leadscrew::unsetStopPosition(StopPosition position) {
-  // if leadaxis is spindle, we should also be able to set the limit
-  if (instanceof <Spindle>(m_leadAxis)) {
-    Spindle* spindle = dynamic_cast<Spindle*>(m_leadAxis);
-  }
-
   switch (position) {
     case LEFT:
       m_leftStopState = LeadscrewStopState::UNSET;
       m_leftStopPosition = INT32_MIN;
-      if (instanceof <Spindle>(m_leadAxis)) {
-        Spindle* spindle = dynamic_cast<Spindle*>(m_leadAxis);
-        spindle.unsetPositionLimit(SpindleLimitOption::LEFT);
-      }
       break;
     case RIGHT:
       m_rightStopState = LeadscrewStopState::UNSET;
       m_rightStopPosition = INT32_MAX;
-      if (instanceof <Spindle>(m_leadAxis)) {
-        Spindle* spindle = dynamic_cast<Spindle*>(m_leadAxis);
-        spindle.unsetPositionLimit(SpindleLimitOption::RIGHT);
-      }
       break;
   }
 }
 
 void Leadscrew::setStopPosition(StopPosition position, int stopPosition) {
-  // if leadaxis is spindle, we should also be able to set the limit
-
   switch (position) {
     case LEFT:
       m_leftStopPosition = stopPosition;
       m_leftStopState = LeadscrewStopState::SET;
-      if (instanceof <Spindle>(m_leadAxis)) {
-        Spindle* spindle = dynamic_cast<Spindle*>(m_leadAxis);
-        spindle.setPositionLimit(SpindleLimitOption::LEFT,
-                                 spindle.getCurrentPosition());
-      }
       break;
     case RIGHT:
       m_rightStopPosition = stopPosition;
       m_rightStopState = LeadscrewStopState::SET;
-      if (instanceof <Spindle>(m_leadAxis)) {
-        Spindle* spindle = dynamic_cast<Spindle*>(m_leadAxis);
-        spindle.setPositionLimit(SpindleLimitOption::RIGHT,
-                                 spindle.getCurrentPosition());
-      }
       break;
   }
 }
