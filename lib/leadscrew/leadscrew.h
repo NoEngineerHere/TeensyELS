@@ -1,4 +1,4 @@
-#include <axis.h>
+#include <spindle.h>
 #include <els_elapsedMillis.h>
 
 #include "leadscrew_io.h"
@@ -12,7 +12,7 @@ class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
   Spindle* m_spindle;
   LeadscrewIO* m_io;
 
-  int m_expectedPosition;
+  float m_expectedPosition;
 
   // the ratio of how much the leadscrew moves per spindle rotation
   const int motorPulsePerRevolution;

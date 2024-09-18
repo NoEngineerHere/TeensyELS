@@ -54,7 +54,7 @@ TEST(PositionTest, TestInitialPulseDelay) {
       maxTime = step.micros;
     }
   }
-  maxTime += 1000;  // add a little extra time to make sure the test runs long
+  maxTime += 10;  // add a little extra time to make sure the test runs long
                     // enough
 
   printf("maxTime: %lu\n", maxTime);

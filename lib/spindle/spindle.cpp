@@ -5,7 +5,9 @@
 #include <math.h>
 
 void Spindle::setCurrentPosition(int position) {
-  m_currentPosition = position % ELS_SPINDLE_ENCODER_PPR;
+  int newPosition = position % ELS_SPINDLE_ENCODER_PPR;
+  m_unconsumedPosition = newPosition - m_currentPosition;
+  m_currentPosition = newPosition;
 }
 
 void Spindle::incrementCurrentPosition(int amount) {
@@ -20,3 +22,8 @@ float Spindle::getEstimatedVelocityInRPM() {
   return getEstimatedVelocityInPulsesPerSecond() / ELS_SPINDLE_ENCODER_PPR;
 }
 
+int Spindle::consumePosition() {
+  int position = m_unconsumedPosition;
+  m_unconsumedPosition = 0;
+  return position;
+}

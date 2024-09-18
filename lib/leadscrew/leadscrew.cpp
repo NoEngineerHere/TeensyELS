@@ -60,7 +60,7 @@ int Leadscrew::getExpectedPosition() {
 int Leadscrew::getCurrentPosition() { return m_currentPosition; }
 
 void Leadscrew::resetCurrentPosition() {
-  m_currentPosition = m_leadAxis->getCurrentPosition() * m_ratio;
+  m_currentPosition = m_expectedPosition;
 }
 
 void Leadscrew::unsetStopPosition(StopPosition position) {
@@ -298,6 +298,7 @@ float Leadscrew::getEstimatedVelocityInMillimetersPerSecond() {
 }
 
 void Leadscrew::printState() {
+  #ifndef PIO_UNIT_TESTING
   Serial.print("Leadscrew position: ");
   Serial.println(getCurrentPosition());
   Serial.print("Leadscrew expected position: ");
@@ -333,4 +334,5 @@ void Leadscrew::printState() {
   Serial.print("Leadscrew pulses to stop: ");
   Serial.println(calculate_pulses_to_stop(
       m_currentPulseDelay, initialPulseDelay, pulseDelayIncrement));
+  #endif
 }

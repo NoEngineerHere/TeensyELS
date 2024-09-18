@@ -10,6 +10,7 @@ class Spindle : public RotationalAxis {
   int m_unconsumedPosition;
 
  public:
+  void setCurrentPosition(int position);
   void incrementCurrentPosition(int amount);
   /**
    * This will return the unconsumed position and reset it to 0
