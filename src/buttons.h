@@ -30,12 +30,12 @@ class ButtonHandler {
 
   enum JogDirection { LEFT = -1, RIGHT = 1 };
 
-  void jogHandler(JogDirection direction);
-  void jogLeftHandler();
-  void jogRightHandler();
+  void jogDirectionHandler(JogDirection direction);
+  void jogHandler();
 
  public:
   ButtonHandler(Spindle *spindle, Leadscrew *leadscrew);
 
   void handle();
+  void printState();
 };

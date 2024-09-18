@@ -71,8 +71,12 @@
   (float)(ELS_LEADSCREW_STEPPER_PPR / ELS_LEADSCREW_PITCH_MM)
 
 // extra config options
-// Delay between jog pulses in microseconds
-#define JOG_PULSE_DELAY_US 500
+// jog speed in mm/s
+#define JOG_SPEED 100
+
+#define JOG_PULSE_DELAY   \
+  ((float)US_PER_SECOND / \
+   ((float)JOG_SPEED * (float)ELS_LEADSCREW_STEPS_PER_MM))
 
 /**
  * The unit mode the system should start up in

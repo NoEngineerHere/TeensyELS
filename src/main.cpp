@@ -103,6 +103,7 @@ void loop() {
     Serial.println(spindle.getEstimatedVelocityInRPM());
     Serial.print("Spindle velocity pulses: ");
     Serial.println(spindle.getEstimatedVelocityInPulsesPerSecond());
+    keyPad.printState();
   }
 
   display.update();
