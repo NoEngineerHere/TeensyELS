@@ -17,6 +17,8 @@ class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
   // the ratio of how much the leadscrew moves per spindle rotation
   const int motorPulsePerRevolution;
   const float leadscrewPitch;
+  // the number of pulses per revolution of the lead axis (spindle)
+  const int leadAxisPPR;
   float m_ratio;
 
   // The current delay between pulses in microseconds
@@ -45,7 +47,7 @@ class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
  public:
   Leadscrew(Spindle* spindle, LeadscrewIO* io, float initialPulseDelay,
             float pulseDelayIncrement, int motorPulsePerRevolution,
-            float leadscrewPitch);
+            float leadscrewPitch, int leadAxisPPR);
   int getCurrentPosition();
   void resetCurrentPosition();
 

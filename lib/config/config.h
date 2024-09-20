@@ -63,12 +63,15 @@
 #define PIN_DISPLAY_RESET -1
 #endif
 
-#define ELS_SPINDLE_ENCODER_PPR 400
-#define ELS_LEADSCREW_STEPPER_PPR 400
-#define ELS_LEADSCREW_PITCH_MM 1.25
+#define ELS_SPINDLE_ENCODER_PPR 1000
+#define ELS_LEADSCREW_STEPPER_PPR 800
+// 16tpi
+// AL332 A2 gear (2:1)?
+#define ELS_GEARBOX_RATIO 2
+#define ELS_LEADSCREW_PITCH_MM ((float)(25.4/16))
 
 #define ELS_LEADSCREW_STEPS_PER_MM \
-  (float)(ELS_LEADSCREW_STEPPER_PPR / ELS_LEADSCREW_PITCH_MM)
+  (float)((ELS_LEADSCREW_STEPPER_PPR*ELS_GEARBOX_RATIO) / ELS_LEADSCREW_PITCH_MM)
 
 // extra config options
 // jog speed in mm/s
@@ -94,7 +97,7 @@
 #define LEADSCREW_JERK 0.5
 // The acceleration of the leadscrew in mm/s^2
 
-#define LEADSCREW_ACCEL 100
+#define LEADSCREW_ACCEL 50
 
 #define LEADSCREW_TIMER_US 20
 

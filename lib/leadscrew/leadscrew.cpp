@@ -11,9 +11,10 @@ using namespace std;
 
 Leadscrew::Leadscrew(Spindle* spindle, LeadscrewIO* io, float initialPulseDelay,
                      float pulseDelayIncrement, int motorPulsePerRevolution,
-                     float leadscrewPitch)
+                     float leadscrewPitch, int leadAxisPPR)
     : motorPulsePerRevolution(motorPulsePerRevolution),
       leadscrewPitch(leadscrewPitch),
+      leadAxisPPR(leadAxisPPR),
       initialPulseDelay(initialPulseDelay),
       pulseDelayIncrement(pulseDelayIncrement),
       m_io(io),
@@ -31,27 +32,32 @@ Leadscrew::Leadscrew(Spindle* spindle, LeadscrewIO* io, float initialPulseDelay,
 }
 
 void Leadscrew::setRatio(float ratio) {
+  float oldRatio = getRatio();
   // reset the positions to base values
-  m_currentPosition /= m_ratio;
+  m_currentPosition /= oldRatio;
+  m_expectedPosition /= oldRatio;
   if (m_leftStopState == LeadscrewStopState::SET) {
-    m_leftStopPosition /= m_ratio;
+    m_leftStopPosition /= oldRatio;
   }
   if (m_rightStopState == LeadscrewStopState::SET) {
-    m_rightStopPosition /= m_ratio;
+    m_rightStopPosition /= oldRatio;
   }
 
   m_ratio = ratio;
+  // getRatio has some math in it based on the system
+  float newRatio = getRatio();
   // extrapolate the current position based on the new ratio
-  m_currentPosition *= m_ratio;
+  m_currentPosition *= newRatio;
+  m_expectedPosition *= newRatio;
   if (m_leftStopState == LeadscrewStopState::SET) {
-    m_leftStopPosition *= m_ratio;
+    m_leftStopPosition *= newRatio;
   }
   if (m_rightStopState == LeadscrewStopState::SET) {
-    m_rightStopPosition *= m_ratio;
+    m_rightStopPosition *= newRatio;
   }
 }
 
-float Leadscrew::getRatio() { return m_ratio; }
+float Leadscrew::getRatio() { return m_ratio * leadAxisPPR / motorPulsePerRevolution; }
 
 int Leadscrew::getExpectedPosition() {
   return m_expectedPosition;
@@ -123,7 +129,7 @@ void Leadscrew::incrementCurrentPosition(int amount) {
   m_currentPosition += amount;
 }
 
-float Leadscrew::getAccumulatorUnit() { return getRatio() / leadscrewPitch; }
+float Leadscrew::getAccumulatorUnit() { return getRatio() / leadscrewPitch ; }
 
 bool Leadscrew::sendPulse() {
   uint8_t pinState = m_io->readStepPin();
