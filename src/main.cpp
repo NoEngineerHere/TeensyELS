@@ -14,7 +14,11 @@
 IntervalTimer timer;
 
 GlobalState* globalState = GlobalState::getInstance();
+#ifdef ELS_SPINDLE_DRIVEN
 Spindle spindle;
+#else
+Spindle spindle(ELS_SPINDLE_ENCODER_A, ELS_SPINDLE_ENCODER_B);
+#endif
 LeadscrewIOImpl leadscrewIOImpl;
 Leadscrew leadscrew(&spindle, &leadscrewIOImpl,
                     LEADSCREW_INITIAL_PULSE_DELAY_US,
@@ -23,14 +27,12 @@ Leadscrew leadscrew(&spindle, &leadscrewIOImpl,
 ButtonHandler keyPad(&spindle, &leadscrew);
 Display display(&spindle, &leadscrew);
 
-#ifndef ELS_SPINDLE_DRIVEN
-void Achange();
-void Bchange();
-#endif
-
 // have to handle the leadscrew updates in a timer callback so we can update the
 // screen independently without losing pulses
-void timerCallback() { leadscrew.update(); }
+void timerCallback() {
+  spindle.update();
+  leadscrew.update();
+}
 
 void setup() {
   // config - compile time checks for safety
@@ -60,14 +62,6 @@ void setup() {
   pinMode(ELS_LOCK_BUTTON, INPUT_PULLUP);           // lock toggle
   pinMode(ELS_JOG_LEFT_BUTTON, INPUT_PULLUP);       // jog left
   pinMode(ELS_JOG_RIGHT_BUTTON, INPUT_PULLUP);      // jog right
-
-// Interupts
-#ifndef ELS_SPINDLE_DRIVEN
-  attachInterrupt(digitalPinToInterrupt(ELS_SPINDLE_ENCODER_A), Achange,
-                  CHANGE);
-  attachInterrupt(digitalPinToInterrupt(ELS_SPINDLE_ENCODER_B), Bchange,
-                  CHANGE);
-#endif
 
   // Display Initalisation
 
@@ -108,36 +102,3 @@ void loop() {
 
   display.update();
 }
-
-#ifndef ELS_SPINDLE_DRIVEN
-int EncoderMatrix[16] = {
-    0, -1, 1, 2, 1, 0,  2, -1, -1,
-    2, 0,  1, 2, 1, -1, 0};  // encoder output matrix, output = X (old) * 4 + Y
-                             // (new)
-
-volatile int oldPos;
-volatile int newPos;
-
-void Achange() {  // validates encoder pulses, adds to pulse variable
-
-  oldPos = newPos;
-  bitWrite(newPos, 0, digitalReadFast(ELS_SPINDLE_ENCODER_A));
-  bitWrite(newPos, 1,
-           digitalReadFast(
-               ELS_SPINDLE_ENCODER_B));  // adds A to B, converts to integer
-  spindle.incrementCurrentPosition(EncoderMatrix[(oldPos * 4) + newPos]);
-}
-
-void Bchange() {  // validates encoder pulses, adds to pulse variable
-
-  oldPos = newPos;
-  bitWrite(newPos, 0, digitalReadFast(ELS_SPINDLE_ENCODER_A));
-  bitWrite(newPos, 1,
-           digitalReadFast(
-               ELS_SPINDLE_ENCODER_B));  // adds A to B, converts to integer
-  spindle.incrementCurrentPosition(
-      EncoderMatrix[(oldPos * 4) + newPos]);  // assigns value from encoder
-                                              // matrix to determine validity
-                                              // and direction of encoder pulse
-}
-#endif
