@@ -4,6 +4,26 @@
 #include <els_elapsedMillis.h>
 #include <math.h>
 
+#ifndef ELS_SPINDLE_DRIVEN
+Spindle::Spindle(int pinA, int pinB) : m_encoder(pinA, pinB) {
+#else
+Spindle::Spindle() {
+#endif
+
+  m_unconsumedPosition = 0;
+  m_lastPulseMicros = 0;
+  m_lastFullPulseDurationMicros = 0;
+  m_currentPosition = 0;
+}
+
+void Spindle::update() {
+  // read the encoder and update the current position
+  // todo: we should keep the absolute position of the spindle, cbf right now
+  int position = m_encoder.read();
+  incrementCurrentPosition(position);
+  m_encoder.write(0);
+}
+
 void Spindle::setCurrentPosition(int position) {
   int newPosition = position % ELS_SPINDLE_ENCODER_PPR;
   m_unconsumedPosition = newPosition - m_currentPosition;

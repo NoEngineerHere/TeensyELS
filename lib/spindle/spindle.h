@@ -1,3 +1,4 @@
+#include <Encoder.h>
 #include <axis.h>
 #include <els_elapsedMillis.h>
 
@@ -5,11 +6,20 @@
 
 class Spindle : public RotationalAxis {
  private:
- // the unconsumed position is the position that has been read from the encoder
- // but hasn't been used to update the current position of any driven axes
+  // the unconsumed position is the position that has been read from the encoder
+  // but hasn't been used to update the current position of any driven axes
   int m_unconsumedPosition;
 
+#ifndef ELS_SPINDLE_DRIVEN
+  Encoder m_encoder;
+#endif
+
  public:
+#ifndef ELS_SPINDLE_DRIVEN
+  Spindle(int pinA, int pinB);
+#endif
+
+  void update();
   void setCurrentPosition(int position);
   void incrementCurrentPosition(int amount);
   /**
