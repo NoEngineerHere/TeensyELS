@@ -70,7 +70,7 @@
 // i.e if setting right stop actually sets the left stop
 #define ELS_INVERT_DIRECTION
 
-#define ELS_GEARBOX_RATIO 90
+#define ELS_GEARBOX_RATIO 100
 #define ELS_LEADSCREW_PITCH_MM ((float)(25.4/16))
 
 #define ELS_LEADSCREW_STEPS_PER_MM \
@@ -78,7 +78,7 @@
 
 // extra config options
 // jog speed in mm/s
-#define JOG_SPEED 100
+#define JOG_SPEED 25
 
 #define JOG_PULSE_DELAY   \
   ((float)US_PER_SECOND / \
@@ -100,7 +100,7 @@
 #define LEADSCREW_JERK 0.25
 // The acceleration of the leadscrew in mm/s^2
 
-#define LEADSCREW_ACCEL 25.0
+#define LEADSCREW_ACCEL 50
 
 #define LEADSCREW_TIMER_US 4
 

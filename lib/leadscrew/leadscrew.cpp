@@ -34,17 +34,7 @@ Leadscrew::Leadscrew(Spindle* spindle, LeadscrewIO* io, float initialPulseDelay,
 }
 
 void Leadscrew::setRatio(float ratio) {
-  float oldRatio = getRatio();
-  // reset the positions to base values
-  m_currentPosition /= oldRatio;
-  m_expectedPosition /= oldRatio;
-
   m_ratio = ratio;
-  // getRatio has some math in it based on the system
-  float newRatio = getRatio();
-  // extrapolate the current position based on the new ratio
-  m_currentPosition *= newRatio;
-  m_expectedPosition *= newRatio;
 }
 /**
  * Returns the ratio of one pulse on the spindle to one pulse on the leadscrew

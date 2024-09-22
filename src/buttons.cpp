@@ -281,11 +281,11 @@ void ButtonHandler::jogDirectionHandler(JogDirection direction) {
   static elapsedMicros jogTimer;
 
   if (jogButton->isHeld() &&
-      jogTimer > JOG_PULSE_DELAY * m_leadscrew->getRatio()) {
+      jogTimer > JOG_PULSE_DELAY) {
     globalState->setMotionMode(GlobalMotionMode::JOG);
     globalState->setThreadSyncState(GlobalThreadSyncState::UNSYNC);
 
-    jogTimer -= JOG_PULSE_DELAY * m_leadscrew->getRatio();
+    jogTimer -= JOG_PULSE_DELAY;
     m_leadscrew->setExpectedPosition(
         m_leadscrew->getCurrentPosition() + (int)direction);
   }
