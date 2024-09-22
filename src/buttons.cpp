@@ -238,6 +238,22 @@ void ButtonHandler::jogDirectionHandler(JogDirection direction) {
     return;
   }
 
+  /*// single click should jog to the stop position
+  if(jogButton->resetClicked()) {
+   switch(direction) {
+     case JogDirection::LEFT:
+      if(m_leadscrew->getStopPositionState(Leadscrew::StopPosition::LEFT) != LeadscrewStopState::UNSET) {
+          m_leadscrew->setExpectedPosition(m_leadscrew->getStopPosition(Leadscrew::StopPosition::LEFT));
+      }
+      break;
+     case JogDirection::RIGHT:
+      if(m_leadscrew->getStopPositionState(Leadscrew::StopPosition::RIGHT) != LeadscrewStopState::UNSET) {
+          m_leadscrew->setExpectedPosition(m_leadscrew->getStopPosition(Leadscrew::StopPosition::RIGHT));
+      }
+      break;
+   }
+  }*/
+
   if (jogButton->isDoubleClicked()) {
     switch (direction) {
       case JogDirection::LEFT:
@@ -270,7 +286,8 @@ void ButtonHandler::jogDirectionHandler(JogDirection direction) {
     globalState->setThreadSyncState(GlobalThreadSyncState::UNSYNC);
 
     jogTimer -= JOG_PULSE_DELAY * m_leadscrew->getRatio();
-    m_leadscrew->incrementCurrentPosition(direction);
+    m_leadscrew->setExpectedPosition(
+        m_leadscrew->getCurrentPosition() + (int)direction);
   }
 }
 

@@ -70,10 +70,11 @@ class DerivedAxis {
  * An axis that is driven by the application
  * Example: The leadscrew is a driven axis since it has a motor we control
  * attached
+ * positioning is expected to be a float due to <1 ratios between lead axis
  */
 class DrivenAxis {
  public:
-  virtual int getExpectedPosition() = 0;
+  virtual float getExpectedPosition() = 0;
   virtual void update() = 0;
   virtual int getPositionError() = 0;
 };

@@ -93,6 +93,8 @@ void loop() {
     leadscrew.printState();
     Serial.print("Spindle position: ");
     Serial.println(spindle.getCurrentPosition());
+    Serial.print("Spindle unconsumed:");
+    Serial.println(spindle.consumePosition());
     Serial.print("Spindle velocity: ");
     Serial.println(spindle.getEstimatedVelocityInRPM());
     Serial.print("Spindle velocity pulses: ");

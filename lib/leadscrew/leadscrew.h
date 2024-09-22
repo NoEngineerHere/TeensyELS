@@ -4,8 +4,19 @@
 #include "leadscrew_io.h"
 #pragma once
 
+// only run for unit tests
+#if PIO_UNIT_TESTING
+#undef ELS_INVERT_DIRECTION
+#endif
+
+/**
+ * SET_SYNC: stop position is set and the leadscrew sync position is known
+ * SET_UNSYNC: stop position is set but the leadscrew sync position is unknown
+ * UNSET: stop position is not set
+ */
 enum LeadscrewStopState { SET, UNSET };
 enum LeadscrewDirection { LEFT = -1, RIGHT = 1, UNKNOWN = 0 };
+
 
 class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
  private:
@@ -33,6 +44,7 @@ class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
   // fine
   LeadscrewStopState m_leftStopState;
   int m_leftStopPosition;
+  
   LeadscrewStopState m_rightStopState;
   int m_rightStopPosition;
 
@@ -58,7 +70,8 @@ class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
   int getStopPosition(StopPosition position);
   void setRatio(float ratio);
   float getRatio();
-  int getExpectedPosition();
+  float getExpectedPosition();
+  void setExpectedPosition(float position);
   void setCurrentPosition(int position);
   void incrementCurrentPosition(int amount);
   void update();

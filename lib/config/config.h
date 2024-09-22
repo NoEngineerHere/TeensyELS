@@ -63,15 +63,18 @@
 #define PIN_DISPLAY_RESET -1
 #endif
 
-#define ELS_SPINDLE_ENCODER_PPR 1000
+#define ELS_SPINDLE_ENCODER_PPR 4000
 #define ELS_LEADSCREW_STEPPER_PPR 800
-// 16tpi
-// AL332 A2 gear (2:1)?
-#define ELS_GEARBOX_RATIO 2
+
+// uncomment this if your leadscrew direction is inverted to what is expected
+// i.e if setting right stop actually sets the left stop
+#define ELS_INVERT_DIRECTION
+
+#define ELS_GEARBOX_RATIO 90
 #define ELS_LEADSCREW_PITCH_MM ((float)(25.4/16))
 
 #define ELS_LEADSCREW_STEPS_PER_MM \
-  (float)((ELS_LEADSCREW_STEPPER_PPR*ELS_GEARBOX_RATIO) / ELS_LEADSCREW_PITCH_MM)
+  (float)((ELS_LEADSCREW_STEPPER_PPR) / ELS_LEADSCREW_PITCH_MM)
 
 // extra config options
 // jog speed in mm/s
@@ -94,12 +97,12 @@
 // this is the maximum allowable speed (in mm/s) for the leadscrew to
 // instantaneously start moving from 0
 // #define ACCEL_DISABLED
-#define LEADSCREW_JERK 0.5
+#define LEADSCREW_JERK 0.25
 // The acceleration of the leadscrew in mm/s^2
 
-#define LEADSCREW_ACCEL 50
+#define LEADSCREW_ACCEL 25.0
 
-#define LEADSCREW_TIMER_US 20
+#define LEADSCREW_TIMER_US 4
 
 // The initial delay between pulses in microseconds for the leadscrew starting
 // from 0 do not change - this is a calculated value, to change the initial
