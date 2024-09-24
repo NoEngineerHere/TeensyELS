@@ -10,12 +10,25 @@
 #endif
 
 /**
- * SET_SYNC: stop position is set and the leadscrew sync position is known
- * SET_UNSYNC: stop position is set but the leadscrew sync position is unknown
- * UNSET: stop position is not set
+ * The state of the leadscrew stop position for either the left or right stop
  */
 enum LeadscrewStopState { SET, UNSET };
+/**
+ * The current direction of the leadscrew
+ * We set numbers to use later when actually moving the position
+ */
 enum LeadscrewDirection { LEFT = -1, RIGHT = 1, UNKNOWN = 0 };
+
+/**
+ * The state of the spindle sync position
+ * The spindle sync position is a known position of the spindle that syncs with the current thread
+ * Since the spindle is a "rotational" axis and the leadscrew is a "linear" axis, we need to know
+ * an anchor point of where the spindle and the leadscrew are both in sync.
+ * 
+ * We reuse the endstop states for this, since they are similar in nature and keep the first one that is set
+ */
+
+enum LeadscrewSpindleSyncPositionState {LEFT, RIGHT, UNSET}
 
 
 class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
@@ -47,6 +60,9 @@ class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
   
   LeadscrewStopState m_rightStopState;
   int m_rightStopPosition;
+
+  LeadscrewSpindleSyncPositionState m_syncPositionState;
+  int m_spindleSyncPosition;
 
   /**
    * This gets the "unit" of the accumulator, i.e the amount the accumulator

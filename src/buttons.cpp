@@ -238,23 +238,28 @@ void ButtonHandler::jogDirectionHandler(JogDirection direction) {
     return;
   }
 
-  /*// single click should jog to the stop position
+  // single click should jog to the stop position
   if(jogButton->resetClicked()) {
    switch(direction) {
      case JogDirection::LEFT:
       if(m_leadscrew->getStopPositionState(Leadscrew::StopPosition::LEFT) != LeadscrewStopState::UNSET) {
           m_leadscrew->setExpectedPosition(m_leadscrew->getStopPosition(Leadscrew::StopPosition::LEFT));
+          globalState->setThreadSyncState(GlobalThreadSyncState::UNSYNC);
       }
       break;
      case JogDirection::RIGHT:
       if(m_leadscrew->getStopPositionState(Leadscrew::StopPosition::RIGHT) != LeadscrewStopState::UNSET) {
           m_leadscrew->setExpectedPosition(m_leadscrew->getStopPosition(Leadscrew::StopPosition::RIGHT));
+          globalState->setThreadSyncState(GlobalThreadSyncState::SYNC);
       }
       break;
    }
-  }*/
+  }
 
-  if (jogButton->isDoubleClicked()) {
+ /**
+  * holding the jog button will set/unset the stop position
+  */
+  if (jogButton->isHeld()) {
     switch (direction) {
       case JogDirection::LEFT:
         if (m_leadscrew->getStopPositionState(Leadscrew::StopPosition::LEFT) ==
@@ -275,19 +280,6 @@ void ButtonHandler::jogDirectionHandler(JogDirection direction) {
         }
         break;
     }
-    jogButton->resetDoubleClicked();
-  }
-
-  static elapsedMicros jogTimer;
-
-  if (jogButton->isHeld() &&
-      jogTimer > JOG_PULSE_DELAY) {
-    globalState->setMotionMode(GlobalMotionMode::JOG);
-    globalState->setThreadSyncState(GlobalThreadSyncState::UNSYNC);
-
-    jogTimer -= JOG_PULSE_DELAY;
-    m_leadscrew->setExpectedPosition(
-        m_leadscrew->getCurrentPosition() + (int)direction);
   }
 }
 

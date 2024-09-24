@@ -9,6 +9,12 @@
 #include "leadscrew_io.h"
 using namespace std;
 
+/**
+ * TODO: This is kind of a god object, we should probably split this up into more manageable parts
+ * I'm thinking that this class should be responsible for the position only.
+ * Another class should handle the motor control and acceleration
+ */
+
 Leadscrew::Leadscrew(Spindle* spindle, LeadscrewIO* io, float initialPulseDelay,
                      float pulseDelayIncrement, int motorPulsePerRevolution,
                      float leadscrewPitch, int leadAxisPPR)
@@ -62,23 +68,44 @@ void Leadscrew::unsetStopPosition(StopPosition position) {
     case LEFT:
       m_leftStopState = LeadscrewStopState::UNSET;
       m_leftStopPosition = INT32_MIN;
+      if(m_syncPositionState == LeadscrewSpindleSyncPositionState::LEFT) {
+        m_syncPositionState = LeadscrewSpindleSyncPositionState::UNSET;
+        // extrapolate the sync position to the other endstop if set
+        if(m_rightStopState == LeadscrewStopState::SET) {
+          m_spindleSyncPosition = (m_syncPositionState + (m_rightStopPosition - m_leftStopPosition)*getRatio())%leadAxisPPR;
+          m_syncPositionState = LeadscrewSpindleSyncPositionState::RIGHT;
+        }
+      }
       break;
     case RIGHT:
       m_rightStopState = LeadscrewStopState::UNSET;
       m_rightStopPosition = INT32_MAX;
+      if(m_syncPositionState == LeadscrewSpindleSyncPositionState::RIGHT) {
+        m_spindleSyncPosition = (m_syncPositionState + (m_rightStopPosition - m_leftStopPosition)*getRatio())%leadAxisPPR;
+        m_syncPositionState = LeadscrewSpindleSyncPositionState::LEFT;
+      }
       break;
   }
 }
 
+// should we only allow this to set the stop position using the current position?
 void Leadscrew::setStopPosition(StopPosition position, int stopPosition) {
   switch (position) {
     case LEFT:
       m_leftStopPosition = stopPosition;
       m_leftStopState = LeadscrewStopState::SET;
+      if(m_syncPositionState == LeadscrewSpindleSyncPositionState::UNSET && stopPosition == m_currentPosition) {
+        m_spindleSyncPosition = m_spindle->getCurrentPosition();
+        m_syncPositionState = LeadscrewSpindleSyncPositionState::LEFT;
+      }
       break;
     case RIGHT:
       m_rightStopPosition = stopPosition;
       m_rightStopState = LeadscrewStopState::SET;
+      if(m_syncPositionState == LeadscrewSpindleSyncPositionState::UNSET && stopPosition == m_currentPosition) {
+        m_spindleSyncPosition = m_spindle->getCurrentPosition();
+        m_syncPositionState = LeadscrewSpindleSyncPositionState::RIGHT;
+      }
       break;
   }
 }
