@@ -271,13 +271,34 @@ void Leadscrew::update() {
       }
 
       /**
+       * If we are not in sync with the thread, if not, figure out where we should restart based on
+       * the difference in position between the sync point and the current position
+       */
+      if(m_syncPositionState != LeadscrewSpindleSyncPositionState::UNSET && globalState->getThreadSyncState() == UNSYNC) {
+        int syncPosition = 0;
+        switch(m_syncPositionState) {
+          case LeadscrewSpindleSyncPositionState::LEFT:
+            syncPosition = m_leftStopState;
+          case LeadscrewSpindleSyncPositionState::RIGHT:
+            syncPosition = m_rightStopState;
+        }
+
+        int expectedSyncPosition = (m_currentPosition - syncPosition)%(leadAxisPPR *getRatio()) + m_spindleSyncPosition;
+        if(m_spindle->getCurrentPosition() === expectedSyncPosition) {
+          globalState->setThreadSyncState(GlobalThreadSyncState::SYNC);
+        }
+      }
+
+      /**
        * determine if we should even be bothering to send a pulse
        * we know that we can short circuit this if:
        * - Our current direction is unknown
        * - The last pulse was sent recently i.e: less than the current pulse delay
+       * - the sync position was previously set and we are currently not synced with the spindle
        */
       if (m_lastPulseMicros < m_currentPulseDelay 
-          || m_currentDirection == LeadscrewDirection::UNKNOWN) {
+          || m_currentDirection == LeadscrewDirection::UNKNOWN
+          || (m_syncPositionState != LeadscrewSpindleSyncPositionState::UNSET && globalState->getThreadSyncState() == UNSYNC)) {
         break;
       }
 
