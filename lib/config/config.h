@@ -70,7 +70,7 @@
 // i.e if setting right stop actually sets the left stop
 #define ELS_INVERT_DIRECTION
 
-#define ELS_GEARBOX_RATIO 100
+#define ELS_GEARBOX_RATIO 95
 #define ELS_LEADSCREW_PITCH_MM ((float)(25.4/16))
 
 #define ELS_LEADSCREW_STEPS_PER_MM \

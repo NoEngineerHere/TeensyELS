@@ -34,7 +34,9 @@ Leadscrew::Leadscrew(Spindle* spindle, LeadscrewIO* io, float initialPulseDelay,
 }
 
 void Leadscrew::setRatio(float ratio) {
+
   m_ratio = ratio;
+
 }
 /**
  * Returns the ratio of one pulse on the spindle to one pulse on the leadscrew
@@ -200,7 +202,7 @@ void Leadscrew::update() {
        * If the next direction is different from the current direction, we
        * should start decelerating to move in the intended direction
        */
-      if (positionError > 0 && !hitRightEndstop) {
+      if (positionError > 1 && !hitRightEndstop) {
         nextDirection = LeadscrewDirection::RIGHT;
         if (m_currentDirection == LeadscrewDirection::LEFT &&
             m_currentPulseDelay == initialPulseDelay) {
@@ -215,7 +217,7 @@ void Leadscrew::update() {
           m_currentDirection = LeadscrewDirection::RIGHT;
           m_accumulator = m_currentDirection * getAccumulatorUnit();
         }
-      } else if (positionError < 0 && !hitLeftEndstop) {
+      } else if (positionError < -1 && !hitLeftEndstop) {
         nextDirection = LeadscrewDirection::LEFT;
         if (m_currentDirection == LeadscrewDirection::RIGHT &&
             m_currentPulseDelay == initialPulseDelay) {
@@ -234,7 +236,12 @@ void Leadscrew::update() {
         m_currentDirection = LeadscrewDirection::UNKNOWN;
       }
 
-      // check if we're scheduled for a pulse
+      /**
+       * determine if we should even be bothering to send a pulse
+       * we know that we can short circuit this if:
+       * - Our current direction is unknown
+       * - The last pulse was sent recently i.e: less than the current pulse delay
+       */
       if (m_lastPulseMicros < m_currentPulseDelay 
           || m_currentDirection == LeadscrewDirection::UNKNOWN) {
         break;
@@ -243,11 +250,16 @@ void Leadscrew::update() {
       // attempt to keep in sync with the leadscrew
       // if sendPulse returns true, we've actually sent a pulse
       if (sendPulse()) {
+        /**
+         * If we've sent a pulse, we need to update the last pulse micros for velocity calculations
+         */
         m_lastFullPulseDurationMicros =
             min((uint32_t)m_lastPulseMicros, (uint32_t)initialPulseDelay);
         m_lastPulseMicros = 0;
 
-        // handle position update
+        /**
+         * If the pulse was sent, we need to update the accumulator to keep track of the position
+         */
         if (m_accumulator > 1 || m_accumulator < -1) {
           m_accumulator -= m_currentDirection;
         } else {
@@ -255,20 +267,30 @@ void Leadscrew::update() {
           m_accumulator += m_currentDirection * getAccumulatorUnit();
         }
 
-        // calculate the stopping time
+        /**
+         * We need to determine if we need to start decelerating to stop at the designated position
+         * 
+         * The conditions which we need to start decelerating are:
+         * - The position error is less than the stopping distance
+         * - The direction has changed
+         * - We're going to hit an endstop set by the user
+         * 
+         * Since we have no set "stop point" like with gcode or otherwise we need to constantly be updating
+         * the stopping distance based on the current speed and acceleration and cant plan ahead much further than this
+         */
         int pulsesToStop = calculate_pulses_to_stop(
             m_currentPulseDelay, initialPulseDelay, pulseDelayIncrement);
+
+          bool goingToHitLeftEndstop = m_leftStopState == LeadscrewStopState::SET &&
+                        m_currentPosition + pulsesToStop <= m_leftStopPosition;
+          bool goingToHitRightEndstop = m_rightStopState == LeadscrewStopState::SET &&
+                         m_currentPosition - pulsesToStop >= m_rightStopPosition;
 
         // if this is true we should start decelerating to stop at the
         // correct position
         bool shouldStop = abs(positionError) <= pulsesToStop ||
                           nextDirection != m_currentDirection ||
-                          (m_rightStopState == LeadscrewStopState::SET &&
-                           m_currentPosition + pulsesToStop >= m_rightStopPosition &&
-                           m_currentDirection == LeadscrewDirection::RIGHT) ||
-                          (m_leftStopState == LeadscrewStopState::SET &&
-                            m_currentPosition - pulsesToStop <= m_leftStopPosition &&
-                            m_currentDirection == LeadscrewDirection::LEFT);
+                          goingToHitLeftEndstop || goingToHitRightEndstop;
 
         float accelChange = pulseDelayIncrement * m_lastFullPulseDurationMicros;
 
@@ -278,11 +300,10 @@ void Leadscrew::update() {
           m_currentPulseDelay -= accelChange;
         }
 
-        // if pulse is sent we want to calculate how much to change the timing
-        // for the next pulse
-        // depending on accel and current speed etc
-        // inital pulse delay is upper timing limit
-        //
+        /**
+         * Ensure that the pulse delay is within the bounds 
+         * of the initial pulse delay (i.e the pulse delay when moving from zero) and 0
+         */
         if (m_currentPulseDelay > initialPulseDelay) {
           m_currentPulseDelay = initialPulseDelay;
         }
