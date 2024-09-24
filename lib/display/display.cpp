@@ -55,13 +55,13 @@ void Display::drawStopStatus() {
   m_ssd1306.setCursor(0, 8);
   m_ssd1306.setTextSize(1);
   m_ssd1306.setTextColor(WHITE);
-  if (m_leadscrew->getStopPositionState(Leadscrew::StopPosition::LEFT) ==
+  if (m_leadscrew->getStopPositionState(LeadscrewStopPosition::LEFT) ==
       LeadscrewStopState::SET) {
     m_ssd1306.print("[");
   } else {
     m_ssd1306.print(" ");
   }
-  if (m_leadscrew->getStopPositionState(Leadscrew::StopPosition::RIGHT) ==
+  if (m_leadscrew->getStopPositionState(LeadscrewStopPosition::RIGHT) ==
       LeadscrewStopState::SET) {
     m_ssd1306.print("]");
   } else {

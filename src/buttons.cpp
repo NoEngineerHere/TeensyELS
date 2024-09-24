@@ -242,14 +242,14 @@ void ButtonHandler::jogDirectionHandler(JogDirection direction) {
   if(jogButton->resetClicked()) {
    switch(direction) {
      case JogDirection::LEFT:
-      if(m_leadscrew->getStopPositionState(Leadscrew::StopPosition::LEFT) != LeadscrewStopState::UNSET) {
-          m_leadscrew->setExpectedPosition(m_leadscrew->getStopPosition(Leadscrew::StopPosition::LEFT));
+      if(m_leadscrew->getStopPositionState(LeadscrewStopPosition::LEFT) != LeadscrewStopState::UNSET) {
+          m_leadscrew->setExpectedPosition(m_leadscrew->getStopPosition(LeadscrewStopPosition::LEFT));
           globalState->setThreadSyncState(GlobalThreadSyncState::UNSYNC);
       }
       break;
      case JogDirection::RIGHT:
-      if(m_leadscrew->getStopPositionState(Leadscrew::StopPosition::RIGHT) != LeadscrewStopState::UNSET) {
-          m_leadscrew->setExpectedPosition(m_leadscrew->getStopPosition(Leadscrew::StopPosition::RIGHT));
+      if(m_leadscrew->getStopPositionState(LeadscrewStopPosition::RIGHT) != LeadscrewStopState::UNSET) {
+          m_leadscrew->setExpectedPosition(m_leadscrew->getStopPosition(LeadscrewStopPosition::RIGHT));
           globalState->setThreadSyncState(GlobalThreadSyncState::SYNC);
       }
       break;
@@ -262,21 +262,20 @@ void ButtonHandler::jogDirectionHandler(JogDirection direction) {
   if (jogButton->isHeld()) {
     switch (direction) {
       case JogDirection::LEFT:
-        if (m_leadscrew->getStopPositionState(Leadscrew::StopPosition::LEFT) ==
+        if (m_leadscrew->getStopPositionState(LeadscrewStopPosition::LEFT) ==
             LeadscrewStopState::UNSET) {
-          m_leadscrew->setStopPosition(Leadscrew::StopPosition::LEFT,
-                                       m_leadscrew->getCurrentPosition());
+          m_leadscrew->setStopPosition(LeadscrewStopPosition::LEFT);
+                                       
         } else {
-          m_leadscrew->unsetStopPosition(Leadscrew::StopPosition::LEFT);
+          m_leadscrew->unsetStopPosition(LeadscrewStopPosition::LEFT);
         }
         break;
       case JogDirection::RIGHT:
-        if (m_leadscrew->getStopPositionState(Leadscrew::StopPosition::RIGHT) ==
+        if (m_leadscrew->getStopPositionState(LeadscrewStopPosition::RIGHT) ==
             LeadscrewStopState::UNSET) {
-          m_leadscrew->setStopPosition(Leadscrew::StopPosition::RIGHT,
-                                       m_leadscrew->getCurrentPosition());
+          m_leadscrew->setStopPosition(LeadscrewStopPosition::RIGHT);
         } else {
-          m_leadscrew->unsetStopPosition(Leadscrew::StopPosition::RIGHT);
+          m_leadscrew->unsetStopPosition(LeadscrewStopPosition::RIGHT);
         }
         break;
     }

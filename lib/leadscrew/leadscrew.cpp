@@ -63,71 +63,79 @@ void Leadscrew::resetCurrentPosition() {
   m_currentPosition = m_expectedPosition;
 }
 
-void Leadscrew::unsetStopPosition(StopPosition position) {
+void Leadscrew::unsetStopPosition(LeadscrewStopPosition position) {
   switch (position) {
-    case LEFT:
+    case LeadscrewStopPosition::LEFT:
       m_leftStopState = LeadscrewStopState::UNSET;
       m_leftStopPosition = INT32_MIN;
       if(m_syncPositionState == LeadscrewSpindleSyncPositionState::LEFT) {
         m_syncPositionState = LeadscrewSpindleSyncPositionState::UNSET;
         // extrapolate the sync position to the other endstop if set
         if(m_rightStopState == LeadscrewStopState::SET) {
-          m_spindleSyncPosition = (m_syncPositionState + (m_rightStopPosition - m_leftStopPosition)*getRatio())%leadAxisPPR;
+          m_spindleSyncPosition = ((int)(static_cast<int>(m_syncPositionState) + (m_rightStopPosition - m_leftStopPosition)*getRatio()))%leadAxisPPR;
           m_syncPositionState = LeadscrewSpindleSyncPositionState::RIGHT;
         }
       }
       break;
-    case RIGHT:
+    case LeadscrewStopPosition::RIGHT:
       m_rightStopState = LeadscrewStopState::UNSET;
       m_rightStopPosition = INT32_MAX;
       if(m_syncPositionState == LeadscrewSpindleSyncPositionState::RIGHT) {
-        m_spindleSyncPosition = (m_syncPositionState + (m_rightStopPosition - m_leftStopPosition)*getRatio())%leadAxisPPR;
+        m_spindleSyncPosition = ((int)(static_cast<int>(m_syncPositionState) + (m_rightStopPosition - m_leftStopPosition)*getRatio()))%leadAxisPPR;
         m_syncPositionState = LeadscrewSpindleSyncPositionState::LEFT;
       }
       break;
   }
 }
 
-// should we only allow this to set the stop position using the current position?
-void Leadscrew::setStopPosition(StopPosition position, int stopPosition) {
+/**
+ * Public facing api: only allows setting the stop position to the current position of the tool
+ */
+void Leadscrew::setStopPosition(LeadscrewStopPosition position) {
+  setStopPosition(position, getCurrentPosition());
+}
+
+void Leadscrew::setStopPosition(LeadscrewStopPosition position, int stopPosition) {
   switch (position) {
-    case LEFT:
+    case LeadscrewStopPosition::LEFT:
       m_leftStopPosition = stopPosition;
       m_leftStopState = LeadscrewStopState::SET;
-      if(m_syncPositionState == LeadscrewSpindleSyncPositionState::UNSET && stopPosition == m_currentPosition) {
+      if(m_syncPositionState == LeadscrewSpindleSyncPositionState::UNSET && stopPosition == getCurrentPosition()) {
         m_spindleSyncPosition = m_spindle->getCurrentPosition();
         m_syncPositionState = LeadscrewSpindleSyncPositionState::LEFT;
+        GlobalState::getInstance()->setThreadSyncState(GlobalThreadSyncState::SYNC);
       }
       break;
-    case RIGHT:
+    case LeadscrewStopPosition::RIGHT:
       m_rightStopPosition = stopPosition;
       m_rightStopState = LeadscrewStopState::SET;
-      if(m_syncPositionState == LeadscrewSpindleSyncPositionState::UNSET && stopPosition == m_currentPosition) {
+      if(m_syncPositionState == LeadscrewSpindleSyncPositionState::UNSET && stopPosition == getCurrentPosition()) {
         m_spindleSyncPosition = m_spindle->getCurrentPosition();
         m_syncPositionState = LeadscrewSpindleSyncPositionState::RIGHT;
+        GlobalState::getInstance()->setThreadSyncState(GlobalThreadSyncState::SYNC);
       }
       break;
   }
 }
 
-LeadscrewStopState Leadscrew::getStopPositionState(StopPosition position) {
+LeadscrewStopState Leadscrew::getStopPositionState(LeadscrewStopPosition position) {
   switch (position) {
-    case LEFT:
+    case LeadscrewStopPosition::LEFT:
       return m_leftStopState;
-    case RIGHT:
+    case LeadscrewStopPosition::RIGHT:
       return m_rightStopState;
   }
 }
 
-int Leadscrew::getStopPosition(StopPosition position) {
+int Leadscrew::getStopPosition(LeadscrewStopPosition position) {
   // todo better default values when unset
   switch (position) {
-    case LEFT:
+    case LeadscrewStopPosition::LEFT:
       if (m_leftStopState == LeadscrewStopState::SET) {
         return m_leftStopPosition;
       }
       return INT32_MIN;
-    case RIGHT:
+    case LeadscrewStopPosition::RIGHT:
       if (m_rightStopState == LeadscrewStopState::SET) {
         return m_rightStopPosition;
       }
@@ -166,10 +174,9 @@ bool Leadscrew::sendPulse() {
  * This function calculates the number of pulses required to stop the leadscrew
  * from a given pulse delay
  */
-int calculate_pulses_to_stop(float currentPulseDelay, float initialPulseDelay,
-                             float pulseDelayIncrement) {
+int Leadscrew::getStoppingDistanceInPulses() {
   // Calculate the discriminant
-  float discriminant = currentPulseDelay * currentPulseDelay -
+  float discriminant = m_currentPulseDelay * m_currentPulseDelay -
                        4 * (pulseDelayIncrement / 2.0) * (-initialPulseDelay);
 
   // Ensure the discriminant is non-negative for real roots
@@ -179,7 +186,7 @@ int calculate_pulses_to_stop(float currentPulseDelay, float initialPulseDelay,
 
     // Calculate the positive root using the quadratic formula
     float n =
-        (-currentPulseDelay + sqrtDiscriminant) / (2 * pulseDelayIncrement);
+        (-m_currentPulseDelay + sqrtDiscriminant) / (2 * pulseDelayIncrement);
 
     // Round up to the nearest integer because pulses must be whole numbers
     return abs((int)ceil(n));
@@ -242,7 +249,7 @@ void Leadscrew::update() {
           m_io->writeDirPin(1);
           #endif
           m_currentDirection = LeadscrewDirection::RIGHT;
-          m_accumulator = m_currentDirection * getAccumulatorUnit();
+          m_accumulator = static_cast<int>(m_currentDirection) * getAccumulatorUnit();
         }
       } else if (positionError < -1 && !hitLeftEndstop) {
         nextDirection = LeadscrewDirection::LEFT;
@@ -257,7 +264,7 @@ void Leadscrew::update() {
           m_io->writeDirPin(0);
           #endif
           m_currentDirection = LeadscrewDirection::LEFT;
-          m_accumulator = m_currentDirection * getAccumulatorUnit();
+          m_accumulator = static_cast<int>(m_currentDirection) * getAccumulatorUnit();
         }
       } else {
         m_currentDirection = LeadscrewDirection::UNKNOWN;
@@ -288,10 +295,10 @@ void Leadscrew::update() {
          * If the pulse was sent, we need to update the accumulator to keep track of the position
          */
         if (m_accumulator > 1 || m_accumulator < -1) {
-          m_accumulator -= m_currentDirection;
+          m_accumulator -= static_cast<int>(m_currentDirection);
         } else {
-          m_currentPosition += m_currentDirection;
-          m_accumulator += m_currentDirection * getAccumulatorUnit();
+          m_currentPosition += static_cast<int>(m_currentDirection);
+          m_accumulator += static_cast<int>(m_currentDirection) * getAccumulatorUnit();
         }
 
         /**
@@ -305,8 +312,7 @@ void Leadscrew::update() {
          * Since we have no set "stop point" like with gcode or otherwise we need to constantly be updating
          * the stopping distance based on the current speed and acceleration and cant plan ahead much further than this
          */
-        int pulsesToStop = calculate_pulses_to_stop(
-            m_currentPulseDelay, initialPulseDelay, pulseDelayIncrement);
+        int pulsesToStop = getStoppingDistanceInPulses();
 
           bool goingToHitLeftEndstop = m_leftStopState == LeadscrewStopState::SET &&
                         m_currentPosition + pulsesToStop <= m_leftStopPosition;
@@ -363,9 +369,9 @@ void Leadscrew::printState() {
   Serial.print("Leadscrew expected position: ");
   Serial.println(getExpectedPosition());
   Serial.print("Leadscrew left stop position: ");
-  Serial.println(getStopPosition(Leadscrew::StopPosition::LEFT));
+  Serial.println(getStopPosition(LeadscrewStopPosition::LEFT));
   Serial.print("Leadscrew right stop position: ");
-  Serial.println(getStopPosition(Leadscrew::StopPosition::RIGHT));
+  Serial.println(getStopPosition(LeadscrewStopPosition::RIGHT));
   Serial.print("Leadscrew ratio: ");
   Serial.println(getRatio());
   Serial.print("Leadscrew accumulator unit:");
@@ -391,7 +397,6 @@ void Leadscrew::printState() {
   Serial.print("Leadscrew estimated velocity: ");
   Serial.println(getEstimatedVelocityInMillimetersPerSecond());
   Serial.print("Leadscrew pulses to stop: ");
-  Serial.println(calculate_pulses_to_stop(
-      m_currentPulseDelay, initialPulseDelay, pulseDelayIncrement));
+  Serial.println(getStoppingDistanceInPulses());
   #endif
 }

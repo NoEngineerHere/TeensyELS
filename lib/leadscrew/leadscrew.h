@@ -12,12 +12,13 @@
 /**
  * The state of the leadscrew stop position for either the left or right stop
  */
-enum LeadscrewStopState { SET, UNSET };
+enum class LeadscrewStopState { SET, UNSET };
+enum class LeadscrewStopPosition { LEFT, RIGHT };
 /**
  * The current direction of the leadscrew
  * We set numbers to use later when actually moving the position
  */
-enum LeadscrewDirection { LEFT = -1, RIGHT = 1, UNKNOWN = 0 };
+enum class LeadscrewDirection { LEFT = -1, RIGHT = 1, UNKNOWN = 0 };
 
 /**
  * The state of the spindle sync position
@@ -28,7 +29,7 @@ enum LeadscrewDirection { LEFT = -1, RIGHT = 1, UNKNOWN = 0 };
  * We reuse the endstop states for this, since they are similar in nature and keep the first one that is set
  */
 
-enum LeadscrewSpindleSyncPositionState {LEFT, RIGHT, UNSET}
+enum class LeadscrewSpindleSyncPositionState {LEFT, RIGHT, UNSET};
 
 
 class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
@@ -70,7 +71,8 @@ class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
    */
   float getAccumulatorUnit();
   bool sendPulse();
-  // int getStoppingDistanceInPulses();
+  int getStoppingDistanceInPulses();
+  void setStopPosition(LeadscrewStopPosition position, int stopPosition);
 
  public:
   Leadscrew(Spindle* spindle, LeadscrewIO* io, float initialPulseDelay,
@@ -79,11 +81,11 @@ class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
   int getCurrentPosition();
   void resetCurrentPosition();
 
-  enum StopPosition { LEFT, RIGHT };
-  void setStopPosition(StopPosition position, int stopPosition);
-  LeadscrewStopState getStopPositionState(StopPosition position);
-  void unsetStopPosition(StopPosition position);
-  int getStopPosition(StopPosition position);
+
+  void setStopPosition(LeadscrewStopPosition position);
+  LeadscrewStopState getStopPositionState(LeadscrewStopPosition position);
+  void unsetStopPosition(LeadscrewStopPosition position);
+  int getStopPosition(LeadscrewStopPosition position);
   void setRatio(float ratio);
   float getRatio();
   float getExpectedPosition();
