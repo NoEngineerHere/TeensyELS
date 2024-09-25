@@ -52,4 +52,5 @@ class Display {
   void drawLocked();
   void drawSpindleRpm();
   void drawStopStatus();
+  void drawSyncStatus();
 };

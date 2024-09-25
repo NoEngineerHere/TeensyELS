@@ -278,13 +278,19 @@ void Leadscrew::update() {
         int syncPosition = 0;
         switch(m_syncPositionState) {
           case LeadscrewSpindleSyncPositionState::LEFT:
-            syncPosition = m_leftStopState;
+            syncPosition = m_leftStopPosition;
+            break;
           case LeadscrewSpindleSyncPositionState::RIGHT:
-            syncPosition = m_rightStopState;
+            syncPosition = m_rightStopPosition;
+            break;
+          case LeadscrewSpindleSyncPositionState::UNSET:
+            // position does not matter
+            syncPosition = m_currentPosition;
+            break;
         }
 
-        int expectedSyncPosition = (m_currentPosition - syncPosition)%(leadAxisPPR *getRatio()) + m_spindleSyncPosition;
-        if(m_spindle->getCurrentPosition() === expectedSyncPosition) {
+        int expectedSyncPosition = (m_currentPosition - syncPosition)%((int)(leadAxisPPR *getRatio())) + m_spindleSyncPosition;
+        if(m_spindle->getCurrentPosition() == expectedSyncPosition) {
           globalState->setThreadSyncState(GlobalThreadSyncState::SYNC);
         }
       }
