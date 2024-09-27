@@ -30,6 +30,7 @@ void Display::update() {
   drawLocked();
   drawEnabled();
   drawSpindleRpm();
+  
   drawStopStatus();
 
 #if ELS_DISPLAY == SSD1306_128_64
@@ -55,17 +56,31 @@ void Display::drawStopStatus() {
   m_ssd1306.setCursor(0, 8);
   m_ssd1306.setTextSize(1);
   m_ssd1306.setTextColor(WHITE);
-  if (m_leadscrew->getStopPositionState(Leadscrew::StopPosition::LEFT) ==
+  if (m_leadscrew->getStopPositionState(LeadscrewStopPosition::LEFT) ==
       LeadscrewStopState::SET) {
     m_ssd1306.print("[");
   } else {
     m_ssd1306.print(" ");
   }
-  if (m_leadscrew->getStopPositionState(Leadscrew::StopPosition::RIGHT) ==
+  if (m_leadscrew->getStopPositionState(LeadscrewStopPosition::RIGHT) ==
       LeadscrewStopState::SET) {
     m_ssd1306.print("]");
   } else {
     m_ssd1306.print(" ");
+  }
+#endif
+}
+
+void Display::drawSyncStatus() {
+  GlobalThreadSyncState sync = GlobalState::getInstance()->getThreadSyncState();
+#if ELS_DISPLAY == SSD1306_128_64
+  m_ssd1306.setCursor(0,16);
+  m_ssd1306.setTextSize(2);
+  m_ssd1306.setTextColor(WHITE);
+  m_ssd1306.print("SYNC");
+  // cross it out if not synced
+  if(sync == GlobalThreadSyncState::UNSYNC) {
+    m_ssd1306.drawLine(0, 16, 64, 16, WHITE);
   }
 #endif
 }

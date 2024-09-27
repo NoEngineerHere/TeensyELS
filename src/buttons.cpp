@@ -238,39 +238,47 @@ void ButtonHandler::jogDirectionHandler(JogDirection direction) {
     return;
   }
 
-  if (jogButton->isDoubleClicked()) {
+  // single click should jog to the stop position
+  if(jogButton->resetClicked()) {
+   switch(direction) {
+     case JogDirection::LEFT:
+      if(m_leadscrew->getStopPositionState(LeadscrewStopPosition::LEFT) != LeadscrewStopState::UNSET) {
+          m_leadscrew->setExpectedPosition(m_leadscrew->getStopPosition(LeadscrewStopPosition::LEFT));
+          globalState->setThreadSyncState(GlobalThreadSyncState::UNSYNC);
+      }
+      break;
+     case JogDirection::RIGHT:
+      if(m_leadscrew->getStopPositionState(LeadscrewStopPosition::RIGHT) != LeadscrewStopState::UNSET) {
+          m_leadscrew->setExpectedPosition(m_leadscrew->getStopPosition(LeadscrewStopPosition::RIGHT));
+          globalState->setThreadSyncState(GlobalThreadSyncState::SYNC);
+      }
+      break;
+   }
+  }
+
+ /**
+  * holding the jog button will set/unset the stop position
+  */
+  if (jogButton->isHeld()) {
     switch (direction) {
       case JogDirection::LEFT:
-        if (m_leadscrew->getStopPositionState(Leadscrew::StopPosition::LEFT) ==
+        if (m_leadscrew->getStopPositionState(LeadscrewStopPosition::LEFT) ==
             LeadscrewStopState::UNSET) {
-          m_leadscrew->setStopPosition(Leadscrew::StopPosition::LEFT,
-                                       m_leadscrew->getCurrentPosition());
+          m_leadscrew->setStopPosition(LeadscrewStopPosition::LEFT);
+                                       
         } else {
-          m_leadscrew->unsetStopPosition(Leadscrew::StopPosition::LEFT);
+          m_leadscrew->unsetStopPosition(LeadscrewStopPosition::LEFT);
         }
         break;
       case JogDirection::RIGHT:
-        if (m_leadscrew->getStopPositionState(Leadscrew::StopPosition::RIGHT) ==
+        if (m_leadscrew->getStopPositionState(LeadscrewStopPosition::RIGHT) ==
             LeadscrewStopState::UNSET) {
-          m_leadscrew->setStopPosition(Leadscrew::StopPosition::RIGHT,
-                                       m_leadscrew->getCurrentPosition());
+          m_leadscrew->setStopPosition(LeadscrewStopPosition::RIGHT);
         } else {
-          m_leadscrew->unsetStopPosition(Leadscrew::StopPosition::RIGHT);
+          m_leadscrew->unsetStopPosition(LeadscrewStopPosition::RIGHT);
         }
         break;
     }
-    jogButton->resetDoubleClicked();
-  }
-
-  static elapsedMicros jogTimer;
-
-  if (jogButton->isHeld() &&
-      jogTimer > JOG_PULSE_DELAY * m_leadscrew->getRatio()) {
-    globalState->setMotionMode(GlobalMotionMode::JOG);
-    globalState->setThreadSyncState(GlobalThreadSyncState::UNSYNC);
-
-    jogTimer -= JOG_PULSE_DELAY * m_leadscrew->getRatio();
-    m_leadscrew->incrementCurrentPosition(direction);
   }
 }
 

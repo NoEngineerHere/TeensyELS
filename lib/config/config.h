@@ -63,16 +63,22 @@
 #define PIN_DISPLAY_RESET -1
 #endif
 
-#define ELS_SPINDLE_ENCODER_PPR 400
-#define ELS_LEADSCREW_STEPPER_PPR 400
-#define ELS_LEADSCREW_PITCH_MM 1.25
+#define ELS_SPINDLE_ENCODER_PPR 4000
+#define ELS_LEADSCREW_STEPPER_PPR 800
+
+// uncomment this if your leadscrew direction is inverted to what is expected
+// i.e if setting right stop actually sets the left stop
+#define ELS_INVERT_DIRECTION
+
+#define ELS_GEARBOX_RATIO 95
+#define ELS_LEADSCREW_PITCH_MM ((float)(25.4/16))
 
 #define ELS_LEADSCREW_STEPS_PER_MM \
-  (float)(ELS_LEADSCREW_STEPPER_PPR / ELS_LEADSCREW_PITCH_MM)
+  (float)((ELS_LEADSCREW_STEPPER_PPR) / ELS_LEADSCREW_PITCH_MM)
 
 // extra config options
 // jog speed in mm/s
-#define JOG_SPEED 100
+#define JOG_SPEED 25
 
 #define JOG_PULSE_DELAY   \
   ((float)US_PER_SECOND / \
@@ -91,12 +97,12 @@
 // this is the maximum allowable speed (in mm/s) for the leadscrew to
 // instantaneously start moving from 0
 // #define ACCEL_DISABLED
-#define LEADSCREW_JERK 0.5
+#define LEADSCREW_JERK 0.25
 // The acceleration of the leadscrew in mm/s^2
 
-#define LEADSCREW_ACCEL 100
+#define LEADSCREW_ACCEL 50
 
-#define LEADSCREW_TIMER_US 20
+#define LEADSCREW_TIMER_US 4
 
 // The initial delay between pulses in microseconds for the leadscrew starting
 // from 0 do not change - this is a calculated value, to change the initial

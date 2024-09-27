@@ -22,8 +22,8 @@ Spindle spindle(ELS_SPINDLE_ENCODER_A, ELS_SPINDLE_ENCODER_B);
 LeadscrewIOImpl leadscrewIOImpl;
 Leadscrew leadscrew(&spindle, &leadscrewIOImpl,
                     LEADSCREW_INITIAL_PULSE_DELAY_US,
-                    LEADSCREW_PULSE_DELAY_STEP_US, ELS_LEADSCREW_STEPPER_PPR,
-                    ELS_LEADSCREW_PITCH_MM);
+                    LEADSCREW_PULSE_DELAY_STEP_US, ELS_LEADSCREW_STEPPER_PPR*ELS_GEARBOX_RATIO,
+                    ELS_LEADSCREW_PITCH_MM, ELS_SPINDLE_ENCODER_PPR);
 ButtonHandler keyPad(&spindle, &leadscrew);
 Display display(&spindle, &leadscrew);
 
@@ -93,6 +93,8 @@ void loop() {
     leadscrew.printState();
     Serial.print("Spindle position: ");
     Serial.println(spindle.getCurrentPosition());
+    Serial.print("Spindle unconsumed:");
+    Serial.println(spindle.consumePosition());
     Serial.print("Spindle velocity: ");
     Serial.println(spindle.getEstimatedVelocityInRPM());
     Serial.print("Spindle velocity pulses: ");

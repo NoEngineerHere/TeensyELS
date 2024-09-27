@@ -34,7 +34,7 @@ TEST(PositionTest, TestInitialPulseDelay) {
 
   LeadscrewIOMock leadscrewIOMock;
   Spindle spindle;
-  Leadscrew leadscrew(&spindle, &leadscrewIOMock, 100, 0.1, 100, 1);
+  Leadscrew leadscrew(&spindle, &leadscrewIOMock, 100, 5, 0.1, 100, 1, 1);
   // test data
   // define the time and the expected position of the leadscrew
 
@@ -91,7 +91,7 @@ TEST(PositionTest, TestAccumulator) {
   LeadscrewIOMock leadscrewIOMock;
   Spindle spindle;
   // no accel - only positioning
-  Leadscrew leadscrew(&spindle, &leadscrewIOMock, 0, 0, 100, 1);
+  Leadscrew leadscrew(&spindle, &leadscrewIOMock, 0, 0, 0, 100, 1, 1);
   // test data
   // define the time and the expected position of the leadscrew
 

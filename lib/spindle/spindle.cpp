@@ -25,9 +25,12 @@ void Spindle::update() {
 }
 
 void Spindle::setCurrentPosition(int position) {
-  int newPosition = position % ELS_SPINDLE_ENCODER_PPR;
-  m_unconsumedPosition = newPosition - m_currentPosition;
-  m_currentPosition = newPosition;
+  // update the unconsumed position by finding the delta between the old and new
+  // positions
+  int positionDelta = position - m_currentPosition;
+  m_unconsumedPosition += positionDelta;
+
+  m_currentPosition = position % ELS_SPINDLE_ENCODER_PPR;
 }
 
 void Spindle::incrementCurrentPosition(int amount) {
