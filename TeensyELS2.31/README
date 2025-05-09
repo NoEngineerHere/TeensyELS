@@ -1,0 +1,9 @@
+# Teensy Electronic leadscrew
+This is an implementation of an electronic leadscrew using a Teensy microcrontroller.
+
+# Architecture
+We use [https://platformio.org/](platformio) as the infrastructure to build this project.
+
+# Installation
+You will currently need to setup platformio to build this, it can also handle installation to your teensy as well.
+NOTE: you will have to modify some of the configuration to get this set up for your particular lathe, instructions coming soon.
