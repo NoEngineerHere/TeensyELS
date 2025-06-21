@@ -23,7 +23,7 @@ Spindle::Spindle() {
 void Spindle::update() {
   // read the encoder and update the current position
   // todo: we should keep the absolute position of the spindle, cbf right now
-  int64_t position = m_encoder.getAndClearCount();
+  int64_t position = m_encoder.clearCount();
   incrementCurrentPosition(position);
 }
 
@@ -59,14 +59,14 @@ void Spindle::incrementCurrentPosition(int amount) {
 
 float Spindle::getEstimatedVelocityInPPS() {
   if (m_lastRevMicros == 0)return 0;
-  if(micros() - m_lastRevTimestamp > 1000000)return 0;
+  if (micros() - m_lastRevTimestamp > 1000000)return 0;
   return abs((m_lastRevSize * US_PER_SECOND) / (m_lastRevMicros));
 }
 
 
 float Spindle::getEstimatedVelocityInRPM() {
   if (m_lastRevMicros == 0)return 0;
-  if(micros() - m_lastRevTimestamp > 1000000)return 0;
+  if (micros() - m_lastRevTimestamp > 1000000)return 0;
   return abs((m_lastRevSize * 60000000) / (m_lastRevMicros * ELS_SPINDLE_ENCODER_PPR));
 }
 
