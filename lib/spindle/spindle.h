@@ -17,7 +17,8 @@ private:
 #if defined(ESP32)
     ESP32Encoder  m_encoder;
 #elif defined(CORE_TEENSY)
-    Encoder  m_encoder;#endif
+    Encoder  m_encoder;
+#endif
 #endif
 
 public:
@@ -36,4 +37,3 @@ public:
     float getEstimatedVelocityInRPM();
     float getEstimatedVelocityInPPS();
 };
-#endif

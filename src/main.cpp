@@ -60,12 +60,17 @@ int finalcyclecount;
 // have to handle the leadscrew updates in a timer callback so we can update the
 // screen independently without losing pulses
 void timerCallback() {
+#if defined(ESP32)
   if (GlobalState::getInstance()->hasOTA()) {
     commsManager.loop();
   } else {
     spindle.update();
     leadscrew.update();
   }
+#else
+  spindle.update();
+  leadscrew.update();
+#endif
 }
 
 

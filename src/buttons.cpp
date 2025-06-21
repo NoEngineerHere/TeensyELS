@@ -169,6 +169,8 @@ void ButtonHandler::modeCycleHandler() {
     case GlobalFeedMode::FM_THREAD:
       GlobalState::getInstance()->setFeedMode(GlobalFeedMode::FM_FEED);
       break;
+    case GlobalFeedMode::FM_UNSET:
+      break;
     }
     m_leadscrew->setTargetPitchMM(globalState->getCurrentFeedPitch());
   }
@@ -258,8 +260,8 @@ void ButtonHandler::jogHandler() {
 
   // common jog functionality
   // if neither jog button is held, reset the motion mode
-  if (!m_jogLeft.isHeld() && !m_jogRight.isHeld() &&
-    motionMode == GlobalMotionMode::MM_JOG_RIGHT || motionMode == GlobalMotionMode::MM_JOG_LEFT) {
+  if ((!m_jogLeft.isHeld() && !m_jogRight.isHeld()) &&
+    (motionMode == GlobalMotionMode::MM_JOG_RIGHT || motionMode == GlobalMotionMode::MM_JOG_LEFT)) {
     GlobalState::getInstance()->setMotionMode(GlobalMotionMode::MM_DISABLED);
   }
 }
