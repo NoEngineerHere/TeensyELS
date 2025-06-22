@@ -1,0 +1,26 @@
+#!/bin/sh
+#
+# Pre-commit hook to compile all platformio environments
+#
+
+ENVS="teensy41 teensy41_debug esp32dev native"
+
+echo "Running pre-commit hook to compile all targets..."
+
+for ENV in $ENVS; do
+    echo "================================================================================="
+    echo "Compiling for $ENV"
+    echo "================================================================================="
+    platformio run -e $ENV
+    if [ $? -ne 0 ]; then
+        echo "================================================================================="
+        echo "ERROR: Failed to compile for $ENV. Aborting commit."
+        echo "================================================================================="
+        exit 1
+    fi
+done
+
+echo "================================================================================="
+echo "All targets compiled successfully."
+echo "================================================================================="
+exit 0 

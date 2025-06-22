@@ -1,6 +1,8 @@
-#if defined(ESP32)
+#include "config.h"
+
+#if ELS_BOARD == ELS_BOARD_ESP32
 #include <ESP32Encoder.h>
-#elif defined(CORE_TEENSY)
+#elif ELS_BOARD == ELS_BOARD_TEENSY
 #include <Encoder.h>
 #endif
 #include <axis.h>
@@ -14,9 +16,9 @@ private:
     int m_unconsumedPosition;
 
 #ifndef ELS_SPINDLE_DRIVEN
-#if defined(ESP32)
+#if ELS_BOARD == ELS_BOARD_ESP32
     ESP32Encoder  m_encoder;
-#elif defined(CORE_TEENSY)
+#elif ELS_BOARD == ELS_BOARD_TEENSY
     Encoder  m_encoder;
 #endif
 #endif

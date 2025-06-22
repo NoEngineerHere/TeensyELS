@@ -1,10 +1,13 @@
+#pragma once
+
+#include "config.h"
+
+#if ELS_BOARD == ELS_BOARD_TEENSY
 
 #include <Wire.h>
 
 #include "leadscrew_io.h"
-#pragma once
 
-#ifdef CORE_TEENSY
 class LeadscrewIOTeensy : public LeadscrewIO {
   inline void writeStepPin(uint8_t val) {
     digitalWriteFast(ELS_LEADSCREW_STEP, val);

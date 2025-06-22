@@ -1,5 +1,7 @@
-#ifdef CORE_TEENSY
-#include "Spindle.h"
+#include <config.h>
+
+#if ELS_BOARD == ELS_BOARD_TEENSY
+#include "spindle.h"
 
 #include <config.h>
 #include <math.h>
@@ -56,14 +58,14 @@ void Spindle::incrementCurrentPosition(int amount) {
 
 float Spindle::getEstimatedVelocityInPPS() {
   if (m_lastRevMicros == 0)return 0;
-  if(micros() - m_lastRevTimestamp > 1000000)return 0;
+  if (micros() - m_lastRevTimestamp > 1000000)return 0;
   return abs((m_lastRevSize * US_PER_SECOND) / (m_lastRevMicros));
 }
 
 
 float Spindle::getEstimatedVelocityInRPM() {
   if (m_lastRevMicros == 0)return 0;
-  if(micros() - m_lastRevTimestamp > 1000000)return 0;
+  if (micros() - m_lastRevTimestamp > 1000000)return 0;
   return abs((m_lastRevSize * 60000000) / (m_lastRevMicros * ELS_SPINDLE_ENCODER_PPR));
 }
 

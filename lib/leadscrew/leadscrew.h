@@ -1,6 +1,5 @@
 #include <spindle.h>
 #include <axis.h>
-#include <Arduino.h>
 #include "leadscrew_io.h"
 #pragma once
 
@@ -38,7 +37,7 @@ private:
 
 #ifdef ELS_USE_RMT
   rmt_data_t rmt_data[24];
-  rmt_obj_t *rmtObj;
+  rmt_obj_t* rmtObj;
 #endif
 
   Spindle* m_spindle;
@@ -87,19 +86,19 @@ private:
 
 public:
   Leadscrew(Spindle* spindle, LeadscrewIO* io,
-    float leadscrewAccel, float initialPulseDelay, 
+    float leadscrewAccel, float initialPulseDelay,
     int motorPulsePerRevolution,
     float leadscrewPitch, int encoderPPR);
-  #ifdef ELS_USE_RMT
-  void setRMT(rmt_obj_t *rmtObj){
+#ifdef ELS_USE_RMT
+  void setRMT(rmt_obj_t* rmtObj) {
     this->rmtObj = rmtObj;
     rmt_data->duration0 = 8;
     rmt_data->level0 = 1;
     rmt_data->duration1 = 8;
     rmt_data->level1 = 0;
-  
+
   }
-  #endif
+#endif
 
 
   void setStopPosition(LeadscrewStopPosition position);

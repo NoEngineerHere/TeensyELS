@@ -4,7 +4,7 @@
 #include "leadscrew_io.h"
 #pragma once
 
-#ifdef ESP32
+#if ELS_BOARD == ELS_BOARD_ESP32
 
 class LeadscrewIOESP : public LeadscrewIO {
   inline void writeStepPin(uint8_t val) {

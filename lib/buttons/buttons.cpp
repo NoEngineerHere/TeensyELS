@@ -1,9 +1,45 @@
+#include <config.h>
+#if ELS_BOARD != ELS_BOARD_UNSET
+
 #include "buttons.h"
 
 #include <config.h>
 #include <globalstate.h>
 
-ButtonHandler::ButtonHandler(Spindle* spindle, Leadscrew* leadscrew)
+class ButtonHandlerImpl : public ButtonHandler {
+private:
+  Button m_rateIncrease;
+  Button m_rateDecrease;
+  Button m_modeCycle;
+  Button m_threadSync;
+  Button m_halfNut;
+  Button m_enable;
+  Button m_lock;
+  Button m_jogLeft;
+  Button m_jogRight;
+  Spindle* m_spindle;
+  Leadscrew* m_leadscrew;
+
+public:
+  ButtonHandlerImpl(Spindle* spindle, Leadscrew* leadscrew);
+
+  enum JogDirection { LEFT = -1, RIGHT = 1 };
+
+  void handle() override;
+  void rateIncreaseHandler();
+  void rateDecreaseHandler();
+  void modeCycleHandler();
+  void threadSyncHandler();
+
+  void enableHandler();
+  void lockHandler();
+  void jogHandler();
+  void jogDirectionHandler(JogDirection direction);
+
+  void halfNutHandler();
+};
+
+ButtonHandlerImpl::ButtonHandlerImpl(Spindle* spindle, Leadscrew* leadscrew)
   : m_spindle(spindle),
   m_leadscrew(leadscrew),
   m_rateIncrease(ELS_RATE_INCREASE_BUTTON),
@@ -19,7 +55,7 @@ ButtonHandler::ButtonHandler(Spindle* spindle, Leadscrew* leadscrew)
   Button setClickTime(200);
 }
 
-void ButtonHandler::handle() {
+void ButtonHandlerImpl::handle() {
   // update the state of the application based on the button state
   rateIncreaseHandler();
   rateDecreaseHandler();
@@ -31,7 +67,7 @@ void ButtonHandler::handle() {
   jogHandler();
 }
 
-void ButtonHandler::rateIncreaseHandler() {
+void ButtonHandlerImpl::rateIncreaseHandler() {
   m_rateIncrease.handle();
 
   GlobalButtonLock lockState = GlobalState::getInstance()->getButtonLock();
@@ -49,7 +85,7 @@ void ButtonHandler::rateIncreaseHandler() {
   }
 }
 
-void ButtonHandler::rateDecreaseHandler() {
+void ButtonHandlerImpl::rateDecreaseHandler() {
   m_rateDecrease.handle();
 
   GlobalButtonLock lockState = GlobalState::getInstance()->getButtonLock();
@@ -66,7 +102,7 @@ void ButtonHandler::rateDecreaseHandler() {
   }
 }
 
-void ButtonHandler::halfNutHandler() {
+void ButtonHandlerImpl::halfNutHandler() {
   m_halfNut.handle();
 
   GlobalButtonLock lockState = GlobalState::getInstance()->getButtonLock();
@@ -88,7 +124,7 @@ void ButtonHandler::halfNutHandler() {
   }*/
 }
 
-void ButtonHandler::enableHandler() {
+void ButtonHandlerImpl::enableHandler() {
   m_enable.handle();
 
   GlobalButtonLock lockState = GlobalState::getInstance()->getButtonLock();
@@ -110,7 +146,7 @@ void ButtonHandler::enableHandler() {
   }
 }
 
-void ButtonHandler::lockHandler() {
+void ButtonHandlerImpl::lockHandler() {
   m_lock.handle();
 
   GlobalState* globalState = GlobalState::getInstance();
@@ -124,7 +160,7 @@ void ButtonHandler::lockHandler() {
   }
 }
 
-void ButtonHandler::threadSyncHandler() {
+void ButtonHandlerImpl::threadSyncHandler() {
   m_threadSync.handle();
 
   GlobalButtonLock lockState = GlobalState::getInstance()->getButtonLock();
@@ -147,7 +183,7 @@ void ButtonHandler::threadSyncHandler() {
   }
 }
 
-void ButtonHandler::modeCycleHandler() {
+void ButtonHandlerImpl::modeCycleHandler() {
   m_modeCycle.handle();
 
   GlobalState* globalState = GlobalState::getInstance();
@@ -189,7 +225,7 @@ void ButtonHandler::modeCycleHandler() {
   }
 }
 
-void ButtonHandler::jogDirectionHandler(JogDirection direction) {
+void ButtonHandlerImpl::jogDirectionHandler(JogDirection direction) {
   GlobalState* globalState = GlobalState::getInstance();
   GlobalButtonLock lockState = globalState->getButtonLock();
   GlobalMotionMode motionMode = globalState->getMotionMode();
@@ -250,7 +286,7 @@ void ButtonHandler::jogDirectionHandler(JogDirection direction) {
   }
 }
 
-void ButtonHandler::jogHandler() {
+void ButtonHandlerImpl::jogHandler() {
   GlobalMotionMode motionMode = GlobalState::getInstance()->getMotionMode();
   m_jogLeft.handle();
   m_jogRight.handle();
@@ -265,3 +301,8 @@ void ButtonHandler::jogHandler() {
     GlobalState::getInstance()->setMotionMode(GlobalMotionMode::MM_DISABLED);
   }
 }
+
+#else
+
+
+#endif

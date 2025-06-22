@@ -1,6 +1,8 @@
 // Libraries
+#if ELS_BOARD != ELS_BOARD_UNSET
 #include <Arduino.h>
 #include <SPI.h>
+#endif
 //#include <Wire.h>
 #include <globalstate.h>
 #include <leadscrew.h>
@@ -15,7 +17,7 @@
 #include "keyarray.h"
 
 //#define FULLMONITOR
-#ifdef ESP32
+#if ELS_BOARD == ELS_BOARD_ESP32
 #include <esp_task_wdt.h>
 #include <leadscrew_io_esp.h>
 #else
@@ -31,7 +33,7 @@ Spindle spindle;
 Spindle spindle(ELS_SPINDLE_ENCODER_A, ELS_SPINDLE_ENCODER_B);
 #endif
 
-#ifdef ESP32
+#if ELS_BOARD == ELS_BOARD_ESP32
 LeadscrewIOESP leadscrewIOImpl;
 #else
 LeadscrewIOTeensy leadscrewIOImpl;
@@ -44,14 +46,20 @@ Leadscrew leadscrew(&spindle,
   ELS_LEADSCREW_STEPPER_PPR* ELS_GEARBOX_RATIO,
   ELS_LEADSCREW_PITCH_MM, ELS_SPINDLE_ENCODER_PPR);
 
-#ifdef ESP32  
+#if ELS_BOARD == ELS_BOARD_ESP32
 KeyArray keyArray(&leadscrew);
 ButtonPad keyPad(&spindle, &leadscrew, &keyArray);
 ESPCommsManager commsManager;
 #else
 ButtonHandler keyPad(&spindle, &leadscrew);
 #endif
-Display display(&spindle, &leadscrew);
+#if ELS_DISPLAY == ST7789_240_135
+Display_ST7789_240_135 display(&spindle, &leadscrew);
+#elif ELS_DISPLAY == SSD1306_128_64
+Display_SSD1306_128_64 display(&spindle, &leadscrew);
+#else
+#error "ELS_DISPLAY is not valid, please check your config.h file"
+#endif  
 int64_t lastcycle;
 int cyclecount;
 int finalcyclecount;
@@ -60,7 +68,7 @@ int finalcyclecount;
 // have to handle the leadscrew updates in a timer callback so we can update the
 // screen independently without losing pulses
 void timerCallback() {
-#if defined(ESP32)
+#if ELS_BOARD == ELS_BOARD_ESP32
   if (GlobalState::getInstance()->hasOTA()) {
     commsManager.loop();
   } else {
@@ -80,7 +88,7 @@ void displayLoop() {
   display.update();
 }
 
-#ifdef ESP32
+#if ELS_BOARD == ELS_BOARD_ESP32
 void DisplayTask(void* parameter) {
   uint64_t m = 1;
   while (true) {
@@ -172,7 +180,7 @@ void setup() {
 
   display.update();
 
-#ifdef ESP32
+#if ELS_BOARD == ELS_BOARD_ESP32
 
   TaskHandle_t spindleTask;
   TaskHandle_t displayTask;
@@ -196,7 +204,7 @@ void setup() {
 }
 
 void loop() {
-#ifdef ESP32  
+#if ELS_BOARD == ELS_BOARD_ESP32
   vTaskDelay(1000);
 #else
   displayLoop();

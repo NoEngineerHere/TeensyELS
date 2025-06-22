@@ -24,42 +24,60 @@
   //! the amount of microseconds in a second
 #define US_PER_SECOND 1000000
 
+#define ELS_BOARD_UNSET -1
+#define ELS_BOARD_TEENSY 0
+#define ELS_BOARD_ESP32 1
+
 /**
- * @brief      Uncomment this line if your spindle is driven by a motor
- * controlled by this application.
- *
- * If this is uncommented, the application will drive the spindle using a
- * stepper motor. If it is commented out, the application will assume that the
- * spindle is driven by an external motor and will use an encoder to read its
- * position.
- *
- * TODO: Implement this for real
+ * @brief      The board type
+ * @note       Options:
+ *              - `ELS_BOARD_TEENSY`: Teensy 4.1
+ *              - `ELS_BOARD_ESP32`: ESP32
  */
- // #define ELS_SPINDLE_DRIVEN
+#ifdef CORE_TEENSY
+#define ELS_BOARD ELS_BOARD_TEENSY
+#elif defined(ESP32)
+#define ELS_BOARD ELS_BOARD_ESP32
+#else
+#define ELS_BOARD ELS_BOARD_UNSET
+#endif
 
  /**
-  * IO Pins
+  * @brief      Uncomment this line if your spindle is driven by a motor
+  * controlled by this application.
+  *
+  * If this is uncommented, the application will drive the spindle using a
+  * stepper motor. If it is commented out, the application will assume that the
+  * spindle is driven by an external motor and will use an encoder to read its
+  * position.
+  *
+  * TODO: Implement this for real
   */
+  // #define ELS_SPINDLE_DRIVEN
+
+  /**
+   * IO Pins
+   */
 #ifdef ELS_SPINDLE_DRIVEN
-  // set your spindle driver pins here
+   // set your spindle driver pins here
 #define ELS_SPINDLE_STEP -1
 #define ELS_SPINDLE_DIR -1
 #else
-#ifdef ESP32
+#if ELS_BOARD == ELS_BOARD_ESP32
 #define ELS_SPINDLE_ENCODER_A 37
 #define ELS_SPINDLE_ENCODER_B 36
 #else
-#define ELS_SPINDLE_ENCODER_A 14 
-#define ELS_SPINDLE_ENCODER_B 15 
+#define ELS_SPINDLE_ENCODER_A 14
+#define ELS_SPINDLE_ENCODER_B 15
 #endif
 #endif
 
-  /**
-   * @brief      Uncomment this line to enable the UI encoder
-   *
-   * If this is uncommented, the application will use a rotary encoder for user
-   * input. The pins for the encoder are defined below.
-   */
+   /**
+    * @brief      Uncomment this line to enable the UI encoder
+    *
+    * If this is uncommented, the application will use a rotary encoder for user
+    * input. The pins for the encoder are defined below.
+    */
 #define ELS_UI_ENCODER
 #ifdef ELS_UI_ENCODER
 #define ELS_UI_ENCODER_A 38  
@@ -68,13 +86,57 @@
 #define ELS_IND_GREEN 21  
 #endif
 
-   /**
-    * @brief      Platform-specific pinouts
-    *
-    * This section defines the pinouts for the different platforms that are
-    * supported by the application.
-    */
-#if defined(CORE_TEENSY)
+    /**
+     * @brief      This is used to define the valid values for the Human Interface Device (button names)
+     */
+constexpr char* HID_VALUES[] = {
+  "ELS_RATE_INCREASE_BUTTON",
+  "ELS_RATE_DECREASE_BUTTON",
+  "ELS_MODE_CYCLE_BUTTON",
+  "ELS_THREAD_SYNC_BUTTON",
+  "ELS_HALF_NUT_BUTTON",
+  "ELS_ENABLE_BUTTON",
+  "ELS_LOCK_BUTTON",
+  "ELS_JOG_LEFT_BUTTON",
+  "ELS_JOG_RIGHT_BUTTON",
+};
+
+/**
+ * @brief      A struct to define the button definition
+ * @param      name  The name of the button - should be one of the values in the HID_VALUES array
+ * @param      row   The row of the button - 0-indexed
+ * @param      col   The column of the button - 0-indexed
+ * @note if a button is connected to one pin only, set the col to -1
+ */
+struct ButtonDefinition {
+  const char* name;
+  int row;
+  int col;
+};
+
+/**
+ * @brief      Define the connections for your buttons here
+ *
+ */
+constexpr ButtonDefinition BUTTON_DEFINITIONS[] = {
+  { "ELS_RATE_INCREASE_BUTTON", 0, 0 },
+  { "ELS_RATE_DECREASE_BUTTON", 0, 1 },
+  { "ELS_MODE_CYCLE_BUTTON", 0, 2 },
+  { "ELS_THREAD_SYNC_BUTTON", 0, 3 },
+  { "ELS_HALF_NUT_BUTTON", 0, 4 },
+  { "ELS_ENABLE_BUTTON", 0, 5 },
+  { "ELS_LOCK_BUTTON", 0, 6 },
+  { "ELS_JOG_LEFT_BUTTON", 0, 7 },
+  { "ELS_JOG_RIGHT_BUTTON", 0, 8 },
+};
+
+/**
+ * @brief      Platform-specific pinouts
+ *
+ * This section defines the pinouts for the different platforms that are
+ * supported by the application.
+ */
+#if ELS_BOARD == ELS_BOARD_TEENSY
 #define ELS_LEADSCREW_STEP 2
 #define ELS_LEADSCREW_DIR 3
 
@@ -91,9 +153,21 @@
 #define ELS_STEPPER_ENA 0
 
 
-#elif defined(ESP32)
+#elif ELS_BOARD == ELS_BOARD_ESP32
+ /**
+ * @brief      Uncomment this line to use the RMT peripheral for the leadscrew step and dir pins
+ *
+ * The RMT peripheral is a hardware peripheral that can be used to generate
+ * PWM signals.It is more accurate than the analogWrite function, and can be
+ * used to generate square waves with a frequency of up to 80MHz.
+ *
+ *For more information, see the ESP32 page on the module: https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/peripherals/rmt.html
+ *
+ *If this is uncommented, the application will not use RMT for the leadscrew step and dir pins.
+ * This is only supported on ESP32.
+ */
 #define ELS_USE_RMT
-#define ELS_LEADSCREW_STEP 25 
+#define ELS_LEADSCREW_STEP 25
 #define ELS_LEADSCREW_STEP_BIT BIT25
 #define ELS_LEADSCREW_DIR 26
 #define ELS_LEADSCREW_DIR_BIT BIT26
@@ -109,12 +183,12 @@
 #define ELS_LOCK_BUTTON 12
 #define ELS_JOG_LEFT_BUTTON 20
 #define ELS_JOG_RIGHT_BUTTON 36
-    /**
-     * @brief      Uncomment this line to use a button array for input
-     *
-     * If this is uncommented, the application will use a button array for user
-     * input. The pins for the button array are defined below.
-     */
+ /**
+  * @brief      Uncomment this line to use a button array for input
+  *
+  * If this is uncommented, the application will use a button array for user
+  * input. The pins for the button array are defined below.
+  */
 #define ELS_USE_BUTTON_ARRAY
 #endif
 
@@ -128,24 +202,23 @@
 #define ELS_PAD_V3 12
 #endif
 
-     /**
-      * @brief      Display settings
-      *
-      * This setting allows you to select what type of display you want to use.
-      * The selection will hopefully grow as time goes on!
-      *
-      * @note       Options:
-      *               - `SSD1306_128_64`: 128x64 oled
-      *               - `ST7789_240_135`: 240x135 TFT
-      */
+  /**
+   * @brief      Display settings
+   *
+   * This setting allows you to select what type of display you want to use.
+   * The selection will hopefully grow as time goes on!
+   *
+   * @note       Options:
+   *               - `SSD1306_128_64`: 128x64 oled
+   *               - `ST7789_240_135`: 240x135 TFT
+   */
+
 #define SSD1306_128_64 0
 #define ST7789_240_135 1
-
 #define ELS_DISPLAY ST7789_240_135
-      //#define ELS_DISPLAY SSD1306_128_64
 
 #if ELS_DISPLAY == SSD1306_128_64
- // define this if you have a dedicated pin for the oled reset
+   // define this if you have a dedicated pin for the oled reset
 #define PIN_DISPLAY_RESET -1
 #endif
 

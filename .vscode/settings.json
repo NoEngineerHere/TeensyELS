@@ -59,6 +59,9 @@
         "thread": "cpp",
         "cinttypes": "cpp",
         "typeinfo": "cpp",
-        "variant": "cpp"
+        "variant": "cpp",
+        "concepts": "cpp",
+        "ios": "cpp",
+        "locale": "cpp"
     }
 }

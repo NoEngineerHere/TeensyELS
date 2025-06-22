@@ -1,5 +1,7 @@
-#ifdef PIO_UNIT_TESTING
-#include "TestSpindle.h"
+#include <config.h>
+
+#if ELS_BOARD == ELS_BOARD_UNSET
+#include "spindle.h"
 
 #include <config.h>
 #include <math.h>
@@ -10,7 +12,7 @@ Spindle::Spindle() {
   m_lastFullPulseDurationMicros = 0;
   m_currentPosition = 0;
 
-  
+
 }
 
 void Spindle::update() {
@@ -36,7 +38,7 @@ void Spindle::incrementCurrentPosition(int amount) {
 }
 
 float Spindle::getEstimatedVelocityInRPM() {
-    return 0.0;
+  return 0.0;
 }
 
 int Spindle::consumePosition() {

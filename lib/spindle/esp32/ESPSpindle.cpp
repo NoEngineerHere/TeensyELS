@@ -1,5 +1,7 @@
-#ifdef ESP32
-#include "Spindle.h"
+#include <config.h>
+
+#if ELS_BOARD == ELS_BOARD_ESP32
+#include "spindle.h"
 
 #include <config.h>
 #include <math.h>
