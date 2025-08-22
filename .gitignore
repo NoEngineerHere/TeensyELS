@@ -21,3 +21,4 @@ stats-callib.csv
 stats-stop.csv
 
 stats.csv
+*.md

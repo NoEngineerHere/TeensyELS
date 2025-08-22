@@ -23,7 +23,8 @@ Spindle::Spindle() {
 void Spindle::update() {
   // read the encoder and update the current position
   // todo: we should keep the absolute position of the spindle, cbf right now
-  int64_t position = m_encoder.getAndClearCount();
+  int64_t position = m_encoder.getCount();
+  m_encoder.clearCount();
   incrementCurrentPosition(position);
 }
 

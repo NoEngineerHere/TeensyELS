@@ -51,7 +51,7 @@ void ButtonPad::handle() {
 void ButtonPad::rateIncreaseHandler(ButtonInfo press) {
 
   GlobalButtonLock lockState = GlobalState::getInstance()->getButtonLock();
-  if (lockState == GlobalButtonLock::LK_LOCKED) {
+  if (lockState == GlobalButtonLock::LOCKED) {
     return;
   }
 
@@ -64,7 +64,7 @@ void ButtonPad::rateIncreaseHandler(ButtonInfo press) {
 void ButtonPad::rateDecreaseHandler(ButtonInfo press) {
 
   GlobalButtonLock lockState = GlobalState::getInstance()->getButtonLock();
-  if (lockState == GlobalButtonLock::LK_LOCKED) {
+  if (lockState == GlobalButtonLock::LOCKED) {
     return;
   }
 
@@ -77,7 +77,7 @@ void ButtonPad::rateDecreaseHandler(ButtonInfo press) {
 void ButtonPad::halfNutHandler(ButtonInfo press) {
 
   GlobalButtonLock lockState = GlobalState::getInstance()->getButtonLock();
-  if (lockState == GlobalButtonLock::LK_LOCKED) {
+  if (lockState == GlobalButtonLock::LOCKED) {
     return;
   }
 
@@ -90,7 +90,7 @@ void ButtonPad::halfNutHandler(ButtonInfo press) {
   /*if (event == Button::SINGLE_CLICKED_EVENT &&
       globalState->getFeedMode() == GlobalFeedMode::THREAD) {
     readyToThread = true;
-    globalState->setMotionMode(GlobalMotionMode::ENABLED);
+    globalState->setMotionMode(GlobalMotionMode::MM_ENABLED);
     globalState->setThreadSyncState(GlobalThreadSyncState::SYNC);
     pulsesBackToSync = 0;
   }*/
@@ -99,7 +99,7 @@ void ButtonPad::halfNutHandler(ButtonInfo press) {
 void ButtonPad::enableHandler(ButtonInfo press) {
   GlobalButtonLock lockState = GlobalState::getInstance()->getButtonLock();
   GlobalMotionMode motionMode = GlobalState::getInstance()->getMotionMode();
-  if (lockState == GlobalButtonLock::LK_LOCKED) {
+  if (lockState == GlobalButtonLock::LOCKED) {
     return;
   }
 
@@ -117,17 +117,17 @@ void ButtonPad::lockHandler(ButtonInfo press) {
   GlobalState* globalState = GlobalState::getInstance();
 
   if (press.buttonState == BS_CLICKED) {
-    if (globalState->getButtonLock() == GlobalButtonLock::LK_LOCKED) {
-      globalState->setButtonLock(GlobalButtonLock::LK_UNLOCKED);
+    if (globalState->getButtonLock() == GlobalButtonLock::LOCKED) {
+      globalState->setButtonLock(GlobalButtonLock::UNLOCKED);
     } else {
-      globalState->setButtonLock(GlobalButtonLock::LK_LOCKED);
+      globalState->setButtonLock(GlobalButtonLock::LOCKED);
     }
   }
 }
 
 void ButtonPad::threadSyncHandler(ButtonInfo press) {
   GlobalButtonLock lockState = GlobalState::getInstance()->getButtonLock();
-  if (lockState == GlobalButtonLock::LK_LOCKED) {
+  if (lockState == GlobalButtonLock::LOCKED) {
     return;
   }
   if (press.buttonState == BS_HELD) {
@@ -137,10 +137,10 @@ void ButtonPad::threadSyncHandler(ButtonInfo press) {
     if (GlobalState::getInstance()->getMotionMode() ==
       GlobalMotionMode::MM_ENABLED) {
       GlobalState::getInstance()->setThreadSyncState(
-        GlobalThreadSyncState::SS_UNSYNC);
+        GlobalThreadSyncState::UNSYNC);
     } else {
       GlobalState::getInstance()->setThreadSyncState(
-        GlobalThreadSyncState::SS_SYNC);
+        GlobalThreadSyncState::SYNC);
     }
   }
 }
@@ -150,18 +150,18 @@ void ButtonPad::modeCycleHandler(ButtonInfo press) {
   GlobalState* globalState = GlobalState::getInstance();
   GlobalButtonLock lockState = globalState->getButtonLock();
 
-  if (lockState == GlobalButtonLock::LK_LOCKED) {
+  if (lockState == GlobalButtonLock::LOCKED) {
     return;
   }
 
   // pressing mode button swaps between feed and thread
   if (press.buttonState == BS_CLICKED) {
     switch (GlobalState::getInstance()->getFeedMode()) {
-    case GlobalFeedMode::FM_FEED:
-      GlobalState::getInstance()->setFeedMode(GlobalFeedMode::FM_THREAD);
+    case GlobalFeedMode::FEED:
+      GlobalState::getInstance()->setFeedMode(GlobalFeedMode::THREAD);
       break;
-    case GlobalFeedMode::FM_THREAD:
-      GlobalState::getInstance()->setFeedMode(GlobalFeedMode::FM_FEED);
+    case GlobalFeedMode::THREAD:
+      GlobalState::getInstance()->setFeedMode(GlobalFeedMode::FEED);
       break;
     }
     m_leadscrew->setTargetPitchMM(globalState->getCurrentFeedPitch());
@@ -187,7 +187,7 @@ void ButtonPad::jogDirectionHandler(ButtonInfo press) {
   GlobalMotionMode motionMode = globalState->getMotionMode();
 
   // no jogging functionality allowed during lock or enable
-  if (lockState == GlobalButtonLock::LK_LOCKED ||
+  if (lockState == GlobalButtonLock::LOCKED ||
     motionMode == GlobalMotionMode::MM_ENABLED) {
     return;
   }
@@ -196,23 +196,23 @@ void ButtonPad::jogDirectionHandler(ButtonInfo press) {
   if (press.buttonState == BS_CLICKED) {
     switch (press.button) {
     case ELS_JOG_LEFT_BUTTON:
-      if (globalState->getMotionMode() == GlobalMotionMode::MM_JOG_LEFT) {
+      if (globalState->getMotionMode() == GlobalMotionMode::JOG_LEFT) {
         globalState->setMotionMode(GlobalMotionMode::MM_DISABLED);
         break;
       }
       if (m_leadscrew->getStopPositionState(LeadscrewStopPosition::LEFT) != LeadscrewStopState::UNSET) {
-        globalState->setMotionMode(GlobalMotionMode::MM_JOG_LEFT);
-        globalState->setThreadSyncState(GlobalThreadSyncState::SS_SYNC);
+        globalState->setMotionMode(GlobalMotionMode::JOG_LEFT);
+        globalState->setThreadSyncState(GlobalThreadSyncState::SYNC);
       }
       break;
     case ELS_JOG_RIGHT_BUTTON:
-      if (globalState->getMotionMode() == GlobalMotionMode::MM_JOG_RIGHT) {
+      if (globalState->getMotionMode() == GlobalMotionMode::JOG_RIGHT) {
         globalState->setMotionMode(GlobalMotionMode::MM_DISABLED);
         break;
       }
       if (m_leadscrew->getStopPositionState(LeadscrewStopPosition::RIGHT) != LeadscrewStopState::UNSET) {
-        globalState->setMotionMode(GlobalMotionMode::MM_JOG_RIGHT);
-        globalState->setThreadSyncState(GlobalThreadSyncState::SS_UNSYNC);
+        globalState->setMotionMode(GlobalMotionMode::JOG_RIGHT);
+        globalState->setThreadSyncState(GlobalThreadSyncState::UNSYNC);
       }
       break;
     }

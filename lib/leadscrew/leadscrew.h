@@ -1,8 +1,32 @@
+#ifdef PIO_UNIT_TESTING
+#include "TestSpindle.h"
+#else
 #include <spindle.h>
+#endif
 #include <axis.h>
+#ifdef PIO_UNIT_TESTING
+#include "../../test/arduino_test_mock.h"
+#else
 #include <Arduino.h>
+#endif
 #include "leadscrew_io.h"
+#include <config.h>
 #pragma once
+
+struct LeadscrewConfig {
+  float accel;
+  float initialPulseDelay;
+  int motorPulsePerRevolution;
+  float pitch;
+  int encoderPPR;
+  
+  // Default configuration using config.h values
+  LeadscrewConfig(float accel = 0, float initialPulseDelay = LEADSCREW_INITIAL_PULSE_DELAY_US,
+                  int motorPPR = ELS_LEADSCREW_STEPPER_PPR * ELS_GEARBOX_RATIO,
+                  float pitch = ELS_LEADSCREW_PITCH_MM, int encoderPPR = ELS_SPINDLE_ENCODER_PPR)
+    : accel(accel), initialPulseDelay(initialPulseDelay), motorPulsePerRevolution(motorPPR),
+      pitch(pitch), encoderPPR(encoderPPR) {}
+};
 
 
 // only run for unit tests
@@ -60,10 +84,7 @@ private:
   const float m_leadscrewAccel;
   LeadscrewDirection m_currentDirection;
 
-  //float m_accumulator;
-
-  // we may want more sophisticated control over positions, but for now this is
-  // fine
+  // Stop position management
   LeadscrewStopState m_leftStopState;
   int m_leftStopPosition;
 
@@ -86,6 +107,10 @@ private:
   bool initPos;
 
 public:
+  // Modern constructor using configuration struct
+  Leadscrew(Spindle* spindle, LeadscrewIO* io, const LeadscrewConfig& config);
+  
+  // Legacy constructor for backward compatibility
   Leadscrew(Spindle* spindle, LeadscrewIO* io,
     float leadscrewAccel, float initialPulseDelay, 
     int motorPulsePerRevolution,

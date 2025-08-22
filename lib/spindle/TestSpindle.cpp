@@ -5,12 +5,17 @@
 #include <math.h>
 
 Spindle::Spindle() {
-
   m_unconsumedPosition = 0;
+  m_lastPulseTimestamp = micros();
   m_lastFullPulseDurationMicros = 0;
   m_currentPosition = 0;
+}
 
-  
+Spindle::Spindle(int pinA, int pinB) {
+  m_unconsumedPosition = 0;
+  m_lastPulseTimestamp = micros();
+  m_lastFullPulseDurationMicros = 0;
+  m_currentPosition = 0;
 }
 
 void Spindle::update() {
@@ -40,6 +45,12 @@ float Spindle::getEstimatedVelocityInRPM() {
 }
 
 int Spindle::consumePosition() {
-  return -1;
+  int position = m_unconsumedPosition;
+  m_unconsumedPosition = 0;
+  return position;
+}
+
+float Spindle::getEstimatedVelocityInPPS() {
+  return 0.0;
 }
 #endif

@@ -1,6 +1,7 @@
 
 
 #pragma once
+#include <leadscrew_io.h>
 
 class LeadscrewIOMock : public LeadscrewIO {
   uint8_t m_stepPinState;

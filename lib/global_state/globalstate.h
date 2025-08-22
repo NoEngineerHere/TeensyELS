@@ -5,40 +5,39 @@
 #pragma once
 
 #ifdef ELS_UI_ENCODER
-enum EncoderColour { EC_NONE = 0, EC_RED = 1, EC_GREEN = 2, EC_YELLOW = 3 };
+enum class EncoderColour { NONE = 0, RED = 1, GREEN = 2, YELLOW = 3 };
 #endif
 
 // Major modes are the main modes of the application, like the feed or thread
 // The spindle acts the same way in both threading and feeding mode
 // this is just for the indicator on the screen
-enum GlobalFeedMode { FM_UNSET = -1, FM_FEED = 0, FM_THREAD = 1 };
+enum class GlobalFeedMode { UNSET = -1, FEED = 0, THREAD = 1 };
 
 // The motion mode of the leadscrew in relation to the spindle
 // Disabled: The leadscrew does not move when the spindle is moving
 // Jog: The leadscrew is moving independently of the spindle
 // Enabled: The leadscrew is moving in sync with the spindle
-enum GlobalMotionMode { MM_UNSET, MM_DISABLED, MM_JOG_LEFT, MM_JOG_RIGHT, MM_ENABLED };
+enum class GlobalMotionMode { UNSET, MM_DISABLED, JOG_LEFT, JOG_RIGHT, MM_ENABLED };
 
 /**
  * The unit mode of the application, usually for threading
  * Choose either the superior metric system or the deprecated imperial system
  */
-enum GlobalUnitMode { METRIC, IMPERIAL };
+enum class GlobalUnitMode { METRIC, IMPERIAL };
 
 /**
  * The state of the global thread sync
  * Sync: The spindle and leadscrew are in sync
  * Unsync: The spindle and leadscrew are out of sync
- * Resync:
  */
-enum GlobalThreadSyncState { SS_UNSET, SS_SYNC, SS_UNSYNC };
+enum class GlobalThreadSyncState { UNSET, SYNC, UNSYNC };
 
 /**
  * The state of the global button lock
  * Unlocked: The buttons are unlocked
  * Locked: The buttons are locked
  */
-enum GlobalButtonLock { LK_UNSET, LK_UNLOCKED, LK_LOCKED };
+enum class GlobalButtonLock { UNSET, UNLOCKED, LOCKED };
 
 
 // this is a singleton class - we don't want more than one of these existing at
@@ -46,9 +45,9 @@ enum GlobalButtonLock { LK_UNSET, LK_UNLOCKED, LK_LOCKED };
 class GlobalState {
  private:
   static GlobalState *m_instance;
-  volatile bool OTA = false;
-  volatile int OTAbytes = 0;
-  volatile int OTAlength = 0;
+  bool OTA = false;
+  int OTAbytes = 0;
+  int OTAlength = 0;
 
   GlobalFeedMode m_feedMode;
   GlobalMotionMode m_motionMode;
@@ -56,8 +55,8 @@ class GlobalState {
   GlobalThreadSyncState m_threadSyncState;
   GlobalButtonLock m_buttonLock;
 
-  volatile bool m_debugMode = false;
-  volatile bool m_displayReset = false;
+  bool m_debugMode = false;
+  bool m_displayReset = false;
 
   int m_feedSelect;
 
@@ -70,10 +69,10 @@ class GlobalState {
   GlobalState() {
     setFeedMode(DEFAULT_FEED_MODE);
     setUnitMode(DEFAULT_UNIT_MODE);
-    setButtonLock(LK_LOCKED);
+    setButtonLock(GlobalButtonLock::LOCKED);
     setFeedSelect(-1);
-    setThreadSyncState(SS_UNSYNC);
-    m_motionMode = MM_DISABLED;
+    setThreadSyncState(GlobalThreadSyncState::UNSYNC);
+    m_motionMode = GlobalMotionMode::MM_DISABLED;
     m_resyncPulseCount = 0;
   }
 
@@ -118,6 +117,5 @@ class GlobalState {
   int nextFeedPitch();
   int prevFeedPitch();
 
- protected:
   int getCurrentFeedSelectArraySize();
 };

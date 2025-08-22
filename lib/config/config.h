@@ -15,12 +15,13 @@
 #define US_PER_SECOND 1000000
 
 /**
- * Uncomment this line if your spindle is driven by a motor controlled by this
- * application. If it is uncommented we will assume you have an encoder attached
- * to your spindle
- * TODO: Implement this for real
+ * Spindle drive mode configuration:
+ * - Commented out (default): Spindle driven by external motor with encoder feedback
+ * - Uncommented: Spindle driven by this application (requires motor driver implementation)
+ * 
+ * NOTE: Motor-driven spindle mode is not fully implemented yet.
  */
- // #define ELS_SPINDLE_DRIVEN
+// #define ELS_SPINDLE_DRIVEN
 
  /**
   * IO Pins
@@ -158,7 +159,7 @@
  *  GlobalUnitMode::IMPERIAL: Imperial system
  */
 #define DEFAULT_UNIT_MODE GlobalUnitMode::METRIC
-#define DEFAULT_FEED_MODE GlobalFeedMode::FM_FEED
+#define DEFAULT_FEED_MODE GlobalFeedMode::FEED
 
  // The default starting speed for leadscrew in mm/s
  // this is the maximum allowable speed (in mm/s) for the leadscrew to

@@ -3,6 +3,12 @@
 #define PIO_UNIT_TESTING  // for intellisense to pick up the MicrosSingleton etc
 #endif 
 
+#include "arduino_test_mock.h"
+
+// Define singleton instances
+MicrosSingleton* MicrosSingleton::instance = nullptr;
+MillisSingleton* MillisSingleton::instance = nullptr;
+
 #include <gmock/gmock.h>
 #include <globalstate.h>
 #include "TestSpindle.h"
@@ -47,8 +53,8 @@ int main(int argc, char **argv) {
 
   LeadscrewIOMock leadscrewIOMock;
   Spindle spindle;
-  Leadscrew leadscrew(&spindle, &leadscrewIOMock, LEADSCREW_INITIAL_PULSE_DELAY_US,
-    LEADSCREW_PULSE_DELAY_STEP_US, ELS_LEADSCREW_STEPPER_PPR* ELS_GEARBOX_RATIO,
+  Leadscrew leadscrew(&spindle, &leadscrewIOMock, 100.0,
+    LEADSCREW_INITIAL_PULSE_DELAY_US, ELS_LEADSCREW_STEPPER_PPR* ELS_GEARBOX_RATIO,
     ELS_LEADSCREW_PITCH_MM, ELS_SPINDLE_ENCODER_PPR);
 
   leadscrew.setStopPosition(LeadscrewStopPosition::LEFT, 0);
@@ -56,7 +62,7 @@ int main(int argc, char **argv) {
   leadscrew.setCurrentPosition(10000);
   leadscrew.setTargetPitchMM(0.25);
   GlobalState::getInstance()->setMotionMode(GlobalMotionMode::MM_ENABLED); 
-  GlobalState::getInstance()->setThreadSyncState(GlobalThreadSyncState::SS_SYNC); 
+  GlobalState::getInstance()->setThreadSyncState(GlobalThreadSyncState::SYNC); 
 
 
   micros.setMicros(0);

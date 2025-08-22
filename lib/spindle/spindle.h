@@ -1,12 +1,15 @@
+#ifndef PIO_UNIT_TESTING
 #if defined(ESP32)
 #include <ESP32Encoder.h>
 #elif defined(CORE_TEENSY)
 #include <Encoder.h>
 #endif
+#endif
 #include <axis.h>
 
 #pragma once
 
+#ifndef PIO_UNIT_TESTING
 class Spindle : public RotationalAxis {
 private:
     // the unconsumed position is the position that has been read from the encoder
@@ -17,7 +20,8 @@ private:
 #if defined(ESP32)
     ESP32Encoder  m_encoder;
 #elif defined(CORE_TEENSY)
-    Encoder  m_encoder;#endif
+    Encoder  m_encoder;
+#endif
 #endif
 
 public:
@@ -36,4 +40,4 @@ public:
     float getEstimatedVelocityInRPM();
     float getEstimatedVelocityInPPS();
 };
-#endif
+#endif // PIO_UNIT_TESTING

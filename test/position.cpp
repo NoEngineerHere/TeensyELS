@@ -3,19 +3,18 @@
                           // classes
 #endif
 
+#include "arduino_test_mock.h"
+
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
-
+#include <vector>
 
 #include <config.h>
 #include <globalstate.h>
 #include <gmock/gmock.h>
 #include "TestSpindle.h"
 #include <leadscrew.h>
-
-#include <cstdint>
-#include <vector>
 
 using std::vector;
 

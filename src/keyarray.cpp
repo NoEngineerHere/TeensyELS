@@ -78,7 +78,7 @@ void KeyArray::updateEncoderPos(int64_t pos) {
 #ifdef ELS_UI_ENCODER
 
     GlobalButtonLock lockState = GlobalState::getInstance()->getButtonLock();
-    if (lockState == GlobalButtonLock::LK_LOCKED) {
+    if (lockState == GlobalButtonLock::LOCKED) {
         //DEBUG_F("Locked, ingoring rat inc");
         encoderPos += pos;
         return;

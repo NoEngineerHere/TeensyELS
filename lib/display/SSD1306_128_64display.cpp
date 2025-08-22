@@ -78,7 +78,7 @@ void Display::drawSyncStatus() {
   m_ssd1306.setTextColor(WHITE);
   m_ssd1306.print("SYNC");
   // cross it out if not synced
-  if (sync == GlobalThreadSyncState::SS_UNSYNC) {
+  if (sync == GlobalThreadSyncState::UNSYNC) {
     m_ssd1306.drawLine(0, 16, 64, 16, WHITE);
   }
 }
@@ -86,9 +86,9 @@ void Display::drawSyncStatus() {
 void Display::drawMode() {
   GlobalFeedMode mode = GlobalState::getInstance()->getFeedMode();
 
-  if (mode == GlobalFeedMode::FM_FEED) {
+  if (mode == GlobalFeedMode::FEED) {
     m_ssd1306.drawBitmap(57, 32, feedSymbol, 64, 32, WHITE);
-  } else if (mode == GlobalFeedMode::FM_THREAD) {
+  } else if (mode == GlobalFeedMode::THREAD) {
     m_ssd1306.drawBitmap(57, 32, threadSymbol, 64, 32, WHITE);
   }
 
@@ -101,13 +101,13 @@ void Display::drawPitch() {
   int feedSelect = state->getFeedSelect();
   char pitch[10];
   if (unit == GlobalUnitMode::METRIC) {
-    if (mode == GlobalFeedMode::FM_THREAD) {
+    if (mode == GlobalFeedMode::THREAD) {
       sprintf(pitch, "%.2fmm", threadPitchMetric[feedSelect]);
     } else {
       sprintf(pitch, "%.2fmm", feedPitchMetric[feedSelect]);
     }
   } else {
-    if (mode == GlobalFeedMode::FM_THREAD) {
+    if (mode == GlobalFeedMode::THREAD) {
       sprintf(pitch, "%dTPI", (int)threadPitchImperial[feedSelect]);
     } else {
       sprintf(pitch, "%dth", (int)(feedPitchImperial[feedSelect] * 1000));
@@ -129,8 +129,8 @@ void Display::drawEnabled() {
   case GlobalMotionMode::MM_DISABLED:
     m_ssd1306.drawBitmap(28, 42, pauseSymbol, 16, 16, BLACK);
     break;
-  case GlobalMotionMode::MM_JOG_LEFT:
-  case GlobalMotionMode::MM_JOG_RIGHT:
+  case GlobalMotionMode::JOG_LEFT:
+  case GlobalMotionMode::JOG_RIGHT:
     // todo bitmap for jogging
     m_ssd1306.setCursor(28, 42);
     m_ssd1306.setTextSize(2);
@@ -144,7 +144,7 @@ void Display::drawEnabled() {
   updateLed();
 }
 
-#ifdef ESP32   // TODO Make portable
+#ifdef ESP32   // Platform-specific LED control (could be abstracted)
 void Display::writeLed() {
   int64_t time = micros() / 250000;
   EncoderColour c = time % 2 == 1 ? firstColour : secondColour;
@@ -164,17 +164,17 @@ void Display::updateLed() {
 
   switch (mode) {
   case GlobalMotionMode::MM_DISABLED:
-    firstColour = lock == LK_LOCKED ? EC_RED : EC_NONE;
-    secondColour = lock == LK_LOCKED ? EC_RED : EC_NONE;
+    firstColour = lock == GlobalButtonLock::LOCKED ? EncoderColour::RED : EncoderColour::NONE;
+    secondColour = lock == GlobalButtonLock::LOCKED ? EncoderColour::RED : EncoderColour::NONE;
     break;
-  case GlobalMotionMode::MM_JOG_LEFT:
-  case GlobalMotionMode::MM_JOG_RIGHT:
-    firstColour = EC_YELLOW;
-    secondColour = EC_YELLOW;
+  case GlobalMotionMode::JOG_LEFT:
+  case GlobalMotionMode::JOG_RIGHT:
+    firstColour = EncoderColour::YELLOW;
+    secondColour = EncoderColour::YELLOW;
     break;
   case GlobalMotionMode::MM_ENABLED:
-    firstColour = lock == LK_LOCKED ? EC_RED : EC_GREEN;
-    secondColour = EC_GREEN;
+    firstColour = lock == GlobalButtonLock::LOCKED ? EncoderColour::RED : EncoderColour::GREEN;
+    secondColour = EncoderColour::GREEN;
     break;
   }
 #endif
@@ -185,10 +185,10 @@ void Display::drawLocked() {
   GlobalButtonLock lock = GlobalState::getInstance()->getButtonLock();
   m_ssd1306.fillRoundRect(2, 40, 20, 20, 2, WHITE);
   switch (lock) {
-  case GlobalButtonLock::LK_LOCKED:
+  case GlobalButtonLock::LOCKED:
     m_ssd1306.drawBitmap(4, 42, lockedSymbol, 16, 16, BLACK);
     break;
-  case GlobalButtonLock::LK_UNLOCKED:
+  case GlobalButtonLock::UNLOCKED:
     m_ssd1306.drawBitmap(4, 42, unlockedSymbol, 16, 16, BLACK);
     break;
   }

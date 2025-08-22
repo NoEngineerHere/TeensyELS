@@ -30,17 +30,17 @@ private:
   Leadscrew* m_leadscrew;
   GlobalState* m_globalState;
 #ifdef ELS_UI_ENCODER
-  EncoderColour firstColour = EC_NONE;
-  EncoderColour secondColour = EC_NONE;
+  EncoderColour firstColour = EncoderColour::NONE;
+  EncoderColour secondColour = EncoderColour::NONE;
 #endif
   bool updating = false;
 #if ELS_DISPLAY == ST7789_240_135
   char m_rpmString[10];
   char m_pitchString[10];
-  GlobalFeedMode m_mode = GlobalFeedMode::FM_UNSET;
-  GlobalMotionMode m_motionMode = GlobalMotionMode::MM_UNSET;
-  GlobalButtonLock m_locked = GlobalButtonLock::LK_UNSET;
-  GlobalThreadSyncState m_sync = GlobalThreadSyncState::SS_UNSET;
+  GlobalFeedMode m_mode = GlobalFeedMode::UNSET;
+  GlobalMotionMode m_motionMode = GlobalMotionMode::UNSET;
+  GlobalButtonLock m_locked = GlobalButtonLock::UNSET;
+  GlobalThreadSyncState m_sync = GlobalThreadSyncState::UNSET;
 #endif
 
 public:

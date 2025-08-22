@@ -3,14 +3,16 @@
 
 #pragma once
 
-class TestSpindle : public RotationalAxis {
+// For testing, we define Spindle as TestSpindle implementation  
+class Spindle : public RotationalAxis {
  private:
   // the unconsumed position is the position that has been read from the encoder
   // but hasn't been used to update the current position of any driven axes
   int m_unconsumedPosition;
 
  public:
-  TestSpindle();
+  Spindle();
+  Spindle(int pinA, int pinB);
 
   void update();
   void setCurrentPosition(int position);
@@ -21,5 +23,6 @@ class TestSpindle : public RotationalAxis {
    */
   int consumePosition();
   float getEstimatedVelocityInRPM();
+  float getEstimatedVelocityInPPS();
 };
 #endif

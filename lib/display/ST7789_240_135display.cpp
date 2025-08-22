@@ -42,10 +42,10 @@ void ScaleBMP(const uint8_t source[], uint8_t dest[], int sizex, int sizey) {
 void Display::init() {
   strcpy(m_rpmString, "");
   strcpy(m_pitchString, "");
-  m_mode = GlobalFeedMode::FM_UNSET;
-  m_motionMode = GlobalMotionMode::MM_UNSET;
-  m_locked = GlobalButtonLock::LK_UNSET;
-  m_sync = GlobalThreadSyncState::SS_UNSET;
+  m_mode = GlobalFeedMode::UNSET;
+  m_motionMode = GlobalMotionMode::UNSET;
+  m_locked = GlobalButtonLock::UNSET;
+  m_sync = GlobalThreadSyncState::UNSET;
   tft.init();
   tft.setRotation(3);
   tft.fillScreen(TFT_BLACK);
@@ -125,7 +125,7 @@ void Display::drawSyncStatus() {
   GlobalThreadSyncState sync = GlobalState::getInstance()->getThreadSyncState();
   if (sync == m_sync)return;
   m_sync = sync;
-  if (sync == GlobalThreadSyncState::SS_UNSYNC) {
+  if (sync == GlobalThreadSyncState::UNSYNC) {
     tft.drawLine(0, 32, 70, 48, TFT_RED);
     tft.setCursor(0, 32);
     tft.setTextSize(3);
@@ -146,11 +146,11 @@ void Display::drawMode() {
   if (mode == m_mode)return;
   m_mode = mode;
   tft.fillRect(104, 64, 128, 64, TFT_BLACK);
-  if (mode == GlobalFeedMode::FM_FEED) {
+  if (mode == GlobalFeedMode::FEED) {
     uint8_t scaled[128 * 64 / 2];
     ScaleBMP(feedSymbol, scaled, 128, 64);
     tft.drawBitmap(104, 64, scaled, 128, 64, TFT_WHITE);
-  } else if (mode == GlobalFeedMode::FM_THREAD) {
+  } else if (mode == GlobalFeedMode::THREAD) {
     uint8_t scaled[128 * 64 / 2];
     ScaleBMP(threadSymbol, scaled, 128, 64);
     tft.drawBitmap(104, 64, scaled, 128, 64, TFT_WHITE);
@@ -164,13 +164,13 @@ void Display::drawPitch() {
   int feedSelect = state->getFeedSelect();
   char pitch[10];
   if (unit == GlobalUnitMode::METRIC) {
-    if (mode == GlobalFeedMode::FM_THREAD) {
+    if (mode == GlobalFeedMode::THREAD) {
       sprintf(pitch, "%.2fmm", threadPitchMetric[feedSelect]);
     } else {
       sprintf(pitch, "%.2fmm", feedPitchMetric[feedSelect]);
     }
   } else {
-    if (mode == GlobalFeedMode::FM_THREAD) {
+    if (mode == GlobalFeedMode::THREAD) {
       sprintf(pitch, "%dTPI", (int)threadPitchImperial[feedSelect]);
     } else {
       sprintf(pitch, "%dth", (int)(feedPitchImperial[feedSelect] * 1000));
@@ -192,7 +192,7 @@ void Display::drawEnabled() {
 
   if (mode == m_motionMode)return;
   m_motionMode = mode;
-  tft.fillRoundRect(52, 80, 40, 40, 4, mode == GlobalMotionMode::MM_ENABLED ? TFT_GREEN : ((mode == GlobalMotionMode::MM_JOG_LEFT || mode == GlobalMotionMode::MM_JOG_RIGHT) ? TFT_YELLOW : TFT_WHITE));
+  tft.fillRoundRect(52, 80, 40, 40, 4, mode == GlobalMotionMode::MM_ENABLED ? TFT_GREEN : ((mode == GlobalMotionMode::JOG_LEFT || mode == GlobalMotionMode::JOG_RIGHT) ? TFT_YELLOW : TFT_WHITE));
   uint8_t scaled[128];
   GlobalButtonLock lock = GlobalState::getInstance()->getButtonLock();
   switch (mode) {
@@ -200,8 +200,8 @@ void Display::drawEnabled() {
     ScaleBMP(pauseSymbol, scaled, 16, 16);
     tft.drawBitmap(56, 84, scaled, 32, 32, TFT_BLACK);
     break;
-  case GlobalMotionMode::MM_JOG_LEFT:
-  case GlobalMotionMode::MM_JOG_RIGHT:
+  case GlobalMotionMode::JOG_LEFT:
+  case GlobalMotionMode::JOG_RIGHT:
     // todo bitmap for jogging
     tft.setCursor(55, 88);
     tft.setTextSize(4);
@@ -216,13 +216,13 @@ void Display::drawEnabled() {
   updateLed();
 }
 
-#ifdef ESP32   // TODO Make portable
+#ifdef ESP32   // Platform-specific LED control (could be abstracted)
 void Display::writeLed() {
 #ifdef ELS_UI_ENCODER
   int64_t time = micros() / 250000;
   EncoderColour c = time % 2 == 1 ? firstColour : secondColour;
-  digitalWrite(ELS_IND_GREEN, (c & 2) == 2);
-  digitalWrite(ELS_IND_RED, c & 1);
+  digitalWrite(ELS_IND_GREEN, (static_cast<int>(c) & 2) == 2);
+  digitalWrite(ELS_IND_RED, static_cast<int>(c) & 1);
 #endif
 }
 #endif
@@ -237,17 +237,17 @@ void Display::updateLed() {
 
   switch (mode) {
   case GlobalMotionMode::MM_DISABLED:
-    firstColour = lock == LK_LOCKED ? EC_RED : EC_NONE;
-    secondColour = lock == LK_LOCKED ? EC_RED : EC_NONE;
+    firstColour = lock == GlobalButtonLock::LOCKED ? EncoderColour::RED : EncoderColour::NONE;
+    secondColour = lock == GlobalButtonLock::LOCKED ? EncoderColour::RED : EncoderColour::NONE;
     break;
-  case GlobalMotionMode::MM_JOG_LEFT:
-  case GlobalMotionMode::MM_JOG_RIGHT:
-    firstColour = EC_YELLOW;
-    secondColour = EC_YELLOW;
+  case GlobalMotionMode::JOG_LEFT:
+  case GlobalMotionMode::JOG_RIGHT:
+    firstColour = EncoderColour::YELLOW;
+    secondColour = EncoderColour::YELLOW;
     break;
   case GlobalMotionMode::MM_ENABLED:
-    firstColour = lock == LK_LOCKED ? EC_RED : EC_GREEN;
-    secondColour = EC_GREEN;
+    firstColour = lock == GlobalButtonLock::LOCKED ? EncoderColour::RED : EncoderColour::GREEN;
+    secondColour = EncoderColour::GREEN;
     break;
   }
 #endif
@@ -259,14 +259,14 @@ void Display::drawLocked() {
   if (lock == m_locked)return;
   m_locked = lock;
 
-  tft.fillRoundRect(4, 80, 40, 40, 4, lock == LK_LOCKED ? TFT_RED : TFT_GREEN);
+  tft.fillRoundRect(4, 80, 40, 40, 4, lock == GlobalButtonLock::LOCKED ? TFT_RED : TFT_GREEN);
   uint8_t scaled[128];
   switch (lock) {
-  case GlobalButtonLock::LK_LOCKED:
+  case GlobalButtonLock::LOCKED:
     ScaleBMP(lockedSymbol, scaled, 16, 16);
     tft.drawBitmap(8, 84, scaled, 32, 32, TFT_BLACK);
     break;
-  case GlobalButtonLock::LK_UNLOCKED:
+  case GlobalButtonLock::UNLOCKED:
     ScaleBMP(unlockedSymbol, scaled, 16, 16);
     tft.drawBitmap(8, 84, scaled, 32, 32, TFT_BLACK);
     break;

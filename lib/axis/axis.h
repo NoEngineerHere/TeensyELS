@@ -1,6 +1,10 @@
 
 #include <cstdint>
+#ifdef PIO_UNIT_TESTING
+#include "../../test/arduino_test_mock.h"
+#else
 #include <Arduino.h>
+#endif
 
 #pragma once
 
@@ -10,7 +14,7 @@
  */
 class Axis {
 protected:
-  volatile int m_currentPosition;
+  int m_currentPosition;
 
   // the timestamp of the last pulse
   int64_t m_lastPulseTimestamp;
