@@ -7,6 +7,7 @@
 // Factory and DI includes
 #include "../lib/factory/system_factory.h"
 #include "../lib/interfaces/system_interfaces.h"
+#include "../lib/platform/platform_abstraction.h"
 
 //#define FULLMONITOR
 #ifdef ESP32
@@ -19,6 +20,7 @@ IntervalTimer timer;
 std::unique_ptr<DependencyContainer> systemContainer;
 
 // Component references (resolved from container)
+IPlatformAbstraction* platform = nullptr;
 ISpindle* spindle = nullptr;
 ILeadscrew* leadscrew = nullptr;
 IDisplay* display = nullptr;
@@ -95,6 +97,7 @@ void setup() {
   systemContainer = SystemFactory::createSystem();
   
   // Resolve dependencies
+  platform = systemContainer->resolve<IPlatformAbstraction>();
   spindle = systemContainer->resolve<ISpindle>();
   leadscrew = systemContainer->resolve<ILeadscrew>();
   display = systemContainer->resolve<IDisplay>();
@@ -102,7 +105,7 @@ void setup() {
   
   // Safety checks for embedded systems (where resolve returns nullptr on failure)
 #ifndef PIO_UNIT_TESTING
-  if (!spindle || !leadscrew || !display || !buttonHandler) {
+  if (!platform || !spindle || !leadscrew || !display || !buttonHandler) {
     Serial.println("ERROR: Failed to resolve dependencies");
     while(1); // Halt system
   }
@@ -118,48 +121,15 @@ void setup() {
 #endif
 #endif
 
-  // Hardware pin setup
-#ifndef ELS_SPINDLE_DRIVEN
-//  pinMode(ELS_SPINDLE_ENCODER_A, INPUT_PULLUP); // encoder pin 1
-//  pinMode(ELS_SPINDLE_ENCODER_B, INPUT_PULLUP); // encoder pin 2
-#endif
-
-#ifdef ELS_USE_RMT
-  rmt_obj_t* leadscreRMT = rmtInit(ELS_LEADSCREW_STEP, true, RMT_MEM_64);
-  // Note: Would need to cast leadscrew to concrete type for setRMT, keeping for now
-  // static_cast<Leadscrew*>(leadscrew)->setRMT(leadscreRMT);
-  rmtSetTick(leadscreRMT, 2500);
-#else
-  pinMode(ELS_LEADSCREW_STEP, OUTPUT); // step output pin
-#endif
-  pinMode(ELS_LEADSCREW_DIR, OUTPUT);  // direction output pin
-
-#ifdef ELS_UI_ENCODER
-  //  pinMode(ELS_UI_ENCODER_A, INPUT); // encoder pin 1
-  //  pinMode(ELS_UI_ENCODER_B, INPUT); // encoder pin 2
-
-#ifdef ELS_IND_GREEN
-  pinMode(ELS_IND_GREEN, OUTPUT);
-  pinMode(ELS_IND_RED, OUTPUT);
-#endif
-#endif
-
-  pinMode(ELS_STEPPER_ENA, OUTPUT);
-  digitalWrite(ELS_STEPPER_ENA, 0);
-
-#ifdef ELS_USE_BUTTON_ARRAY
-  auto keyArray = systemContainer->resolve<IKeyArray>();
-  keyArray->initPad();
-#else
-  pinMode(ELS_RATE_INCREASE_BUTTON, INPUT_PULLUP);  // rate Inc
-  pinMode(ELS_RATE_DECREASE_BUTTON, INPUT_PULLUP);  // rate Dec
-  pinMode(ELS_MODE_CYCLE_BUTTON, INPUT_PULLUP);     // mode cycle
-  pinMode(ELS_THREAD_SYNC_BUTTON, INPUT_PULLUP);    // thread sync
-  pinMode(ELS_HALF_NUT_BUTTON, INPUT_PULLUP);       // half nut
-  pinMode(ELS_ENABLE_BUTTON, INPUT_PULLUP);         // enable toggle
-  pinMode(ELS_LOCK_BUTTON, INPUT_PULLUP);           // lock toggle
-  pinMode(ELS_JOG_LEFT_BUTTON, INPUT_PULLUP);       // jog left
-  pinMode(ELS_JOG_RIGHT_BUTTON, INPUT_PULLUP);      // jog right
+  // Platform-specific hardware setup is now handled by platform abstraction
+  // Additional initialization for ESP32 button matrix
+#ifdef ESP32
+  if (platform->getCapabilities().hasButtonMatrix) {
+    auto keyArray = systemContainer->resolve<IKeyArray>();
+    if (keyArray) {
+      keyArray->initPad();
+    }
+  }
 #endif
 
   // Component initialization
@@ -167,33 +137,35 @@ void setup() {
   leadscrew->setTargetPitchMM(GlobalState::getInstance()->getCurrentFeedPitch());
   display->update();
 
+  // Platform-specific timer and task initialization
+  if (platform->getCapabilities().hasDualCore) {
 #ifdef ESP32
-
-  TaskHandle_t spindleTask;
-  TaskHandle_t displayTask;
-  //TaskHandle_t commsTask;
-  xTaskCreatePinnedToCore(SpindleTask, "Spindle", 2048, NULL, 24 | portPRIVILEGE_BIT, &spindleTask, 0);
-  xTaskCreatePinnedToCore(DisplayTask, "Display", 8000, NULL, 1, &displayTask, 1);
-  //xTaskCreatePinnedToCore(comms_loop, "Comms", 16000, NULL, 10, &commsTask, 1);
-  disableLoopWDT();
-  esp_task_wdt_delete(xTaskGetHandle("IDLE0"));
-  esp_task_wdt_delete(xTaskGetHandle("IDLE1"));
-  esp_task_wdt_delete(spindleTask);
-  esp_task_wdt_delete(displayTask);
-  //esp_task_wdt_delete(commsTask);
-
-#else
-  timer.begin(timerCallback, LEADSCREW_TIMER_US);
+    // ESP32 dual-core task setup
+    platform->initializeTaskScheduler();
+    
+    TaskHandle_t spindleTask;
+    TaskHandle_t displayTask;
+    xTaskCreatePinnedToCore(SpindleTask, "Spindle", 2048, NULL, 24 | portPRIVILEGE_BIT, &spindleTask, 0);
+    xTaskCreatePinnedToCore(DisplayTask, "Display", 8000, NULL, 1, &displayTask, 1);
+    
+    esp_task_wdt_delete(spindleTask);
+    esp_task_wdt_delete(displayTask);
 #endif
+  } else {
+    // Single-core timer setup (Teensy)
+    platform->initializeTimer(timerCallback, LEADSCREW_TIMER_US);
+  }
 
   delay(2000);
 
 }
 
 void loop() {
-#ifdef ESP32  
-  vTaskDelay(1000);
-#else
-  displayLoop();
-#endif
+  if (platform->getCapabilities().hasDualCore) {
+    // ESP32: Tasks handle the work, main loop just yields
+    platform->yieldProcessor();
+  } else {
+    // Teensy: Main loop handles display updates
+    displayLoop();
+  }
 }

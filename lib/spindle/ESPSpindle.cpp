@@ -76,4 +76,8 @@ int Spindle::consumePosition() {
   m_unconsumedPosition = 0;
   return position;
 }
+
+uint32_t Spindle::getEstimatedVelocityInPulsesPerSecond() {
+  return static_cast<uint32_t>(getEstimatedVelocityInPPS());
+}
 #endif

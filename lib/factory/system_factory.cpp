@@ -1,15 +1,20 @@
 #include "system_factory.h"
 #include <config.h>
 #include <globalstate.h>
-
-// Platform-specific implementations are in separate files
+#include "../platform/platform_abstraction.h"
 
 std::unique_ptr<DependencyContainer> SystemFactory::createSystem() {
     auto container = std::make_unique<DependencyContainer>();
     
-    // Create components in dependency order
-    auto spindle = createSpindle();
-    auto leadscrewIO = createLeadscrewIO();
+    // Create platform abstraction - this centralizes all platform-specific logic
+    auto platform = PlatformAbstractionFactory::create();
+    
+    // Initialize platform hardware
+    platform->initializeHardware();
+    
+    // Create components using platform abstraction
+    auto spindle = platform->createSpindle();
+    auto leadscrewIO = platform->createLeadscrewIO();
     auto leadscrew = createLeadscrew(spindle.get(), leadscrewIO.get());
     auto display = createDisplay(spindle.get(), leadscrew.get());
     
@@ -17,20 +22,30 @@ std::unique_ptr<DependencyContainer> SystemFactory::createSystem() {
     auto spindlePtr = spindle.get();
     auto leadscrewPtr = leadscrew.get();
     
-#ifdef ESP32
-    // For ESP32, create KeyArray first, then ButtonPad
-    auto keyArray = createKeyArray(leadscrewPtr);
-    auto keyArrayPtr = keyArray.get();
-    auto buttonHandler = createButtonHandler(spindlePtr, leadscrewPtr, keyArrayPtr);
-    auto commsManager = createCommsManager();
+    // Platform-specific component creation
+    std::unique_ptr<IButtonHandler> buttonHandler;
     
-    container->registerSingleton<IKeyArray>(std::move(keyArray));
-    container->registerSingleton<ICommsManager>(std::move(commsManager));
+#ifdef ESP32
+    if (platform->getCapabilities().hasButtonMatrix) {
+        // ESP32 with button matrix
+        auto keyArray = platform->createKeyArray(leadscrewPtr);
+        auto keyArrayPtr = keyArray.get();
+        buttonHandler = createButtonHandler(spindlePtr, leadscrewPtr, keyArrayPtr);
+        
+        auto commsManager = platform->createCommsManager();
+        container->registerSingleton<IKeyArray>(std::move(keyArray));
+        container->registerSingleton<ICommsManager>(std::move(commsManager));
+    } else {
+        // ESP32 without button matrix (fallback)
+        buttonHandler = createButtonHandler(spindlePtr, leadscrewPtr);
+    }
 #else
-    auto buttonHandler = createButtonHandler(spindlePtr, leadscrewPtr);
+    // Teensy with individual buttons
+    buttonHandler = createButtonHandler(spindlePtr, leadscrewPtr);
 #endif
     
-    // Register interfaces with container
+    // Register platform abstraction and all components with container
+    container->registerSingleton<IPlatformAbstraction>(std::move(platform));
     container->registerSingleton<ISpindle>(std::move(spindle));
     container->registerSingleton<LeadscrewIO>(std::move(leadscrewIO));
     container->registerSingleton<ILeadscrew>(std::move(leadscrew));

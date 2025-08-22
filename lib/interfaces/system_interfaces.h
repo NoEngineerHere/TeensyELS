@@ -1,5 +1,8 @@
 #pragma once
 
+// Forward declare platform abstraction
+class IPlatformAbstraction;
+
 /**
  * Core system interfaces for dependency injection
  * These interfaces define the contracts for the main components

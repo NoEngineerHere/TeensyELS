@@ -13,8 +13,8 @@
 #ifndef PIO_UNIT_TESTING
 class Spindle : public RotationalAxis, public ISpindle {
 public:
-    // Explicitly use Axis::getCurrentPosition to resolve ambiguity
-    using Axis::getCurrentPosition;
+    // Override getCurrentPosition to satisfy ISpindle interface
+    int getCurrentPosition() override { return Axis::getCurrentPosition(); }
 private:
     // the unconsumed position is the position that has been read from the encoder
     // but hasn't been used to update the current position of any driven axes
@@ -43,5 +43,6 @@ public:
     int consumePosition();
     float getEstimatedVelocityInRPM();
     float getEstimatedVelocityInPPS();
+    uint32_t getEstimatedVelocityInPulsesPerSecond();
 };
 #endif // PIO_UNIT_TESTING
