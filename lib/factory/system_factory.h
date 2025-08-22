@@ -43,11 +43,21 @@ private:
      */
     static std::unique_ptr<IButtonHandler> createButtonHandler(ISpindle* spindle, ILeadscrew* leadscrew);
     
+    /**
+     * Create command-based button handler (recommended for new implementations)
+     */
+    static std::unique_ptr<IButtonHandler> createCommandButtonHandler(ISpindle* spindle, ILeadscrew* leadscrew);
+    
 #ifdef ESP32
     /**
      * Create ESP32 button handler with KeyArray dependency
      */
     static std::unique_ptr<IButtonHandler> createButtonHandler(ISpindle* spindle, ILeadscrew* leadscrew, IKeyArray* keyArray);
+    
+    /**
+     * Create ESP32 command-based button handler with KeyArray dependency
+     */
+    static std::unique_ptr<IButtonHandler> createCommandButtonHandler(ISpindle* spindle, ILeadscrew* leadscrew, IKeyArray* keyArray);
 #endif
     
 #ifdef ESP32

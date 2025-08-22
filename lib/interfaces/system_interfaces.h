@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 // Forward declare platform abstraction
 class IPlatformAbstraction;
 

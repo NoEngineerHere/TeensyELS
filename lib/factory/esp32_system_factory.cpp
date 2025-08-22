@@ -11,6 +11,7 @@
 #include "../../src/keyarray.h"
 #include "../../src/buttonpad.h"
 #include "../../src/ESPCommsManager.h"
+#include "../commands/command_button_handler.h"
 
 std::unique_ptr<ISpindle> SystemFactory::createSpindle() {
 #ifdef ELS_SPINDLE_DRIVEN
@@ -58,6 +59,14 @@ std::unique_ptr<IButtonHandler> SystemFactory::createButtonHandler(ISpindle* spi
     auto concreteKeyArray = static_cast<KeyArray*>(keyArray);
     
     return std::make_unique<ButtonPad>(concreteSpindle, concreteLeadscrew, concreteKeyArray);
+}
+
+std::unique_ptr<IButtonHandler> SystemFactory::createCommandButtonHandler(ISpindle* spindle, ILeadscrew* leadscrew) {
+    return std::make_unique<CommandButtonHandler>(spindle, leadscrew);
+}
+
+std::unique_ptr<IButtonHandler> SystemFactory::createCommandButtonHandler(ISpindle* spindle, ILeadscrew* leadscrew, IKeyArray* keyArray) {
+    return std::make_unique<ESP32CommandButtonHandler>(spindle, leadscrew, keyArray);
 }
 
 std::unique_ptr<IKeyArray> SystemFactory::createKeyArray(ILeadscrew* leadscrew) {

@@ -5,7 +5,10 @@
 #include <leadscrew.h>
 #include <display.h>
 #include <leadscrew_io_teensy.h>
-#include "../../src/buttons.h"
+#include "../commands/command_button_handler.h"
+
+// Forward declare the ButtonHandler for legacy support
+class ButtonHandler;
 
 #ifndef ESP32
 
@@ -45,11 +48,12 @@ std::unique_ptr<IDisplay> SystemFactory::createDisplay(ISpindle* spindle, ILeads
 }
 
 std::unique_ptr<IButtonHandler> SystemFactory::createButtonHandler(ISpindle* spindle, ILeadscrew* leadscrew) {
-    // Cast to concrete types for constructor compatibility
-    auto concreteSpindle = static_cast<Spindle*>(spindle);
-    auto concreteLeadscrew = static_cast<Leadscrew*>(leadscrew);
-    
-    return std::make_unique<ButtonHandler>(concreteSpindle, concreteLeadscrew);
+    // Legacy button handler - temporarily return command-based handler
+    return createCommandButtonHandler(spindle, leadscrew);
+}
+
+std::unique_ptr<IButtonHandler> SystemFactory::createCommandButtonHandler(ISpindle* spindle, ILeadscrew* leadscrew) {
+    return std::make_unique<CommandButtonHandler>(spindle, leadscrew);
 }
 
 #endif // !ESP32

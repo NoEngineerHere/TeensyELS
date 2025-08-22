@@ -59,6 +59,9 @@ enum class LeadscrewSpindleSyncPositionState { LEFT, RIGHT, UNSET };
 
 
 class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis, public ILeadscrew {
+public:
+    // Override getCurrentPosition to satisfy ILeadscrew interface
+    int getCurrentPosition() override { return Axis::getCurrentPosition(); }
 private:
 
 #ifdef ELS_USE_RMT
