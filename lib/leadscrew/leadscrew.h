@@ -4,6 +4,7 @@
 #include <spindle.h>
 #endif
 #include <axis.h>
+#include "../interfaces/system_interfaces.h"
 #ifdef PIO_UNIT_TESTING
 #include "../../test/arduino_test_mock.h"
 #else
@@ -57,7 +58,7 @@ enum class LeadscrewDirection { LEFT = -1, RIGHT = 1, UNKNOWN = 0 };
 enum class LeadscrewSpindleSyncPositionState { LEFT, RIGHT, UNSET };
 
 
-class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
+class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis, public ILeadscrew {
 private:
 
 #ifdef ELS_USE_RMT

@@ -112,8 +112,12 @@
 #define SSD1306_128_64 0
 #define ST7789_240_135 1
 
+// Platform-specific display selection
+#ifdef ESP32
 #define ELS_DISPLAY ST7789_240_135
-//#define ELS_DISPLAY SSD1306_128_64
+#else
+#define ELS_DISPLAY SSD1306_128_64
+#endif
 
 #if ELS_DISPLAY == SSD1306_128_64
  // define this if you have a dedicated pin for the oled reset

@@ -10,11 +10,12 @@
 #include "SECRETS.h"
 #include <HTTPClient.h>
 #include <HttpsOTAUpdate.h>
+#include "../lib/interfaces/system_interfaces.h"
 
 
 #define CHECK_SUFFIX(subject, suffix) strcmp(&(subject[strlen(subject) - sizeof(suffix) + 1]), suffix) == 0
 
-class ESPCommsManager {
+class ESPCommsManager : public ICommsManager {
 private:
     const char* server_certificate = "";
     bool updating = false;

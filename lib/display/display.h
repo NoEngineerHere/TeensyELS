@@ -3,6 +3,7 @@
 #include <globalstate.h>
 #include <leadscrew.h>
 #include <spindle.h>
+#include "../interfaces/system_interfaces.h"
 
 
 #if ELS_DISPLAY == SSD1306_128_64
@@ -16,7 +17,9 @@
 #include <Adafruit_SSD1306.h>
 
 #elif  ELS_DISPLAY == ST7789_240_135
+#ifdef ESP32
 #include <TFT_eSPI.h>
+#endif
 #include <SPI.h>
 #else
 
@@ -24,7 +27,7 @@
 
 #endif
 
-class Display {
+class Display : public IDisplay {
 private:
   Spindle* m_spindle;
   Leadscrew* m_leadscrew;

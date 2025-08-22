@@ -6,6 +6,7 @@
 #include <leadscrew.h>
 #include <spindle.h>
 #include <ESP32Encoder.h>
+#include "../lib/interfaces/system_interfaces.h"
 
 void buttonInterrupt();
 void IRAM_ATTR timerInterrupt();
@@ -17,7 +18,7 @@ typedef struct buttonInfo {
     int buttonState;
 } ButtonInfo;
 
-class KeyArray {
+class KeyArray : public IKeyArray {
 private:
     Leadscrew* m_leadscrew;
     volatile ButtonInfo buttonState;

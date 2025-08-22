@@ -1,11 +1,12 @@
 #include <AbleButtons.h>
 #include <leadscrew.h>
 #include <spindle.h>
+#include "../lib/interfaces/system_interfaces.h"
 
 using Button = AblePullupDoubleClickerButton;
 using ButtonList = AblePullupDoubleClickerButtonList;
 
-class ButtonHandler {
+class ButtonHandler : public IButtonHandler {
  private:
   Spindle *m_spindle;
   Leadscrew *m_leadscrew;

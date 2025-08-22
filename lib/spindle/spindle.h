@@ -6,11 +6,15 @@
 #endif
 #endif
 #include <axis.h>
+#include "../interfaces/system_interfaces.h"
 
 #pragma once
 
 #ifndef PIO_UNIT_TESTING
-class Spindle : public RotationalAxis {
+class Spindle : public RotationalAxis, public ISpindle {
+public:
+    // Explicitly use Axis::getCurrentPosition to resolve ambiguity
+    using Axis::getCurrentPosition;
 private:
     // the unconsumed position is the position that has been read from the encoder
     // but hasn't been used to update the current position of any driven axes

@@ -2,8 +2,9 @@
 #include <leadscrew.h>
 #include <spindle.h>
 #include <keyarray.h>
+#include "../lib/interfaces/system_interfaces.h"
 
-class ButtonPad {
+class ButtonPad : public IButtonHandler {
  private:
   Spindle *m_spindle;
   Leadscrew *m_leadscrew;

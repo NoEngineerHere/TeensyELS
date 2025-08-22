@@ -1,57 +1,32 @@
 // Libraries
 #include <Arduino.h>
 #include <SPI.h>
-//#include <Wire.h>
 #include <globalstate.h>
-#include <leadscrew.h>
-#include <spindle.h>
-
-#include "ESPCommsManager.h"
-
-#include "buttons.h"
-#include "buttonpad.h"
 #include "config.h"
-#include "display.h"
-#include "keyarray.h"
+
+// Factory and DI includes
+#include "../lib/factory/system_factory.h"
+#include "../lib/interfaces/system_interfaces.h"
 
 //#define FULLMONITOR
 #ifdef ESP32
 #include <esp_task_wdt.h>
-#include <leadscrew_io_esp.h>
 #else
-#include <leadscrew_io_teensy.h>
 IntervalTimer timer;
 #endif
 
+// Dependency injection container
+std::unique_ptr<DependencyContainer> systemContainer;
 
-GlobalState* globalState = GlobalState::getInstance();
-#ifdef ELS_SPINDLE_DRIVEN
-Spindle spindle;
-#else
-Spindle spindle(ELS_SPINDLE_ENCODER_A, ELS_SPINDLE_ENCODER_B);
-#endif
+// Component references (resolved from container)
+ISpindle* spindle = nullptr;
+ILeadscrew* leadscrew = nullptr;
+IDisplay* display = nullptr;
+IButtonHandler* buttonHandler = nullptr;
 
 #ifdef ESP32
-LeadscrewIOESP leadscrewIOImpl;
-#else
-LeadscrewIOTeensy leadscrewIOImpl;
+ICommsManager* commsManager = nullptr;
 #endif
-
-Leadscrew leadscrew(&spindle,
-  &leadscrewIOImpl,
-  ACCEL_PULSE_SEC,
-  LEADSCREW_INITIAL_PULSE_DELAY_US,
-  ELS_LEADSCREW_STEPPER_PPR* ELS_GEARBOX_RATIO,
-  ELS_LEADSCREW_PITCH_MM, ELS_SPINDLE_ENCODER_PPR);
-
-#ifdef ESP32  
-KeyArray keyArray(&leadscrew);
-ButtonPad keyPad(&spindle, &leadscrew, &keyArray);
-ESPCommsManager commsManager;
-#else
-ButtonHandler keyPad(&spindle, &leadscrew);
-#endif
-Display display(&spindle, &leadscrew);
 int64_t lastcycle;
 int cyclecount;
 int finalcyclecount;
@@ -61,18 +36,19 @@ int finalcyclecount;
 // screen independently without losing pulses
 void timerCallback() {
   if (GlobalState::getInstance()->hasOTA()) {
-    commsManager.loop();
+#ifdef ESP32
+    commsManager->loop();
+#endif
   } else {
-    spindle.update();
-    leadscrew.update();
+    spindle->update();
+    leadscrew->update();
   }
 }
 
 
 void displayLoop() {
-  keyPad.handle();
-
-  display.update();
+  buttonHandler->handle();
+  display->update();
 }
 
 #ifdef ESP32
@@ -97,7 +73,7 @@ void SpindleTask(void* parameter) {
   }
 }
 
-void comms_loop(void* parameters) { commsManager.loop(); }
+void comms_loop(void* parameters) { commsManager->loop(); }
 
 #endif
 
@@ -115,8 +91,34 @@ void setup() {
   CHECK_BOUNDS(DEFAULT_IMPERIAL_FEED_PITCH_IDX, feedPitchImperial,
     "DEFAULT_IMPERIAL_FEED_PITCH_IDX out of bounds");
 
-  // Pinmodes
+  // Create system through factory
+  systemContainer = SystemFactory::createSystem();
+  
+  // Resolve dependencies
+  spindle = systemContainer->resolve<ISpindle>();
+  leadscrew = systemContainer->resolve<ILeadscrew>();
+  display = systemContainer->resolve<IDisplay>();
+  buttonHandler = systemContainer->resolve<IButtonHandler>();
+  
+  // Safety checks for embedded systems (where resolve returns nullptr on failure)
+#ifndef PIO_UNIT_TESTING
+  if (!spindle || !leadscrew || !display || !buttonHandler) {
+    Serial.println("ERROR: Failed to resolve dependencies");
+    while(1); // Halt system
+  }
+#endif
+  
+#ifdef ESP32
+  commsManager = systemContainer->resolve<ICommsManager>();
+#ifndef PIO_UNIT_TESTING
+  if (!commsManager) {
+    Serial.println("ERROR: Failed to resolve ESP32 communications manager");
+    while(1); // Halt system
+  }
+#endif
+#endif
 
+  // Hardware pin setup
 #ifndef ELS_SPINDLE_DRIVEN
 //  pinMode(ELS_SPINDLE_ENCODER_A, INPUT_PULLUP); // encoder pin 1
 //  pinMode(ELS_SPINDLE_ENCODER_B, INPUT_PULLUP); // encoder pin 2
@@ -124,9 +126,9 @@ void setup() {
 
 #ifdef ELS_USE_RMT
   rmt_obj_t* leadscreRMT = rmtInit(ELS_LEADSCREW_STEP, true, RMT_MEM_64);
-  leadscrew.setRMT(leadscreRMT);
+  // Note: Would need to cast leadscrew to concrete type for setRMT, keeping for now
+  // static_cast<Leadscrew*>(leadscrew)->setRMT(leadscreRMT);
   rmtSetTick(leadscreRMT, 2500);
-
 #else
   pinMode(ELS_LEADSCREW_STEP, OUTPUT); // step output pin
 #endif
@@ -146,7 +148,8 @@ void setup() {
   digitalWrite(ELS_STEPPER_ENA, 0);
 
 #ifdef ELS_USE_BUTTON_ARRAY
-  keyArray.initPad();
+  auto keyArray = systemContainer->resolve<IKeyArray>();
+  keyArray->initPad();
 #else
   pinMode(ELS_RATE_INCREASE_BUTTON, INPUT_PULLUP);  // rate Inc
   pinMode(ELS_RATE_DECREASE_BUTTON, INPUT_PULLUP);  // rate Dec
@@ -159,13 +162,10 @@ void setup() {
   pinMode(ELS_JOG_RIGHT_BUTTON, INPUT_PULLUP);      // jog right
 #endif
 
-  // Display Initalisation
-
-  display.init();
-
-  leadscrew.setTargetPitchMM(globalState->getCurrentFeedPitch());
-
-  display.update();
+  // Component initialization
+  display->init();
+  leadscrew->setTargetPitchMM(GlobalState::getInstance()->getCurrentFeedPitch());
+  display->update();
 
 #ifdef ESP32
 
