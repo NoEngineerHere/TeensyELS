@@ -54,7 +54,7 @@ TEST_F(DependencyInjectionTest, CanRegisterAndResolveSpindle) {
     auto spindlePtr = mockSpindle.get();
     
     // Act
-    container->registerSingleton<ISpindle>(std::move(mockSpindle));
+    container->registerInstance<ISpindle>(std::move(mockSpindle));
     auto resolved = container->resolve<ISpindle>();
     
     // Assert
@@ -68,7 +68,7 @@ TEST_F(DependencyInjectionTest, CanRegisterAndResolveLeadscrew) {
     auto leadscrewPtr = mockLeadscrew.get();
     
     // Act
-    container->registerSingleton<ILeadscrew>(std::move(mockLeadscrew));
+    container->registerInstance<ILeadscrew>(std::move(mockLeadscrew));
     auto resolved = container->resolve<ILeadscrew>();
     
     // Assert
@@ -82,7 +82,7 @@ TEST_F(DependencyInjectionTest, CanRegisterAndResolveDisplay) {
     auto displayPtr = mockDisplay.get();
     
     // Act
-    container->registerSingleton<IDisplay>(std::move(mockDisplay));
+    container->registerInstance<IDisplay>(std::move(mockDisplay));
     auto resolved = container->resolve<IDisplay>();
     
     // Assert
@@ -107,9 +107,9 @@ TEST_F(DependencyInjectionTest, CanRegisterMultipleComponents) {
     auto displayPtr = mockDisplay.get();
     
     // Act
-    container->registerSingleton<ISpindle>(std::move(mockSpindle));
-    container->registerSingleton<ILeadscrew>(std::move(mockLeadscrew));
-    container->registerSingleton<IDisplay>(std::move(mockDisplay));
+    container->registerInstance<ISpindle>(std::move(mockSpindle));
+    container->registerInstance<ILeadscrew>(std::move(mockLeadscrew));
+    container->registerInstance<IDisplay>(std::move(mockDisplay));
     
     // Assert
     EXPECT_EQ(container->resolve<ISpindle>(), spindlePtr);
@@ -131,8 +131,8 @@ TEST_F(DependencyInjectionTest, ComponentsCanInteractThroughInterfaces) {
     EXPECT_CALL(*mockLeadscrew, update()).Times(1);
     EXPECT_CALL(*mockSpindle, consumePosition()).WillOnce(::testing::Return(100));
     
-    container->registerSingleton<ISpindle>(std::move(mockSpindle));
-    container->registerSingleton<ILeadscrew>(std::move(mockLeadscrew));
+    container->registerInstance<ISpindle>(std::move(mockSpindle));
+    container->registerInstance<ILeadscrew>(std::move(mockLeadscrew));
     
     // Act - Simulate timer callback behavior
     auto spindle = container->resolve<ISpindle>();
@@ -160,9 +160,9 @@ protected:
         leadscrewMock = mockLeadscrew.get();
         displayMock = mockDisplay.get();
         
-        container->registerSingleton<ISpindle>(std::move(mockSpindle));
-        container->registerSingleton<ILeadscrew>(std::move(mockLeadscrew));
-        container->registerSingleton<IDisplay>(std::move(mockDisplay));
+        container->registerInstance<ISpindle>(std::move(mockSpindle));
+        container->registerInstance<ILeadscrew>(std::move(mockLeadscrew));
+        container->registerInstance<IDisplay>(std::move(mockDisplay));
     }
 
     std::unique_ptr<DependencyContainer> container;

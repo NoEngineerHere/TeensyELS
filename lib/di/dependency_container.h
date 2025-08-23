@@ -29,12 +29,7 @@ namespace std {
 
 // Simple compile-time string hash (FNV-1a)
 constexpr size_t hash_string(const char* str) {
-    size_t hash = 2166136261u;
-    while (*str) {
-        hash ^= static_cast<size_t>(*str++);
-        hash *= 16777619u;
-    }
-    return hash;
+    return *str ? (hash_string(str + 1) ^ static_cast<size_t>(*str)) * 16777619u : 2166136261u;
 }
 
 template<typename T>
@@ -60,7 +55,7 @@ TypeKey getTypeKey() {
  * Uses compile-time type identification to work without RTTI on embedded systems
  */
 class DependencyContainer {
-private:
+protected:
     std::unordered_map<TypeKey, std::shared_ptr<void>> m_instances;
     
 public:
@@ -78,7 +73,7 @@ public:
      * @param instance The instance to register
      */
     template<typename T>
-    void registerSingleton(std::unique_ptr<T> instance) {
+    void registerInstance(std::unique_ptr<T> instance) {
         registerSingleton(std::shared_ptr<T>(instance.release()));
     }
     
@@ -111,7 +106,12 @@ public:
     /**
      * Clear all registered instances
      */
-    void clear() {
+    virtual void clear() {
         m_instances.clear();
     }
+    
+    /**
+     * Virtual destructor for proper inheritance
+     */
+    virtual ~DependencyContainer() = default;
 };

@@ -17,7 +17,7 @@ IntervalTimer timer;
 #endif
 
 // Dependency injection container
-std::unique_ptr<DependencyContainer> systemContainer;
+std::unique_ptr<EnhancedDependencyContainer> systemContainer;
 
 // Component references (resolved from container)
 IPlatformAbstraction* platform = nullptr;

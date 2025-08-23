@@ -62,7 +62,11 @@ private:
     bool readButtonPin(int pin);
     
 public:
+    // Legacy constructor for backward compatibility
     CommandButtonHandler(ISpindle* spindle, ILeadscrew* leadscrew);
+    
+    // DI-aware constructor
+    CommandButtonHandler(class DependencyContainer* container);
     
     // IButtonHandler interface
     void handle() override;
@@ -82,7 +86,11 @@ private:
     IKeyArray* m_keyArray;
     
 public:
+    // Legacy constructor for backward compatibility
     ESP32CommandButtonHandler(ISpindle* spindle, ILeadscrew* leadscrew, IKeyArray* keyArray);
+    
+    // DI-aware constructor
+    ESP32CommandButtonHandler(class DependencyContainer* container);
     
     void handle() override;
 };

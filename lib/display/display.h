@@ -5,6 +5,9 @@
 #include <spindle.h>
 #include "../interfaces/system_interfaces.h"
 
+// Forward declare for DI constructor
+class DependencyContainer;
+
 
 #if ELS_DISPLAY == SSD1306_128_64
 
@@ -52,6 +55,7 @@ public:
 #elif ELS_DISPLAY == ST7789_240_135
   TFT_eSPI tft = TFT_eSPI();
 #endif
+  // Legacy constructor for backward compatibility
   Display(Spindle* spindle, Leadscrew* leadscrew) {
     this->m_spindle = spindle;
     this->m_leadscrew = leadscrew;
@@ -62,6 +66,9 @@ public:
 #elif ELS_DISPLAY == ST7789_240_135
 #endif
   }
+  
+  // DI-aware constructor - declared here, implemented in source file
+  Display(class DependencyContainer* container);
 
   void init();
   void update();

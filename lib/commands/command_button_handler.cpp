@@ -1,5 +1,6 @@
 #include "command_button_handler.h"
 #include "../platform/platform_abstraction.h"
+#include "../di/dependency_container.h"
 #include <config.h>
 #include <globalstate.h>
 
@@ -11,6 +12,10 @@
 
 CommandButtonHandler::CommandButtonHandler(ISpindle* spindle, ILeadscrew* leadscrew)
     : m_spindle(spindle), m_leadscrew(leadscrew) {
+}
+
+CommandButtonHandler::CommandButtonHandler(DependencyContainer* container)
+    : m_spindle(container->resolve<ISpindle>()), m_leadscrew(container->resolve<ILeadscrew>()) {
 }
 
 void CommandButtonHandler::handle() {
@@ -96,6 +101,10 @@ bool CommandButtonHandler::readButtonPin(int pin) {
 #ifdef ESP32
 ESP32CommandButtonHandler::ESP32CommandButtonHandler(ISpindle* spindle, ILeadscrew* leadscrew, IKeyArray* keyArray)
     : CommandButtonHandler(spindle, leadscrew), m_keyArray(keyArray) {
+}
+
+ESP32CommandButtonHandler::ESP32CommandButtonHandler(DependencyContainer* container)
+    : CommandButtonHandler(container), m_keyArray(container->resolve<IKeyArray>()) {
 }
 
 void ESP32CommandButtonHandler::handle() {

@@ -119,6 +119,9 @@ public:
     float leadscrewAccel, float initialPulseDelay, 
     int motorPulsePerRevolution,
     float leadscrewPitch, int encoderPPR);
+    
+  // DI-aware constructor
+  Leadscrew(class DependencyContainer* container, const LeadscrewConfig& config = LeadscrewConfig());
   #ifdef ELS_USE_RMT
   void setRMT(rmt_obj_t *rmtObj){
     this->rmtObj = rmtObj;

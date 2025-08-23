@@ -2,6 +2,7 @@
 
 #if ELS_DISPLAY == SSD1306_128_64
 #include <globalstate.h>
+#include "../di/dependency_container.h"
 // Images
 #include <icons/feedSymbol.h>
 #include <icons/lockedSymbol.h>
@@ -10,6 +11,13 @@
 #include <icons/threadSymbol.h>
 #include <icons/unlockedSymbol.h>
 
+// DI-aware constructor implementation
+Display::Display(DependencyContainer* container) {
+    this->m_spindle = static_cast<Spindle*>(container->resolve<ISpindle>());
+    this->m_leadscrew = static_cast<Leadscrew*>(container->resolve<ILeadscrew>());
+    this->m_globalState = GlobalState::getInstance();
+    this->m_ssd1306 = Adafruit_SSD1306(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, PIN_DISPLAY_RESET);
+}
 
 void Display::init() {
   if (!this->m_ssd1306.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {

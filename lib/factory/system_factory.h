@@ -1,7 +1,7 @@
 #pragma once
 
 #include <memory>
-#include "../di/dependency_container.h"
+#include "../di/enhanced_dependency_container.h"
 #include "../interfaces/system_interfaces.h"
 #include "leadscrew_io.h"
 
@@ -13,9 +13,15 @@ class SystemFactory {
 public:
     /**
      * Create a fully configured system with all dependencies wired
-     * @return Container with all system components registered
+     * @return Enhanced container with all system components registered
      */
-    static std::unique_ptr<DependencyContainer> createSystem();
+    static std::unique_ptr<EnhancedDependencyContainer> createSystem();
+    
+    /**
+     * Legacy system creation (deprecated - use createSystem instead)
+     * @return Basic container with manual dependency wiring
+     */
+    static std::unique_ptr<DependencyContainer> createSystemLegacy();
     
 private:
     /**

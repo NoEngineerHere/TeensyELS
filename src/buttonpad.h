@@ -1,7 +1,7 @@
 #ifdef ELS_USE_BUTTON_ARRAY
 #include <leadscrew.h>
 #include <spindle.h>
-#include <keyarray.h>
+#include "keyarray.h"
 #include "../lib/interfaces/system_interfaces.h"
 
 class ButtonPad : public IButtonHandler {

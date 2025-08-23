@@ -31,8 +31,8 @@ protected:
         ioMockPtr = ioMock.get();
         
         // Register with container
-        container->registerSingleton<ISpindle>(std::move(spindle));
-        container->registerSingleton<LeadscrewIO>(std::move(ioMock));
+        container->registerInstance<ISpindle>(std::move(spindle));
+        container->registerInstance<LeadscrewIO>(std::move(ioMock));
         
         // Create leadscrew with dependencies from container
         auto leadscrew = std::make_unique<Leadscrew>(
@@ -42,7 +42,7 @@ protected:
         );
         
         leadscrewPtr = leadscrew.get();
-        container->registerSingleton<ILeadscrew>(std::move(leadscrew));
+        container->registerInstance<ILeadscrew>(std::move(leadscrew));
     }
 
     std::unique_ptr<DependencyContainer> container;
@@ -148,8 +148,8 @@ protected:
         
         ioMockPtr = mockIO.get();
         
-        container->registerSingleton<ISpindle>(std::move(mockSpindle));
-        container->registerSingleton<LeadscrewIO>(std::move(mockIO));
+        container->registerInstance<ISpindle>(std::move(mockSpindle));
+        container->registerInstance<LeadscrewIO>(std::move(mockIO));
     }
 
     std::unique_ptr<DependencyContainer> container;

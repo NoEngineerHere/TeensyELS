@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <algorithm>
 #include "leadscrew_io.h"
+#include "../di/dependency_container.h"
 using namespace std;
 
 /**
@@ -21,6 +22,12 @@ using namespace std;
 Leadscrew::Leadscrew(Spindle* spindle, LeadscrewIO* io, const LeadscrewConfig& config)
   : Leadscrew(spindle, io, config.accel, config.initialPulseDelay,
               config.motorPulsePerRevolution, config.pitch, config.encoderPPR) {
+}
+
+// DI-aware constructor
+Leadscrew::Leadscrew(DependencyContainer* container, const LeadscrewConfig& config)
+  : Leadscrew(static_cast<Spindle*>(container->resolve<ISpindle>()), 
+              container->resolve<LeadscrewIO>(), config) {
 }
 
 // Legacy constructor for backward compatibility

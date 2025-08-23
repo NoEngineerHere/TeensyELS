@@ -3,6 +3,7 @@
 #if ELS_DISPLAY == ST7789_240_135
 #include <display.h>
 #include <globalstate.h>
+#include "../di/dependency_container.h"
 // Images
 #include <icons/feedSymbol.h>
 #include <icons/lockedSymbol.h>
@@ -37,6 +38,13 @@ void ScaleBMP(const uint8_t source[], uint8_t dest[], int sizex, int sizey) {
     fillDest(source, dest, i * bytesx, i * bytesx * 4, bytesx);
     fillDest(source, dest, i * bytesx, (bytesx * 2) + (i * bytesx * 4), bytesx);
   }
+}
+
+// DI-aware constructor implementation  
+Display::Display(DependencyContainer* container) {
+    this->m_spindle = static_cast<Spindle*>(container->resolve<ISpindle>());
+    this->m_leadscrew = static_cast<Leadscrew*>(container->resolve<ILeadscrew>());
+    this->m_globalState = GlobalState::getInstance();
 }
 
 void Display::init() {
