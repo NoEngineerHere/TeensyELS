@@ -1,6 +1,8 @@
+#include <config.h>
+#if !defined(PIO_UNIT_TESTING) && ELS_DISPLAY == ELS_SSD1306_128_64
 #include <display.h>
-
-#if ELS_DISPLAY == SSD1306_128_64
+#include <rpm_format.h>
+#include <boot_diagnostics.h>
 #include <globalstate.h>
 // Images
 #include <icons/feedSymbol.h>
@@ -11,15 +13,25 @@
 #include <icons/unlockedSymbol.h>
 
 
-void Display::init() {
-  if (!this->m_ssd1306.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
-    Serial.println(F("SSD1306 allocation failed"));
-    for (;;);
-  }
+bool Display::init() {
+  m_failed = !m_ssd1306.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS);
+  if (m_failed) { m_leadscrew->setFaultInhibit(true); return false; }
   m_ssd1306.clearDisplay();
+  return true;
+}
+
+void Display::showBootStatus(bool fault) {
+  if (m_failed) return;
+  m_ssd1306.clearDisplay();
+  m_ssd1306.setCursor(0, 16);
+  m_ssd1306.setTextSize(1);
+  m_ssd1306.setTextColor(WHITE);
+  m_ssd1306.print(fault ? "BOOT / FAULT" : "BOOT / LOCKED");
+  m_ssd1306.display();
 }
 
 void Display::update() {
+  if (m_failed) return;
   m_ssd1306.clearDisplay();
 
   int bytes = GlobalState::getInstance()->getOTABytes();
@@ -43,9 +55,8 @@ void Display::update() {
 }
 
 void Display::drawSpindleRpm() {
-  int rpm = m_spindle->getEstimatedVelocityInRPM();
-  char rpmString[10];
-  sprintf(rpmString, "%4dRPM", rpm);
+  char rpmString[8];
+  formatRpm(m_spindle->getEstimatedVelocityInRPM(), rpmString);
   m_ssd1306.setCursor(0, 0);
   m_ssd1306.setTextSize(1);
   m_ssd1306.setTextColor(WHITE);

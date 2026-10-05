@@ -1,151 +1,71 @@
-#ifndef PIO_UNIT_TESTING
-#define PIO_UNIT_TESTING  // for intellisense to pick up the MicrosSingleton etc
-                          // classes
-#endif
-
-#include <cmath>
-#include <cstdint>
-#include <cstdio>
-
-
-#include <config.h>
+#include <gtest/gtest.h>
+#include <clock.h>
 #include <globalstate.h>
-#include <gmock/gmock.h>
-#include "TestSpindle.h"
 #include <leadscrew.h>
-
-#include <cstdint>
-#include <vector>
-
-using std::vector;
-
-#include "mocks/axis_mock.h"
 #include "mocks/leadscrewio_mock.h"
 
-struct position {
-  unsigned long micros;
-  int leadscrewPosition;
+class PositionTest : public testing::Test {
+protected:
+  void SetUp() override {
+    setTestMicros(0);
+    auto* state = GlobalState::getInstance();
+    state->setUnitMode(DEFAULT_UNIT_MODE);
+    state->setFeedMode(DEFAULT_FEED_MODE);
+    state->setFeedSelect(-1);
+    state->setMotionMode(MM_DISABLED);
+    state->setThreadSyncState(SS_UNSYNC);
+    state->setButtonLock(LK_LOCKED);
+    state->clearOTA();
+  }
 };
 
-unsigned long roundUp(unsigned long numToRound, unsigned long multiple) {
-  assert(multiple);
-  return ((numToRound + multiple - 1) / multiple) * multiple;
+TEST_F(PositionTest, SignedDeltaIsConsumedExactlyOnce) {
+  Spindle spindle;
+  spindle.incrementCurrentPosition(321);
+  spindle.incrementCurrentPosition(-100);
+  EXPECT_EQ(spindle.consumePosition(), 221);
+  EXPECT_EQ(spindle.consumePosition(), 0);
+  spindle.incrementCurrentPosition(-500);
+  EXPECT_EQ(spindle.consumePosition(), -500);
+  EXPECT_EQ(spindle.consumePosition(), 0);
 }
 
-TEST(PositionTest, TestInitialPulseDelay) {
-  MicrosSingleton& micros = MicrosSingleton::getInstance();
-  GlobalState* globalState = GlobalState::getInstance();
-
-  LeadscrewIOMock leadscrewIOMock;
+TEST_F(PositionTest, DisabledDiscardsEncoderMovement) {
   Spindle spindle;
-
-  Leadscrew leadscrew(&spindle, &leadscrewIOMock, 100, 0.1, 100, 1, 1);
-  // test data
-  // define the time and the expected position of the leadscrew
-
-  globalState->setMotionMode(GlobalMotionMode::MM_ENABLED);
-  spindle.setCurrentPosition(100);
-
-  vector<position> expectedStepPositions = {
-      {0, 0},                  // initial position
-      {100 + 20, 1},           // first step after initial delay + step time
-      {100 + 20 + 90 + 20, 2}  // second step with accel math
-  };
-
-  // find the max time in the expectedStepPositions
-  unsigned long maxTime = 0;
-  for (auto& step : expectedStepPositions) {
-    if (step.micros > maxTime) {
-      maxTime = step.micros;
-    }
+  LeadscrewIOMock io;
+  Leadscrew screw(&spindle, &io, 1000, 100, 800, 2.54, 1200);
+  ASSERT_TRUE(screw.initializeOutputs());
+  screw.setFaultInhibit(false);
+  for (uint32_t t = 4; t <= 20000; t += 4) {
+    setTestMicros(t);
+    spindle.incrementCurrentPosition(-1);
+    screw.update();
   }
-  maxTime += 10;  // add a little extra time to make sure the test runs long
-                    // enough
-
-  printf("maxTime: %lu\n", maxTime);
-
-  while (micros.micros() < maxTime) {
-    micros.incrementMicros(LEADSCREW_TIMER_US);
-    leadscrew.update();
-
-    // assert when the time matches the expected position
-    for (auto& step : expectedStepPositions) {
-      if (step.micros == micros.micros()) {
-        ASSERT_EQ(leadscrew.getCurrentPosition(), step.leadscrewPosition);
-        break;
-      }
-      // if we're not at a set value in the position list, we should be at the
-      // one immediately previous defined by the time find the previous position
-      // based on the time
-      position* previousPosition = &expectedStepPositions[0];
-      for (auto& step : expectedStepPositions) {
-        if (step.micros > micros.micros()) {
-          break;
-        }
-        previousPosition = &step;
-      }
-      ASSERT_EQ(leadscrew.getCurrentPosition(),
-                previousPosition->leadscrewPosition);
-    }
-  }
+  EXPECT_EQ(screw.getCurrentPosition(), 0);
+  EXPECT_EQ(screw.getPositionError(), 0);
+  EXPECT_EQ(io.readStepPin(), 0);
+  EXPECT_EQ(spindle.consumePosition(), 0);
 }
 
-TEST(PositionTest, TestAccumulator) {
-  MicrosSingleton& micros = MicrosSingleton::getInstance();
-  GlobalState* globalState = GlobalState::getInstance();
-  LeadscrewIOMock leadscrewIOMock;
-  Spindle spindle;
-  // no accel - only positioning
-  Leadscrew leadscrew(&spindle, &leadscrewIOMock, 0, 0, 100, 1, 1);
-  // test data
-  // define the time and the expected position of the leadscrew
-
-  globalState->setMotionMode(GlobalMotionMode::MM_ENABLED);
-  leadscrew.setTargetPitchMM(6);
-
-  spindle.setCurrentPosition(1);
-
-  // 6
-  micros.incrementMicros(LEADSCREW_TIMER_US);
-  leadscrew.update();
-  micros.incrementMicros(LEADSCREW_TIMER_US);
-  leadscrew.update();
-  ASSERT_EQ(leadscrew.getCurrentPosition(), 0);
-
-  // acc: 5
-  micros.incrementMicros(LEADSCREW_TIMER_US);
-  leadscrew.update();
-  micros.incrementMicros(LEADSCREW_TIMER_US);
-  leadscrew.update();
-  // 4
-  ASSERT_EQ(leadscrew.getCurrentPosition(), 0);
-
-  micros.incrementMicros(LEADSCREW_TIMER_US);
-  leadscrew.update();
-  micros.incrementMicros(LEADSCREW_TIMER_US);
-  leadscrew.update();
-  // 3
-  ASSERT_EQ(leadscrew.getCurrentPosition(), 0);
-
-  micros.incrementMicros(LEADSCREW_TIMER_US);
-  leadscrew.update();
-  micros.incrementMicros(LEADSCREW_TIMER_US);
-  leadscrew.update();
-  // 2
-  ASSERT_EQ(leadscrew.getCurrentPosition(), 0);
-
-  micros.incrementMicros(LEADSCREW_TIMER_US);
-  leadscrew.update();
-  micros.incrementMicros(LEADSCREW_TIMER_US);
-  leadscrew.update();
-  // 1
-  ASSERT_EQ(leadscrew.getCurrentPosition(), 0);
-
-  micros.incrementMicros(LEADSCREW_TIMER_US);
-  leadscrew.update();
-  micros.incrementMicros(LEADSCREW_TIMER_US);
-  leadscrew.update();
-  // 0
-  // position should be 1
-  ASSERT_EQ(leadscrew.getCurrentPosition(), 1);
+TEST_F(PositionTest, PitchProducesSignedCompletedPulseDisplacement) {
+  for (int direction : {-1, 1}) {
+    setTestMicros(0);
+    GlobalState::getInstance()->setMotionMode(MM_DISABLED);
+    Spindle spindle;
+    LeadscrewIOMock io;
+    Leadscrew screw(&spindle, &io, 1000, 100, 800, 2.54, 1200);
+    ASSERT_TRUE(screw.initializeOutputs());
+    screw.setFaultInhibit(false);
+    screw.setTargetPitchMM(1.27); // 400 completed steps per spindle revolution.
+    GlobalState::getInstance()->setMotionMode(MM_ENABLED);
+    screw.update(); // Accept explicit re-arm before introducing fresh spindle movement.
+    spindle.incrementCurrentPosition(direction * 1200);
+    for (uint32_t t = 4; t <= 100000; t += 4) {
+      setTestMicros(t);
+      screw.update();
+    }
+    EXPECT_EQ(screw.getCurrentPosition(), direction * 400);
+    EXPECT_EQ(io.readStepPin(), 0);
+    EXPECT_EQ(io.readDirPin(), direction > 0 ? ELS_DIR_RIGHT : ELS_DIR_LEFT);
+  }
 }

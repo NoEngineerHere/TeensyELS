@@ -39,8 +39,8 @@
 #endif
 #endif
 
+#ifdef ESP32
 #define ELS_UI_ENCODER
-#ifdef ELS_UI_ENCODER
 #define ELS_UI_ENCODER_A 38  
 #define ELS_UI_ENCODER_B 39  
 #define ELS_IND_RED 22   
@@ -62,8 +62,6 @@
 #define ELS_JOG_RIGHT_BUTTON 25
 
 #define ELS_STEPPER_ENA 0
-#define ELS_IND_RED 0   
-#define ELS_IND_GREEN 0  
 
 
 #elif defined(ESP32)
@@ -104,17 +102,20 @@
  * The selection will hopefully grow as time goes on!
  *
  * Options:
- *   SSD1306_128_64: 128x64 oled
+ *   ELS_SSD1306_128_64: 128x64 oled
  *   ST7789_240_135
  */
 
-#define SSD1306_128_64 0
+#define ELS_SSD1306_128_64 0
 #define ST7789_240_135 1
 
+#ifdef ESP32
 #define ELS_DISPLAY ST7789_240_135
-//#define ELS_DISPLAY SSD1306_128_64
+#else
+#define ELS_DISPLAY ELS_SSD1306_128_64
+#endif
 
-#if ELS_DISPLAY == SSD1306_128_64
+#if ELS_DISPLAY == ELS_SSD1306_128_64
  // define this if you have a dedicated pin for the oled reset
 #define PIN_DISPLAY_RESET -1
 #endif
@@ -173,6 +174,28 @@
 
 
 #define LEADSCREW_TIMER_US 4
+
+// Unqualified software defaults; override upward to the external driver's minima.
+#ifndef ELS_STEP_HIGH_US
+#ifdef ESP32
+#define ELS_STEP_HIGH_US 20
+#else
+#define ELS_STEP_HIGH_US 4
+#endif
+#endif
+#ifndef ELS_STEP_LOW_US
+#ifdef ESP32
+#define ELS_STEP_LOW_US 20
+#else
+#define ELS_STEP_LOW_US 4
+#endif
+#endif
+#ifndef ELS_DIR_SETUP_US
+#define ELS_DIR_SETUP_US 4
+#endif
+#ifndef ELS_DIR_HOLD_US
+#define ELS_DIR_HOLD_US 4
+#endif
 
 // The initial delay between pulses in microseconds for the leadscrew starting
 // from 0 do not change - this is a calculated value, to change the initial

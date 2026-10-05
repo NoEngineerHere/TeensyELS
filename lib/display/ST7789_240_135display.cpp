@@ -1,8 +1,10 @@
 #include <config.h>
 
-#if ELS_DISPLAY == ST7789_240_135
+#if !defined(PIO_UNIT_TESTING) && ELS_DISPLAY == ST7789_240_135
 #include <display.h>
 #include <globalstate.h>
+#include <rpm_format.h>
+#include <boot_diagnostics.h>
 // Images
 #include <icons/feedSymbol.h>
 #include <icons/lockedSymbol.h>
@@ -39,8 +41,9 @@ void ScaleBMP(const uint8_t source[], uint8_t dest[], int sizex, int sizey) {
   }
 }
 
-void Display::init() {
-  strcpy(m_rpmString, "");
+bool Display::init() {
+  if (m_failed) return false;
+  std::memset(m_rpmString, 0, sizeof(m_rpmString));
   strcpy(m_pitchString, "");
   m_mode = GlobalFeedMode::FM_UNSET;
   m_motionMode = GlobalMotionMode::MM_UNSET;
@@ -49,12 +52,28 @@ void Display::init() {
   tft.init();
   tft.setRotation(3);
   tft.fillScreen(TFT_BLACK);
+  return true; // TFT_eSPI's void API cannot establish panel presence.
+}
+
+void Display::showBootStatus(bool fault) {
+  if (m_failed) return;
+  tft.fillScreen(TFT_BLACK);
+  tft.setCursor(10, 50);
+  tft.setTextSize(2);
+  tft.setTextColor(fault ? TFT_RED : TFT_WHITE);
+  tft.print(fault ? "BOOT / FAULT" : "BOOT / LOCKED");
 }
 
 void Display::update() {
+  if (m_failed) return;
   //  tft.fillScreen(TFT_BLACK); // Rely on localised blanking to avoid blink, for now.
   if (GlobalState::getInstance()->getDisplayReset()) {
-    init();
+    if (!init()) {
+      m_failed = true;
+      m_leadscrew->setFaultInhibit(true);
+      recordBootFailure("DISPLAY_INIT_FAILED");
+      return;
+    }
   }
 
   int bytes = GlobalState::getInstance()->getOTABytes();
@@ -88,17 +107,16 @@ void Display::update() {
 }
 
 void Display::drawSpindleRpm() {
-  int rpm = m_spindle->getEstimatedVelocityInRPM();
-  char rpmString[10];
-  sprintf(rpmString, "%4dRPM", rpm);
+  char rpmString[8];
+  formatRpm(m_spindle->getEstimatedVelocityInRPM(), rpmString);
   // pad the rpm with spaces so the RPM text stays in the same place
   if (strcmp(rpmString, m_rpmString)) {
     tft.setCursor(100, 0);
     tft.setTextSize(3);
     tft.setTextColor(TFT_WHITE);
-    tft.fillRect(100, 0, 85, 32, TFT_BLACK);
+    tft.fillRect(100, 0, 126, 32, TFT_BLACK);
     tft.print(rpmString);
-    strcpy(m_rpmString, rpmString);
+    std::memcpy(m_rpmString, rpmString, sizeof(m_rpmString));
   }
 }
 

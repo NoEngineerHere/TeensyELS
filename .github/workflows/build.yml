@@ -1,0 +1,34 @@
+name: Build
+on: [push, pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [native, native_sanitized, teensy41, teensy41_debug, esp32dev]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install platformio==6.2.0
+      - run: cp src/SECRETS-SAMPLE.h src/SECRETS.h
+      - name: Compile or run native assertions
+        env:
+          ASAN_OPTIONS: halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1
+        run: |
+          case "${{ matrix.environment }}" in
+            native*) pio test -e "${{ matrix.environment }}" ;;
+            *) pio run -e "${{ matrix.environment }}" ;;
+          esac
+      - run: pio pkg list -e "${{ matrix.environment }}" > packages.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.environment }}
+          include-hidden-files: true
+          path: |
+            packages.txt
+            .pio/build/${{ matrix.environment }}/firmware.*
+            .pio/build/${{ matrix.environment }}/firmware-identity.txt

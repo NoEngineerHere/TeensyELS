@@ -1,3 +1,4 @@
+#pragma once
 
 #include <config.h>
 #include <globalstate.h>
@@ -5,7 +6,7 @@
 #include <spindle.h>
 
 
-#if ELS_DISPLAY == SSD1306_128_64
+#if ELS_DISPLAY == ELS_SSD1306_128_64
 
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
@@ -17,7 +18,6 @@
 
 #elif  ELS_DISPLAY == ST7789_240_135
 #include <TFT_eSPI.h>
-#include <SPI.h>
 #else
 
 #error "Please choose a valid display. Refer to config.h for options"
@@ -34,8 +34,9 @@ private:
   EncoderColour secondColour = EC_NONE;
 #endif
   bool updating = false;
+  bool m_failed = false;
 #if ELS_DISPLAY == ST7789_240_135
-  char m_rpmString[10];
+  char m_rpmString[8]{};
   char m_pitchString[10];
   GlobalFeedMode m_mode = GlobalFeedMode::FM_UNSET;
   GlobalMotionMode m_motionMode = GlobalMotionMode::MM_UNSET;
@@ -44,7 +45,7 @@ private:
 #endif
 
 public:
-#if ELS_DISPLAY == SSD1306_128_64
+#if ELS_DISPLAY == ELS_SSD1306_128_64
   Adafruit_SSD1306 m_ssd1306;
 #elif ELS_DISPLAY == ST7789_240_135
   TFT_eSPI tft = TFT_eSPI();
@@ -53,14 +54,15 @@ public:
     this->m_spindle = spindle;
     this->m_leadscrew = leadscrew;
     this->m_globalState = GlobalState::getInstance();
-#if ELS_DISPLAY == SSD1306_128_64
+#if ELS_DISPLAY == ELS_SSD1306_128_64
     this->m_ssd1306 =
       Adafruit_SSD1306(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, PIN_DISPLAY_RESET);
 #elif ELS_DISPLAY == ST7789_240_135
 #endif
   }
 
-  void init();
+  bool init();
+  void showBootStatus(bool fault);
   void update();
 
 protected:
