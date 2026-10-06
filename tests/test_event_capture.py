@@ -77,6 +77,14 @@ class MemoryLogs:
 
 
 class ParserTests(unittest.TestCase):
+    def test_default_baud_matches_firmware_uart(self):
+        self.assertEqual(args().baud, 921600)
+
+    def test_legacy_active_outputs_are_reported_as_fault(self):
+        raw = (f'{capture.LEGACY} source={capture.LEGACY_SOURCE} ms=2 fg=3 timer_done=4 '
+               'frames=5 crash=0 gpio_outputs=3 motion=INHIBITED mode=0').encode()
+        self.assertTrue(capture.parse_sample(raw)['fault'])
+
     def test_exact_schemas(self):
         sample = capture.parse_sample(line() + b' optional=yes')
         self.assertEqual(sample['uptime'], 100)
@@ -271,6 +279,40 @@ class MonitorTests(unittest.TestCase):
 
 
 class CaptureTests(unittest.TestCase):
+    def test_real_boot_report_then_progress_is_not_malformed_telemetry(self):
+        boot = (b'\nCurrent capturing firmware: abc\nBuild: test\nTarget: teensy41\n'
+                b'Reset flags/reason: 0x00000001\nNo Crash Data To Report\n')
+        port = FakeSerial([boot, line(us=100000, loop=1, timer=1, frames=1) + b'\n',
+                           line(us=200000, loop=2, timer=2, frames=2) + b'\n'])
+        code, logs, _ = self.run_capture([port], stall=1, grace=.2)
+        self.assertEqual(code, 0)
+        self.assertIn('boot_report_text', [event['event'] for event in logs.events])
+        self.assertEqual(sum(event['event'] == 'sample' for event in logs.events), 2)
+
+    def test_wrong_boot_source_is_not_blessed_by_later_progress(self):
+        port = FakeSerial([b'Current capturing firmware: wrong\n', line() + b'\n'])
+        code, logs, _ = self.run_capture([port], stall=1)
+        self.assertEqual(code, 1)
+        self.assertIn('source_mismatch', [event['event'] for event in logs.events])
+
+    def test_capture_duration_truncation_is_not_a_device_fault(self):
+        port = FakeSerial([line() + b'\n', b'ELS_PROGRESS source=abc us='])
+        code, logs, _ = self.run_capture([port], stall=1)
+        self.assertEqual(code, 0)
+        self.assertIn('capture_truncated', [event['event'] for event in logs.events])
+
+    def test_boot_text_alone_never_counts_as_progress(self):
+        port = FakeSerial([b'Current capturing firmware: abc\nBuild: test\n'])
+        code, logs, _ = self.run_capture([port], stall=1)
+        self.assertEqual(code, 1)
+        self.assertFalse(any(event['event'] == 'sample' for event in logs.events))
+
+    def test_unknown_els_schema_still_invalidates_proof(self):
+        port = FakeSerial([line() + b'\n', b'ELS_UNKNOWN source=abc\n'])
+        code, logs, _ = self.run_capture([port], stall=1)
+        self.assertEqual(code, 1)
+        self.assertIn('identity_lost', [event['event'] for event in logs.events])
+
     def run_capture(self, ports, **options):
         clock, logs = FakeClock(), MemoryLogs()
         ports = iter(ports)

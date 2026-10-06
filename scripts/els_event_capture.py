@@ -18,6 +18,9 @@ Disk failures are fatal, printed to stderr, never a successful summary. Exit 0
 means valid samples and no observed faults; 1 means any fault (even restored),
 missing heartbeat/progress, invalid input or no valid sample; 2 is an I/O/setup
 failure. Ctrl-C preserves logs and follows the same health policy.
+Expected-source boot-report text is retained but never counts as progress proof.
+A finite capture can end mid-line: retained capture-end truncation is not a
+device-malformed-frame diagnosis. Nonzero legacy motion-output masks are faults.
 
 Missing progress is observational: host scheduling/USB gaps cannot prove a
 firmware hang. Frame-only stalls suggest a display-call path, not a failed
@@ -73,6 +76,7 @@ def parse_sample(raw):
     for name in ('crash',) if legacy else ('oled_fault', 'ready'):
         if numbers[name] not in (0, 1):
             raise ValueError('invalid_boolean')
+    mask_value = 0
     if legacy:
         if fields.get('motion') != 'INHIBITED' or fields.get('mode') != '0':
             raise ValueError('invalid_legacy_safety_fields')
@@ -91,7 +95,8 @@ def parse_sample(raw):
                 loop=numbers['fg' if legacy else 'loop'],
                 timer=numbers['timer_done' if legacy else 'timer'],
                 frames=numbers['frames'], ready=True if legacy else bool(numbers['ready']),
-                fault=bool(numbers['crash' if legacy else 'oled_fault']))
+                fault=bool(numbers['crash' if legacy else 'oled_fault']) or (legacy and mask_value != 0),
+                gpio_outputs=mask_value if legacy else None)
 
 
 class RotatingFile:
@@ -267,7 +272,7 @@ class Monitor:
             self.failed = True
             old = None
             self.ready_at = None
-        self.state(now, 'firmware_fault', sample['fault'])
+        self.state(now, 'firmware_fault', sample['fault'], gpio_outputs=sample.get('gpio_outputs'))
         if not sample['ready']:
             self.ready_at = None
             self.changes = {}
@@ -334,12 +339,39 @@ class Framer:
 
 def capture(args, logs, opener, clock=time.monotonic, sleep=time.sleep):
     monitor = Monitor(logs.event, args.expected_source, args.stall, args.grace)
+    boot_report = False
     def on_line(now, raw):
+        nonlocal boot_report
+        if not raw:
+            return  # The retained boot report deliberately starts with a newline.
+        header = b'Current capturing firmware: '
+        if raw.startswith(header):
+            try:
+                source = raw[len(header):].decode('ascii')
+            except UnicodeDecodeError:
+                monitor.invalid(now, 'non_ascii_boot_header')
+                return
+            boot_report = source == args.expected_source
+            if monitor.last is not None:
+                monitor.state(now, 'boot_report_restarted', True, cause='report replay or reboot; unknown')
+            monitor.invalidate(now, 'boot_report_header')
+            if not boot_report:
+                monitor.state(now, 'source_mismatch', True, observed=source)
+            logs.event(now, 'boot_report_started', source=source, matched=boot_report)
+            return
+        if raw.startswith(b'BOOT_FAILURE: '):
+            monitor.state(now, 'boot_failure_reported', True, text=raw.decode('ascii', errors='replace'))
+            return
+        if (boot_report and monitor.connected_at is not None and
+                now - monitor.connected_at <= args.grace and not raw.startswith(b'ELS_')):
+            logs.event(now, 'boot_report_text', text=raw.decode('ascii', errors='replace'))
+            return
         try:
             sample = parse_sample(raw)
         except ValueError as exc:
             monitor.invalid(now, str(exc))
         else:
+            boot_report = False
             monitor.sample(now, sample)
     framer = Framer(args.max_line, on_line, monitor.invalid)
     start = clock()
@@ -367,6 +399,7 @@ def capture(args, logs, opener, clock=time.monotonic, sleep=time.sleep):
                         break
                     retry_at = now + args.reconnect_delay
                 else:
+                    boot_report = False
                     monitor.connect(now)
             if serial_port is not None:
                 try:
@@ -393,6 +426,9 @@ def capture(args, logs, opener, clock=time.monotonic, sleep=time.sleep):
         if serial_port is not None:
             serial_port.close()
     now = clock()
+    if stop in ('duration', 'interrupt') and framer.buffer:
+        logs.event(now, 'capture_truncated', bytes=len(framer.buffer), reason=stop)
+        framer.buffer.clear()
     framer.finish(now)
     monitor.poll(now)
     code = 1 if monitor.failed or monitor.ready_samples == 0 else 0
@@ -406,7 +442,7 @@ def arguments(argv=None):
     parser.add_argument('--port', required=True, help='Explicit path or stable device symlink')
     parser.add_argument('--expected-source', required=True)
     parser.add_argument('--output', required=True, help='Dedicated log directory')
-    parser.add_argument('--baud', type=int, default=115200)
+    parser.add_argument('--baud', type=int, default=921600)
     parser.add_argument('--duration', type=float, default=60)
     parser.add_argument('--stall', type=float, default=3)
     parser.add_argument('--grace', type=float, default=5)
