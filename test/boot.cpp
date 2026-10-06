@@ -8,10 +8,11 @@
 
 namespace BootHW {
 struct Screen {
- bool initOK=true, fault=false;int banners=0,updates=0;
+ bool initOK=true, fault=false, commFailed=false;int banners=0,updates=0;
  bool init(){return initOK;}
  void showBootStatus(bool value){fault=value;++banners;}
  void update(){++updates;}
+ bool failed() const {return commFailed;}
 };
 struct Keys {int calls=0;void handle(){++calls;}};
 struct SerialPort {void begin(int){}};
@@ -119,6 +120,33 @@ TEST(Boot, OTAHandsOffOnlyAfterInflightCompletionAndNeverRearms) {
  setTestMicros(elsMicros()+1);timerCallback();EXPECT_EQ(commsManager.calls,1);EXPECT_EQ(io.completions,1);
  EXPECT_TRUE(leadscrew.isOutputIdle());globalState->clearOTA();leadscrew.setFaultInhibit(false);
  globalState->setMotionMode(MM_ENABLED);spindle.incrementCurrentPosition(1200);
+ for(int i=0;i<1000;++i){setTestMicros(elsMicros()+4);timerCallback();}
+ EXPECT_EQ(io.completions,1);
+}
+TEST(Boot, RuntimeOledFaultStopsControlsButTeensyServiceDrainsAcceptedPulse) {
+ using namespace TeensyBoot;reset();setup();setTestMicros(2000000);loop();ASSERT_TRUE(ready);
+ globalState->setMotionMode(MM_JOG_RIGHT);
+ for(int i=0;i<1000&&!io.step;++i){setTestMicros(elsMicros()+4);timerCallback();}
+ ASSERT_EQ(io.step,1);ASSERT_EQ(io.completions,0);
+ display.commFailed=true;loop();ASSERT_FALSE(ready);ASSERT_TRUE(bootFault);
+ const int controls=keyPad.calls;loop();EXPECT_EQ(keyPad.calls,controls);
+ setTestMicros(elsMicros()+4);timerCallback();
+ EXPECT_EQ(io.completions,1);EXPECT_EQ(io.step,0);EXPECT_EQ(leadscrew.getCurrentPosition(),1);
+ leadscrew.setFaultInhibit(false);globalState->setMotionMode(MM_JOG_RIGHT);
+ for(int i=0;i<1000;++i){setTestMicros(elsMicros()+4);timerCallback();}
+ EXPECT_EQ(io.completions,1);
+ EXPECT_NE(std::string(BootDiagnosticsTest::report()).find("DISPLAY_COMM_FAILED"),std::string::npos);
+}
+TEST(Boot, RuntimeOledFaultAllowsEspTaskToDrainBeforeIdleYield) {
+ using namespace EspBoot;reset();setup();setTestMicros(2000000);loop();ASSERT_TRUE(ready);
+ globalState->setMotionMode(MM_JOG_RIGHT);
+ for(int i=0;i<1000&&!io.step;++i){setTestMicros(elsMicros()+4);timerCallback();}
+ ASSERT_EQ(io.step,1);ASSERT_EQ(io.completions,0);
+ display.commFailed=true;loop();ASSERT_FALSE(ready);ASSERT_TRUE(bootFault);
+ stopAtYield=true;setTestMicros(elsMicros()+4);EXPECT_THROW(SpindleTask(nullptr),TaskYield);stopAtYield=false;
+ EXPECT_EQ(io.completions,1);EXPECT_EQ(io.step,0);EXPECT_EQ(leadscrew.getCurrentPosition(),1);
+ const int controls=keyPad.calls;displayLoop();EXPECT_EQ(keyPad.calls,controls);
+ leadscrew.setFaultInhibit(false);globalState->setMotionMode(MM_JOG_RIGHT);
  for(int i=0;i<1000;++i){setTestMicros(elsMicros()+4);timerCallback();}
  EXPECT_EQ(io.completions,1);
 }

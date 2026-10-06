@@ -19,6 +19,12 @@ size_t length = 0, offset = 0;
 bool captured = false, thermal = false, overflow = false, wasConnected = false;
 constexpr char marker[] = "\nTRUNCATED\n";
 constexpr size_t limit = sizeof(report) - sizeof(marker);
+#ifdef ELS_PROGRESS_TELEMETRY
+char progress[256]{};
+size_t progressLength = 0, progressOffset = 0;
+uint32_t lastProgress = 0;
+static_assert(sizeof(FIRMWARE_REVISION) <= 64, "Progress identity must fit one bounded record");
+#endif
 void appendByte(char value) {
   if (overflow) return;
   if (length < limit) {
@@ -105,6 +111,29 @@ void recordBootStage(uint32_t stage) {
   (void)stage;
 #endif
 }
+#ifdef ELS_PROGRESS_TELEMETRY
+bool progressTelemetryDue() {
+  return captured && wasConnected && offset == length && !progressLength &&
+      uint32_t(elsMicros() - lastProgress) >= 1000000;
+}
+void queueProgressTelemetry(uint32_t loop, uint32_t timer, uint32_t frames,
+                            bool oledFault, bool ready) {
+  if (!progressTelemetryDue()) return;
+  const uint32_t now = elsMicros();
+  lastProgress = now;
+  const int size = std::snprintf(progress, sizeof(progress),
+      "ELS_PROGRESS source=%s us=%lu loop=%lu timer=%lu frames=%lu oled_fault=%u ready=%u\n",
+      FIRMWARE_REVISION, static_cast<unsigned long>(now), static_cast<unsigned long>(loop),
+      static_cast<unsigned long>(timer), static_cast<unsigned long>(frames),
+      unsigned(oledFault), unsigned(ready));
+  if (size > 0 && size_t(size) < sizeof(progress)) {
+    progressLength = size_t(size);
+    progressOffset = 0;
+  } else {
+    recordBootFailure("PROGRESS_FORMAT_FAILED");
+  }
+}
+#endif
 void serviceBootDiagnostics() {
   if (!captured) return;
 #ifdef PIO_UNIT_TESTING
@@ -112,7 +141,13 @@ void serviceBootDiagnostics() {
 #else
   const bool connected = bool(Serial);
 #endif
-  if (connected && !wasConnected) offset = 0;
+  if (connected && !wasConnected) {
+    offset = 0;
+#ifdef ELS_PROGRESS_TELEMETRY
+    progressLength = progressOffset = 0;
+    lastProgress = elsMicros();
+#endif
+  }
   wasConnected = connected;
   if (!connected) return;
 #ifdef PIO_UNIT_TESTING
@@ -131,15 +166,28 @@ void serviceBootDiagnostics() {
   const int available = Serial.availableForWrite();
   const size_t capacity = available > 0 ? static_cast<size_t>(available) : 0;
 #endif
-  const size_t count = std::min<size_t>(64, std::min(capacity, length - offset));
+  const char* bytes = report;
+  size_t* cursor = &offset;
+  size_t remaining = length - offset;
+#ifdef ELS_PROGRESS_TELEMETRY
+  if (progressLength) {
+    bytes = progress;
+    cursor = &progressOffset;
+    remaining = progressLength - progressOffset;
+  }
+#endif
+  const size_t count = std::min<size_t>(64, std::min(capacity, remaining));
   if (!count) return;
 #ifdef PIO_UNIT_TESTING
   const size_t written = std::min(count, testPort.writeLimit);
-  testPort.output.append(report + offset, written);
+  testPort.output.append(bytes + *cursor, written);
 #else
-  const size_t written = Serial.write(reinterpret_cast<const uint8_t*>(report + offset), count);
+  const size_t written = Serial.write(reinterpret_cast<const uint8_t*>(bytes + *cursor), count);
 #endif
-  offset += std::min(written, count);
+  *cursor += std::min(written, count);
+#ifdef ELS_PROGRESS_TELEMETRY
+  if (progressLength && progressOffset == progressLength) progressLength = progressOffset = 0;
+#endif
 }
 #ifdef PIO_UNIT_TESTING
 namespace BootDiagnosticsTest {
@@ -149,6 +197,10 @@ void reset() {
   std::memset(::report, 0, sizeof(::report));
   length = offset = 0;
   captured = thermal = overflow = wasConnected = false;
+#ifdef ELS_PROGRESS_TELEMETRY
+  progressLength = progressOffset = 0;
+  lastProgress = 0;
+#endif
 }
 const char* report() { return ::report; }
 size_t reportSize() { return length; }

@@ -20,6 +20,10 @@ class ButtonHandler {
   Button m_jogLeft;
   Button m_jogRight;
 
+  bool m_modeHoldHandled = false;
+  bool m_leftHoldHandled = false;
+  bool m_rightHoldHandled = false;
+
   void rateIncreaseHandler();
   void rateDecreaseHandler();
   void modeCycleHandler();

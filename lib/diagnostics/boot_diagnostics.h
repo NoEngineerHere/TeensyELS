@@ -5,6 +5,12 @@ bool captureBootDiagnostics();
 void serviceBootDiagnostics();
 void recordBootStage(uint32_t stage);
 void recordBootFailure(const char* reason);
+#ifdef ELS_PROGRESS_TELEMETRY
+// Foreground only; one bounded progress record after the retained boot report.
+bool progressTelemetryDue();
+void queueProgressTelemetry(uint32_t loop, uint32_t timer, uint32_t frames,
+                            bool oledFault, bool ready);
+#endif
 #ifdef PIO_UNIT_TESTING
 #include <cstddef>
 #include <string>

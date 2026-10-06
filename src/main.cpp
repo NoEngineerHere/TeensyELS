@@ -65,6 +65,10 @@ static void initializeBoardControls() {
 static std::atomic<bool> ready{false};
 static bool bootFault = false, displayReady = false;
 static uint32_t bannerStarted = 0;
+#ifdef ELS_PROGRESS_TELEMETRY
+static uint32_t foregroundLoops = 0;
+static std::atomic<uint32_t> timerCompletions{0}, displayReturns{0};
+#endif
 
 void timerCallback() {
 #ifdef ESP32
@@ -75,11 +79,17 @@ void timerCallback() {
 #ifdef ESP32
   if (globalState->hasOTA() && leadscrew.isOutputIdle()) commsManager.loop();
 #endif
+#ifdef ELS_PROGRESS_TELEMETRY
+  timerCompletions.fetch_add(1, std::memory_order_relaxed);
+#endif
 }
 void displayLoop() {
-  if (!ready.load()) return;
+  if (!ready.load() || display.failed()) return;
   keyPad.handle();
   display.update();
+#ifdef ELS_PROGRESS_TELEMETRY
+  displayReturns.fetch_add(1, std::memory_order_relaxed);
+#endif
 }
 #ifdef ESP32
 void DisplayTask(void*) {
@@ -91,7 +101,7 @@ void DisplayTask(void*) {
 }
 void SpindleTask(void*) {
   while (true) {
-    if (ready.load()) timerCallback();
+    if (ready.load() || !leadscrew.isOutputIdle()) timerCallback();
     else vTaskDelay(1); // A later task-creation failure must not starve IDLE0.
   }
 }
@@ -143,7 +153,17 @@ void setup() {
   bannerStarted = elsMicros();
 }
 void loop() {
+#ifdef ELS_PROGRESS_TELEMETRY
+  ++foregroundLoops;
+#endif
   serviceBootDiagnostics();
+  if (displayReady && display.failed() && !bootFault) failBoot("DISPLAY_COMM_FAILED");
+#ifdef ELS_PROGRESS_TELEMETRY
+  if (progressTelemetryDue()) {
+    queueProgressTelemetry(foregroundLoops, timerCompletions.load(std::memory_order_relaxed),
+        displayReturns.load(std::memory_order_relaxed), display.failed(), ready.load());
+  }
+#endif
   const uint32_t bannerElapsed = elsMicros() - bannerStarted;
   if (!bootFault && displayReady && !ready.load() && bannerElapsed >= 2000000) startMotionServices();
 #ifdef ESP32

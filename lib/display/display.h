@@ -4,6 +4,7 @@
 #include <globalstate.h>
 #include <leadscrew.h>
 #include <spindle.h>
+#include <atomic>
 
 
 #if ELS_DISPLAY == ELS_SSD1306_128_64
@@ -34,7 +35,7 @@ private:
   EncoderColour secondColour = EC_NONE;
 #endif
   bool updating = false;
-  bool m_failed = false;
+  std::atomic<bool> m_failed{false};
 #if ELS_DISPLAY == ST7789_240_135
   char m_rpmString[8]{};
   char m_pitchString[10];
@@ -47,6 +48,9 @@ private:
 public:
 #if ELS_DISPLAY == ELS_SSD1306_128_64
   Adafruit_SSD1306 m_ssd1306;
+private:
+  bool flush();
+public:
 #elif ELS_DISPLAY == ST7789_240_135
   TFT_eSPI tft = TFT_eSPI();
 #endif
@@ -64,6 +68,7 @@ public:
   bool init();
   void showBootStatus(bool fault);
   void update();
+  bool failed() const { return m_failed.load(); }
 
 protected:
   void drawMode();

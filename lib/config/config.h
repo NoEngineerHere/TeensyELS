@@ -47,7 +47,7 @@
 #define ELS_IND_GREEN 21  
 #endif
 
-#if defined(CORE_TEENSY)
+#if defined(CORE_TEENSY) || (defined(PIO_UNIT_TESTING) && !defined(ELS_TEST_ESP_IO))
 #define ELS_LEADSCREW_STEP 2
 #define ELS_LEADSCREW_DIR 3
 
