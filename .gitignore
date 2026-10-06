@@ -21,3 +21,6 @@ stats-callib.csv
 stats-stop.csv
 
 stats.csv
+
+/.validation/
+__pycache__/
