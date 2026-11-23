@@ -7,10 +7,8 @@
 
 namespace {
 struct StartupDefaults {GlobalUnitMode unit;GlobalFeedMode feed;GlobalMotionMode motion;GlobalButtonLock lock;GlobalThreadSyncState sync;int selection;float pitch;};
-// Capture the real singleton's initialized state before tests mutate it. The
-// production constructor remains private; no alternate constructor model.
 const StartupDefaults startup=[] {
- auto* s=GlobalState::getInstance();
+ GlobalState state;auto* s=&state;
  return StartupDefaults{s->getUnitMode(),s->getFeedMode(),s->getMotionMode(),s->getButtonLock(),s->getThreadSyncState(),s->getFeedSelect(),s->getCurrentFeedPitch()};
 }();
 }
@@ -37,14 +35,14 @@ TEST(SharedState, ConcurrentSpindleConsumeConservesEveryEncoderIncrement) {
  EXPECT_EQ(spindle.getCurrentPosition(),counts%ELS_SPINDLE_ENCODER_PPR);EXPECT_FALSE(spindle.hasMotionFault());
 }
 TEST(SharedState, PositionReplacementAndErrorReadObserveOneCoherentPair) {
- setTestMicros(1000000);Spindle spindle;LeadscrewIOMock io;Leadscrew screw(&spindle,&io,1000,100,1200,2,1200);
+ GlobalState state;setTestMicros(1000000);Spindle spindle;LeadscrewIOMock io;Leadscrew screw(state, &spindle,&io,1000,100,1200,2,1200);
  std::atomic<bool> done{false};bool mixed=false;
  std::thread writer([&]{for(int i=0;i<20000;++i)screw.setCurrentPosition(i%2?100000:-100000);done.store(true);});
  while(!done.load()){mixed|=screw.getPositionError()!=0;std::this_thread::yield();}
  writer.join();EXPECT_FALSE(mixed);EXPECT_EQ(screw.getPositionError(),0);
 }
 TEST(SharedState, MotionTransitionResetIsConsumedOnceWithoutLosingMode) {
- auto* s=GlobalState::getInstance();bool reset=false;
+ GlobalState state;auto* s=&state;bool reset=false;
  s->setMotionMode(MM_DISABLED);s->takeMotionRequest(reset);
  s->setMotionMode(MM_ENABLED);EXPECT_EQ(s->takeMotionRequest(reset),MM_ENABLED);EXPECT_TRUE(reset);
  EXPECT_EQ(s->takeMotionRequest(reset),MM_ENABLED);EXPECT_FALSE(reset);

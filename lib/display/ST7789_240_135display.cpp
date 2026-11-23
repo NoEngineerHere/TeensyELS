@@ -67,7 +67,7 @@ void Display::showBootStatus(bool fault) {
 void Display::update() {
   if (m_failed) return;
   //  tft.fillScreen(TFT_BLACK); // Rely on localised blanking to avoid blink, for now.
-  if (GlobalState::getInstance()->getDisplayReset()) {
+  if (m_globalState.getDisplayReset()) {
     if (!init()) {
       m_failed = true;
       m_leadscrew->setFaultInhibit(true);
@@ -76,9 +76,9 @@ void Display::update() {
     }
   }
 
-  int bytes = GlobalState::getInstance()->getOTABytes();
-  int length = GlobalState::getInstance()->getOTALength();
-  if (GlobalState::getInstance()->hasOTA()) {
+  int bytes = m_globalState.getOTABytes();
+  int length = m_globalState.getOTALength();
+  if (m_globalState.hasOTA()) {
     if (!updating) {
       tft.fillRect(0, 0, 240, 135, TFT_BLACK);
       tft.setCursor(10, 10);
@@ -140,7 +140,7 @@ void Display::drawStopStatus() {
 }
 
 void Display::drawSyncStatus() {
-  GlobalThreadSyncState sync = GlobalState::getInstance()->getThreadSyncState();
+  GlobalThreadSyncState sync = m_globalState.getThreadSyncState();
   if (sync == m_sync)return;
   m_sync = sync;
   if (sync == GlobalThreadSyncState::SS_UNSYNC) {
@@ -159,7 +159,7 @@ void Display::drawSyncStatus() {
 }
 
 void Display::drawMode() {
-  GlobalFeedMode mode = GlobalState::getInstance()->getFeedMode();
+  GlobalFeedMode mode = m_globalState.getFeedMode();
 
   if (mode == m_mode)return;
   m_mode = mode;
@@ -176,7 +176,7 @@ void Display::drawMode() {
 }
 
 void Display::drawPitch() {
-  GlobalState* state = GlobalState::getInstance();
+  GlobalState* state = &m_globalState;
   GlobalUnitMode unit = state->getUnitMode();
   GlobalFeedMode mode = state->getFeedMode();
   int feedSelect = state->getFeedSelect();
@@ -205,14 +205,14 @@ void Display::drawPitch() {
 }
 
 void Display::drawEnabled() {
-  GlobalState* state = GlobalState::getInstance();
+  GlobalState* state = &m_globalState;
   GlobalMotionMode mode = state->getMotionMode();
 
   if (mode == m_motionMode)return;
   m_motionMode = mode;
   tft.fillRoundRect(52, 80, 40, 40, 4, mode == GlobalMotionMode::MM_ENABLED ? TFT_GREEN : ((mode == GlobalMotionMode::MM_JOG_LEFT || mode == GlobalMotionMode::MM_JOG_RIGHT) ? TFT_YELLOW : TFT_WHITE));
   uint8_t scaled[128];
-  GlobalButtonLock lock = GlobalState::getInstance()->getButtonLock();
+  GlobalButtonLock lock = m_globalState.getButtonLock();
   switch (mode) {
   case GlobalMotionMode::MM_DISABLED:
     ScaleBMP(pauseSymbol, scaled, 16, 16);
@@ -249,9 +249,9 @@ void Display::writeLed() {
 void Display::updateLed() {
 #ifdef ELS_UI_ENCODER
 
-  GlobalState* state = GlobalState::getInstance();
+  GlobalState* state = &m_globalState;
   GlobalMotionMode mode = state->getMotionMode();
-  GlobalButtonLock lock = GlobalState::getInstance()->getButtonLock();
+  GlobalButtonLock lock = m_globalState.getButtonLock();
 
   switch (mode) {
   case GlobalMotionMode::MM_DISABLED:
@@ -273,7 +273,7 @@ void Display::updateLed() {
 }
 
 void Display::drawLocked() {
-  GlobalButtonLock lock = GlobalState::getInstance()->getButtonLock();
+  GlobalButtonLock lock = m_globalState.getButtonLock();
   if (lock == m_locked)return;
   m_locked = lock;
 

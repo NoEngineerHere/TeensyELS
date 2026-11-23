@@ -31,10 +31,13 @@ enum class LeadscrewDirection { LEFT = -1, RIGHT = 1, UNKNOWN = 0 };
 enum class LeadscrewSpindleSyncPositionState { LEFT, RIGHT, UNSET };
 
 
+class GlobalState;
+
 class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
 private:
 
 
+  GlobalState& m_state;
   Spindle* m_spindle;
   LeadscrewIO* m_io;
 
@@ -89,7 +92,7 @@ private:
   int boundedInt(double value);
 
 public:
-  Leadscrew(Spindle* spindle, LeadscrewIO* io,
+  Leadscrew(GlobalState& state, Spindle* spindle, LeadscrewIO* io,
     float leadscrewAccel, float initialPulseDelay, 
     int motorPulsePerRevolution,
     float leadscrewPitch, int encoderPPR);

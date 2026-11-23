@@ -5,12 +5,12 @@
 #include <cmath>
 #include <climits>
 
-Leadscrew::Leadscrew(Spindle* spindle, LeadscrewIO* io,
+Leadscrew::Leadscrew(GlobalState& state, Spindle* spindle, LeadscrewIO* io,
     float accel, float delay, int motorPPR, float pitch, int spindlePPR)
-    : m_spindle(spindle), m_io(io), motorPulsePerRevolution(motorPPR),
+    : m_state(state), m_spindle(spindle), m_io(io), motorPulsePerRevolution(motorPPR),
       leadscrewPitch(pitch), encoderPPR(spindlePPR), initialPulseDelay(delay),
       m_currentPulseDelay(delay), m_leadscrewAccel(accel), jogMicros(elsMicros()) {
-  setTargetPitchMM(GlobalState::getInstance()->getCurrentFeedPitch());
+  setTargetPitchMM(m_state.getCurrentFeedPitch());
   if (!std::isfinite(accel) || accel <= 0 || !std::isfinite(delay) || delay <= 0)
     m_numericFault = true;
 }
@@ -55,7 +55,7 @@ void Leadscrew::unsetStopPosition(LeadscrewStopPosition stop) {
                                   : LeadscrewSpindleSyncPositionState::UNSET;
     m_spindleSyncPosition = transfer ? phase : 0;
     m_syncInvalid = otherSet && !transfer;
-    if (!transfer) GlobalState::getInstance()->setThreadSyncState(SS_UNSYNC);
+    if (!transfer) m_state.setThreadSyncState(SS_UNSYNC);
   }
   if (left) { m_leftStopState = LeadscrewStopState::UNSET; m_leftStopPosition = INT32_MIN; }
   else { m_rightStopState = LeadscrewStopState::UNSET; m_rightStopPosition = INT32_MAX; }
@@ -80,7 +80,7 @@ void Leadscrew::setStopPositionUnlocked(LeadscrewStopPosition stop, int position
       m_syncPositionState = LeadscrewSpindleSyncPositionState::UNSET;
       m_spindleSyncPosition = 0;
       m_syncInvalid = true;
-      GlobalState::getInstance()->setThreadSyncState(SS_UNSYNC);
+      m_state.setThreadSyncState(SS_UNSYNC);
     }
   }
   if (left) { m_leftStopPosition = position; m_leftStopState = LeadscrewStopState::SET; }
@@ -90,7 +90,7 @@ void Leadscrew::setStopPositionUnlocked(LeadscrewStopPosition stop, int position
     m_spindleSyncPosition = (int64_t(spindlePhase) % encoderPPR + encoderPPR) % encoderPPR;
     m_syncPositionState = anchor;
     m_syncInvalid = false;
-    GlobalState::getInstance()->setThreadSyncState(SS_SYNC);
+    m_state.setThreadSyncState(SS_SYNC);
   }
 }
 LeadscrewStopState Leadscrew::getStopPositionState(LeadscrewStopPosition stop) {
@@ -145,7 +145,7 @@ bool Leadscrew::initializeOutputs() {
     m_ioFault = !ready;
     m_inhibit = true;
     m_lowTimestamp = m_dirTimestamp = m_lastPulseStartTimestamp = elsMicros();
-    GlobalState::getInstance()->requestMotionUnlocked(MM_DISABLED);
+    m_state.requestMotionUnlocked(MM_DISABLED);
   }
   resetProfile(elsMicros());
   return ready;
@@ -154,7 +154,7 @@ void Leadscrew::setFaultInhibit(bool inhibit) {
   ElsCriticalSection guard;
   m_faultInhibitLatched = m_faultInhibitLatched || inhibit;
   m_inhibit = m_faultInhibitLatched || !m_initialized || m_ioFault || m_numericFault;
-  auto* state = GlobalState::getInstance();
+  auto* state = &m_state;
   state->requestMotionUnlocked(MM_DISABLED);
   state->m_motionResetRequested = true;
   if (inhibit) state->setThreadSyncState(SS_UNSYNC);
@@ -168,7 +168,7 @@ void Leadscrew::latchIOFault(bool uncertain) {
   m_ioFault = true;
   m_inhibit = true;
   if (uncertain) m_positionValid = false;
-  auto* state = GlobalState::getInstance();
+  auto* state = &m_state;
   state->requestMotionUnlocked(MM_DISABLED);
   state->setThreadSyncState(SS_UNSYNC);
 }
@@ -186,7 +186,7 @@ void Leadscrew::resetProfile(uint32_t now) {
 
 void Leadscrew::update() {
   const uint32_t now = elsMicros();
-  auto* state = GlobalState::getInstance();
+  auto* state = &m_state;
   bool reset;
   const auto mode = state->takeMotionRequest(reset);
   m_resetPending = m_resetPending || reset;

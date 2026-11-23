@@ -6,16 +6,16 @@
 
 class PositionTest : public testing::Test {
 protected:
+  GlobalState state;
   void SetUp() override {
     setTestMicros(0);
-    auto* state = GlobalState::getInstance();
-    state->setUnitMode(DEFAULT_UNIT_MODE);
-    state->setFeedMode(DEFAULT_FEED_MODE);
-    state->setFeedSelect(-1);
-    state->setMotionMode(MM_DISABLED);
-    state->setThreadSyncState(SS_UNSYNC);
-    state->setButtonLock(LK_LOCKED);
-    state->clearOTA();
+    state.setUnitMode(DEFAULT_UNIT_MODE);
+    state.setFeedMode(DEFAULT_FEED_MODE);
+    state.setFeedSelect(-1);
+    state.setMotionMode(MM_DISABLED);
+    state.setThreadSyncState(SS_UNSYNC);
+    state.setButtonLock(LK_LOCKED);
+    state.clearOTA();
   }
 };
 
@@ -33,7 +33,7 @@ TEST_F(PositionTest, SignedDeltaIsConsumedExactlyOnce) {
 TEST_F(PositionTest, DisabledDiscardsEncoderMovement) {
   Spindle spindle;
   LeadscrewIOMock io;
-  Leadscrew screw(&spindle, &io, 1000, 100, 800, 2.54, 1200);
+  Leadscrew screw(state, &spindle, &io, 1000, 100, 800, 2.54, 1200);
   ASSERT_TRUE(screw.initializeOutputs());
   screw.setFaultInhibit(false);
   for (uint32_t t = 4; t <= 20000; t += 4) {
@@ -50,14 +50,14 @@ TEST_F(PositionTest, DisabledDiscardsEncoderMovement) {
 TEST_F(PositionTest, PitchProducesSignedCompletedPulseDisplacement) {
   for (int direction : {-1, 1}) {
     setTestMicros(0);
-    GlobalState::getInstance()->setMotionMode(MM_DISABLED);
+    state.setMotionMode(MM_DISABLED);
     Spindle spindle;
     LeadscrewIOMock io;
-    Leadscrew screw(&spindle, &io, 1000, 100, 800, 2.54, 1200);
+    Leadscrew screw(state, &spindle, &io, 1000, 100, 800, 2.54, 1200);
     ASSERT_TRUE(screw.initializeOutputs());
     screw.setFaultInhibit(false);
     screw.setTargetPitchMM(1.27); // 400 completed steps per spindle revolution.
-    GlobalState::getInstance()->setMotionMode(MM_ENABLED);
+    state.setMotionMode(MM_ENABLED);
     screw.update(); // Accept explicit re-arm before introducing fresh spindle movement.
     spindle.incrementCurrentPosition(direction * 1200);
     for (uint32_t t = 4; t <= 100000; t += 4) {

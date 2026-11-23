@@ -3,8 +3,10 @@
 #include <Arduino.h>
 #include <atomic>
 #include <globalstate.h>
+#include <controls.h>
 #include <leadscrew.h>
 #include <spindle.h>
+#include <spindle_encoder.h>
 #include <boot_diagnostics.h>
 #include "ESPCommsManager.h"
 #include "buttons.h"
@@ -20,24 +22,28 @@
 IntervalTimer timer;
 #endif
 
-GlobalState* globalState = GlobalState::getInstance();
-Spindle spindle(ELS_SPINDLE_ENCODER_A, ELS_SPINDLE_ENCODER_B);
+GlobalState globalState;
+Spindle spindle;
+SpindleEncoder spindleEncoder(ELS_SPINDLE_ENCODER_A, ELS_SPINDLE_ENCODER_B);
 #ifdef ESP32
 LeadscrewIOESP leadscrewIOImpl;
 #else
 LeadscrewIOTeensy leadscrewIOImpl;
 #endif
-Leadscrew leadscrew(&spindle, &leadscrewIOImpl, ACCEL_PULSE_SEC,
+Leadscrew leadscrew(globalState, &spindle, &leadscrewIOImpl, ACCEL_PULSE_SEC,
     LEADSCREW_INITIAL_PULSE_DELAY_US, ELS_LEADSCREW_STEPPER_PPR * ELS_GEARBOX_RATIO,
     ELS_LEADSCREW_PITCH_MM, ELS_SPINDLE_ENCODER_PPR);
+Controls controls(globalState, leadscrew);
 #ifdef ESP32
-KeyArray keyArray(&leadscrew);
-ButtonPad keyPad(&spindle, &leadscrew, &keyArray);
-ESPCommsManager commsManager;
-#else
-ButtonHandler keyPad(&spindle, &leadscrew);
+ESPCommsManager commsManager(globalState);
 #endif
-Display display(&spindle, &leadscrew);
+#ifdef ELS_USE_BUTTON_ARRAY
+KeyArray keyArray;
+ButtonPad keyPad(controls, keyArray);
+#else
+ButtonHandler keyPad(controls);
+#endif
+Display display(globalState, &spindle, &leadscrew);
 static void initializeEnableOutput() {
   // Compatibility assertion only: LOW is not a claim of electrical disable.
   digitalWrite(ELS_STEPPER_ENA, LOW);
@@ -72,12 +78,12 @@ static std::atomic<uint32_t> timerCompletions{0}, displayReturns{0};
 
 void timerCallback() {
 #ifdef ESP32
-  if (globalState->hasOTA()) leadscrew.setFaultInhibit(true);
+  if (globalState.hasOTA()) leadscrew.setFaultInhibit(true);
 #endif
-  spindle.update();
+  spindleEncoder.sample(spindle);
   leadscrew.update();
 #ifdef ESP32
-  if (globalState->hasOTA() && leadscrew.isOutputIdle()) commsManager.loop();
+  if (globalState.hasOTA() && leadscrew.isOutputIdle()) commsManager.loop();
 #endif
 #ifdef ELS_PROGRESS_TELEMETRY
   timerCompletions.fetch_add(1, std::memory_order_relaxed);
@@ -133,8 +139,8 @@ static void startMotionServices() {
   ready.store(true);
 }
 void setup() {
-  globalState->setButtonLock(LK_LOCKED);
-  globalState->setMotionMode(MM_DISABLED);
+  globalState.setButtonLock(LK_LOCKED);
+  globalState.setMotionMode(MM_DISABLED);
   const bool outputsReady = leadscrew.initializeOutputs();
   initializeEnableOutput();
   Serial.begin(921600);
@@ -149,7 +155,7 @@ void setup() {
   if (!displayReady) { failBoot("DISPLAY_INIT_FAILED"); return; }
   display.showBootStatus(bootFault);
   recordBootStage(3);
-  leadscrew.setTargetPitchMM(globalState->getCurrentFeedPitch());
+  leadscrew.setTargetPitchMM(globalState.getCurrentFeedPitch());
   bannerStarted = elsMicros();
 }
 void loop() {

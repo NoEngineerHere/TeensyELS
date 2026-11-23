@@ -42,14 +42,11 @@ enum GlobalThreadSyncState { SS_UNSET, SS_SYNC, SS_UNSYNC };
 enum GlobalButtonLock { LK_UNSET, LK_UNLOCKED, LK_LOCKED };
 
 
-// this is a singleton class - we don't want more than one of these existing at
-// a time!
 class GlobalState {
  private:
   friend class Leadscrew;
   void requestMotionUnlocked(GlobalMotionMode mode);
   bool m_motionResetRequested = true;
-  static GlobalState *m_instance;
   volatile bool OTA = false;
   volatile int OTAbytes = 0;
   volatile int OTAlength = 0;
@@ -71,6 +68,7 @@ class GlobalState {
   // required
   int m_resyncPulseCount;
 
+ public:
   GlobalState() {
     m_unitMode = DEFAULT_UNIT_MODE;
     setFeedMode(DEFAULT_FEED_MODE);
@@ -81,13 +79,8 @@ class GlobalState {
     m_resyncPulseCount = 0;
   }
 
- public:
-
-  // singleton stuff, no cloning and no copying
   GlobalState(GlobalState const &) = delete;
   void operator=(GlobalState const &) = delete;
-
-  static GlobalState *getInstance();
 
   void setFeedMode(GlobalFeedMode mode);
   GlobalFeedMode getFeedMode();

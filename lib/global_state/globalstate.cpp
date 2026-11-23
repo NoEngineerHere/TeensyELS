@@ -1,15 +1,6 @@
 #include <globalstate.h>
 #include <critical_section.h>
 
-GlobalState* GlobalState::m_instance = nullptr;
-GlobalState* GlobalState::getInstance() {
-  if (m_instance == nullptr) {
-    m_instance = new GlobalState();
-  }
-  return m_instance;
-}
-
-
 void GlobalState::setFeedMode(GlobalFeedMode mode) {
   m_feedMode = mode;
 

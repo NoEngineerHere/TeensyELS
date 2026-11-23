@@ -63,8 +63,8 @@ void Display::update() {
   if (m_failed) return;
   m_ssd1306.clearDisplay();
 
-  int bytes = GlobalState::getInstance()->getOTABytes();
-  int length = GlobalState::getInstance()->getOTALength();
+  int bytes = m_globalState.getOTABytes();
+  int length = m_globalState.getOTALength();
   if (bytes > 0) {
   } else {
     drawMode();
@@ -112,7 +112,7 @@ void Display::drawStopStatus() {
 }
 
 void Display::drawSyncStatus() {
-  GlobalThreadSyncState sync = GlobalState::getInstance()->getThreadSyncState();
+  GlobalThreadSyncState sync = m_globalState.getThreadSyncState();
   m_ssd1306.setCursor(0, 16);
   m_ssd1306.setTextSize(2);
   m_ssd1306.setTextColor(WHITE);
@@ -124,7 +124,7 @@ void Display::drawSyncStatus() {
 }
 
 void Display::drawMode() {
-  GlobalFeedMode mode = GlobalState::getInstance()->getFeedMode();
+  GlobalFeedMode mode = m_globalState.getFeedMode();
 
   if (mode == GlobalFeedMode::FM_FEED) {
     m_ssd1306.drawBitmap(57, 32, feedSymbol, 64, 32, WHITE);
@@ -135,7 +135,7 @@ void Display::drawMode() {
 }
 
 void Display::drawPitch() {
-  GlobalState* state = GlobalState::getInstance();
+  GlobalState* state = &m_globalState;
   GlobalUnitMode unit = state->getUnitMode();
   GlobalFeedMode mode = state->getFeedMode();
   int feedSelect = state->getFeedSelect();
@@ -161,7 +161,7 @@ void Display::drawPitch() {
 }
 
 void Display::drawEnabled() {
-  GlobalState* state = GlobalState::getInstance();
+  GlobalState* state = &m_globalState;
   GlobalMotionMode mode = state->getMotionMode();
 
   m_ssd1306.fillRoundRect(26, 40, 20, 20, 2, WHITE);
@@ -198,9 +198,9 @@ void Display::writeLed() {
 void Display::updateLed() {
 #ifdef ELS_IND_GREEN
 
-  GlobalState* state = GlobalState::getInstance();
+  GlobalState* state = &m_globalState;
   GlobalMotionMode mode = state->getMotionMode();
-  GlobalButtonLock lock = GlobalState::getInstance()->getButtonLock();
+  GlobalButtonLock lock = m_globalState.getButtonLock();
 
   switch (mode) {
   case GlobalMotionMode::MM_DISABLED:
@@ -222,7 +222,7 @@ void Display::updateLed() {
 }
 
 void Display::drawLocked() {
-  GlobalButtonLock lock = GlobalState::getInstance()->getButtonLock();
+  GlobalButtonLock lock = m_globalState.getButtonLock();
   m_ssd1306.fillRoundRect(2, 40, 20, 20, 2, WHITE);
   switch (lock) {
   case GlobalButtonLock::LK_LOCKED:

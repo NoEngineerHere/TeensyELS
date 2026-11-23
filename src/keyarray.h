@@ -3,9 +3,9 @@
 #define KEYARRAY_H
 
 #include <Arduino.h>
-#include <leadscrew.h>
-#include <spindle.h>
+#ifdef ELS_UI_ENCODER
 #include <ESP32Encoder.h>
+#endif
 
 void buttonInterrupt();
 void IRAM_ATTR timerInterrupt();
@@ -19,13 +19,11 @@ typedef struct buttonInfo {
 
 class KeyArray {
 private:
-    Leadscrew* m_leadscrew;
     volatile ButtonInfo buttonState;
     volatile unsigned long keycodeMillis;
     hw_timer_t* Timer0_Cfg;
     void setupKeys();
     int getCodeFromArray();
-    void updateEncoderPos(int64_t pos);
 #ifdef ELS_UI_ENCODER
     ESP32Encoder m_encoder;
     int64_t encoderPos;
@@ -36,7 +34,9 @@ public:
     void handle();
     void handleTimer();
     ButtonInfo consumeButton();
-    KeyArray(Leadscrew* leadscrew);
+#ifdef ELS_UI_ENCODER
+    int64_t consumeEncoderDelta();
+#endif
 };
 
 extern KeyArray keyArray;

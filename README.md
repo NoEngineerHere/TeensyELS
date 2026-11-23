@@ -4,6 +4,13 @@ This is an implementation of an electronic leadscrew using a Teensy microcrontro
 # Architecture
 We use [https://platformio.org/](platformio) as the infrastructure to build this project.
 
+Firmware assembly lives in `src/main.cpp`. It owns the application state and passes it to
+the motion controller, display and ESP32 updater. Direct buttons and the matrix
+keypad translate hardware events into the same `Controls` actions. Spindle encoder
+adapters acquire counts, and `LeadscrewIO` adapters generate pulses; pitch, synchronization
+and motion policy stay in the shared code. Native fixtures construct their own state
+and exercise the same control and motion logic.
+
 # Installation
 You will currently need to setup platformio to build this, it can also handle installation to your teensy as well.
 NOTE: you will have to modify some of the configuration to get this set up for your particular lathe, instructions coming soon.

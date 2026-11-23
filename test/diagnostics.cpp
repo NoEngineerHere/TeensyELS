@@ -1,13 +1,12 @@
 #include <gtest/gtest.h>
 #include <boot_diagnostics.h>
 #include <clock.h>
-#include <globalstate.h>
 #include <cstring>
 namespace D=BootDiagnosticsTest;
 class Diagnostics : public testing::Test {
 protected:
  void SetUp() override {
-  D::reset();setTestMicros(1234);GlobalState::getInstance()->setMotionMode(MM_DISABLED);
+  D::reset();setTestMicros(1234);
  }
  void drain() {
   for(int i=0;i<5000;++i) {
@@ -33,7 +32,6 @@ TEST_F(Diagnostics, CapturePrecedesDestructiveRenderAndOnlyOccursOnce) {
  p.connected=true;drain();EXPECT_EQ(p.output,report);
  p.output.clear();p.commands="Rr";serviceBootDiagnostics();EXPECT_EQ(p.reads,1u);
  p.output.clear();drain();EXPECT_EQ(p.reads,2u);EXPECT_EQ(p.output,report);
- EXPECT_EQ(GlobalState::getInstance()->getMotionMode(),MM_DISABLED);
 }
 TEST_F(Diagnostics, AbsentUSBZeroCapacityPartialWritesAndReconnectRetainReport) {
  ASSERT_TRUE(captureBootDiagnostics());const std::string report=D::report();auto& p=D::port();
