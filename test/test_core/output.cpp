@@ -177,3 +177,36 @@ TEST(Output, FractionalFollowingErrorDoesNotStartAnExtraStep) {
  EXPECT_EQ(r.io.completions,1);EXPECT_EQ(r.screw.getCurrentPosition(),1);
  EXPECT_EQ(r.io.step,0);
 }
+
+TEST(Output, JogAwayFromRearStopKeepsItsPulseScheduleAndHonorsForwardStop) {
+ using Stop = LeadscrewStopPosition;
+ for (bool left : {false, true}) {
+  std::vector<uint32_t> baseline;
+  const int target = left ? -120 : 120;
+  for (bool rearSet : {false, true}) {
+   ResetMotionState rig(0);
+   Spindle spindle;
+   LeadscrewIOMock io;
+   Leadscrew screw(rig.state, &spindle, &io, testPulseTiming, 1000000, 10000, 1200, 2, 1200);
+   ASSERT_TRUE(screw.initializeOutputs());
+   screw.setFaultInhibit(false);
+   const auto destination = left ? Stop::LEFT : Stop::RIGHT;
+   if (rearSet) screw.setStopPosition(left ? Stop::RIGHT : Stop::LEFT);
+   screw.setStopPosition(destination, target);
+   rig.state.setThreadSyncState(SS_SYNC);
+   rig.state.setMotionMode(left ? MM_JOG_LEFT : MM_JOG_RIGHT);
+   for (uint32_t now = 0; now < 150000; now += 4) {
+    setTestMicros(now);
+    screw.update();
+   }
+   ASSERT_EQ(screw.getCurrentPosition(), target);
+   ASSERT_EQ(io.completions, 120);
+   EXPECT_TRUE(screw.isOutputIdle());
+   std::vector<uint32_t> rising;
+   for (const auto& edge : io.edges)
+    if (edge.step) rising.push_back(edge.time);
+   if (rearSet) EXPECT_EQ(rising, baseline);
+   else baseline = rising;
+  }
+ }
+}
