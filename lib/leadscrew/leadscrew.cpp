@@ -326,8 +326,9 @@ void Leadscrew::update() {
   }
   m_lastPulseStartTimestamp = startedAt;
   const bool shouldStop = double(static_cast<int>(m_currentDirection)) * error < pulsesToTarget ||
-      next != m_currentDirection || (leftSet && nextPosition - pulsesToStop <= left) ||
-      (rightSet && nextPosition + pulsesToStop >= right);
+      next != m_currentDirection ||
+      (mode != MM_JOG_RIGHT && leftSet && nextPosition - pulsesToStop <= left) ||
+      (mode != MM_JOG_LEFT && rightSet && nextPosition + pulsesToStop >= right);
   const float speedChange = m_leadscrewAccel * std::min<float>(m_currentPulseDelay, initialPulseDelay) / US_PER_SECOND;
   m_leadscrewSpeed = shouldStop ? std::max<float>(m_leadscrewSpeed - speedChange, 0)
       : std::min<float>(m_leadscrewSpeed + speedChange, LEADSCREW_MAX_SPEED_PPS);
