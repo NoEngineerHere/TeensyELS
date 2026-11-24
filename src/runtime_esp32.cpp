@@ -5,6 +5,7 @@
 #include "runtime.h"
 #endif
 
+void serviceUpdateReceiver();
 static bool displayTaskStarted = false;
 static uint32_t lastBootDisplayMs = 0;
 static constexpr TickType_t uiTicks = pdMS_TO_TICKS(5) ? pdMS_TO_TICKS(5) : 1;
@@ -51,6 +52,7 @@ void serviceRuntimeForeground() {
       displayTick();
     }
   }
+  serviceUpdateReceiver();
   vTaskDelay(1);
 }
 #endif

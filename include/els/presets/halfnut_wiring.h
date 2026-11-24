@@ -1,8 +1,6 @@
 #pragma once
 #include <els/hardware_types.h>
 
-#define ELS_INPUT_LAYOUT ELS_INPUT_MK2_MATRIX
-
 constexpr HardwareConfig halfnutWiring() {
   HardwareConfig c;
   c.processor = Processor::Esp32;

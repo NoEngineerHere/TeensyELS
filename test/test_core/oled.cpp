@@ -87,3 +87,27 @@ TEST_F(Oled, Mk2MenuFitsTheTextGrid) {
  }
  display.m_ssd1306.capture("oled-menu");
 }
+
+TEST_F(Oled, MaintenanceProgressReplacesCredentialsAndFailureClearsThem) {
+ OledSurface::Display display(state,&spindle,&screw,&panel);
+ ASSERT_TRUE(OledSurface::initializeDisplayBus());ASSERT_TRUE(display.init());
+ ASSERT_TRUE(screw.initializeOutputs());screw.setFaultInhibit(false);
+ state.setButtonLock(LK_UNLOCKED);ASSERT_TRUE(screw.requestMaintenance());
+ UpdateStatus waiting{UpdatePhase::Waiting,"ELS-12AB34","00112233445566778899aabbccddeeff","192.168.4.1"};
+ state.publishUpdate(waiting);display.update();
+ EXPECT_EQ(display.m_ssd1306.text[0],"Join ELS-12AB34");
+ EXPECT_EQ(display.m_ssd1306.text[2],"0011223344556677");
+ EXPECT_EQ(display.m_ssd1306.text[3],"8899aabbccddeeff");
+ for(uint32_t ms=5;ms<=175;ms+=5) display.service(ms);
+ UpdateStatus receiving{UpdatePhase::Receiving};receiving.received=12345;receiving.total=23456;
+ state.publishUpdate(receiving);display.m_ssd1306.text.clear();display.update();
+ EXPECT_EQ(display.m_ssd1306.text[1],"12345/23456");
+ for(uint32_t ms=180;ms<=350;ms+=5) display.service(ms);
+ UpdateStatus failure{UpdatePhase::Failed};failure.detail="Wrong hardware";
+ state.publishUpdate(failure);display.m_ssd1306.text.clear();display.update();
+ EXPECT_EQ(display.m_ssd1306.text[1],"Wrong hardware");
+ EXPECT_EQ(display.m_ssd1306.text[2],"Reboot locally");
+ EXPECT_TRUE(display.m_ssd1306.text[3].empty());
+ screw.setFaultInhibit(false);state.setMotionMode(MM_ENABLED);
+ EXPECT_EQ(state.getMotionMode(),MM_DISABLED);
+}

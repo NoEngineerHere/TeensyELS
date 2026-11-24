@@ -1,8 +1,7 @@
 #include <gtest/gtest.h>
 #include <vector>
 #define ELS_TEST_TEENSY_IO
-#define ELS_LEADSCREW_STEP 2
-#define ELS_LEADSCREW_DIR 3
+constexpr int stepPin=2;
 constexpr int LOW=0,HIGH=1,OUTPUT=1;
 struct PinEvent {int pin,value;bool output;};
 static std::vector<PinEvent> events;
@@ -10,10 +9,10 @@ static void digitalWriteFast(int pin,int value){events.push_back({pin,value,fals
 static void pinMode(int pin,int value){events.push_back({pin,value,true});}
 #include <pulse_teensy.h>
 TEST(TeensyIO, StartsLowAndCompletesWrappedHighPhaseOnlyOnce) {
- events.clear();LeadscrewIOTeensy<2, 3> io({4, 4, 4, 4});ASSERT_TRUE(io.begin());
- ASSERT_GE(events.size(),2u);EXPECT_EQ(events[0].pin,ELS_LEADSCREW_STEP);
+ events.clear();LeadscrewIOTeensy<stepPin, 3> io({4, 4, 4, 4});ASSERT_TRUE(io.begin());
+ ASSERT_GE(events.size(),2u);EXPECT_EQ(events[0].pin,stepPin);
  EXPECT_FALSE(events[0].output);EXPECT_EQ(events[0].value,LOW);
- EXPECT_EQ(events[1].pin,ELS_LEADSCREW_STEP);EXPECT_TRUE(events[1].output);
+ EXPECT_EQ(events[1].pin,stepPin);EXPECT_TRUE(events[1].output);
  EXPECT_EQ(io.servicePulse(0).result,LeadscrewIO::PulseResult::IDLE);
  setTestMicros(0xfffffffeu);ASSERT_TRUE(io.startPulse(0xfffffffeu));EXPECT_FALSE(io.startPulse(0xffffffffu));
  const auto highEvents=events.size();

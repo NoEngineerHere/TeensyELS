@@ -12,12 +12,20 @@ ButtonHandler::ButtonHandler(Controls& controls)
   m_enable(hardware.direct.enable),
   m_lock(hardware.direct.lock),
   m_jogLeft(hardware.direct.left),
-  m_jogRight(hardware.direct.right) {}
+  m_jogRight(hardware.direct.right)
+#ifdef ESP32
+  , m_halfNut(hardware.direct.halfNut)
+#endif
+  {}
 
 bool ButtonHandler::begin() {
   for (auto* button : {&m_rateIncrease, &m_rateDecrease, &m_modeCycle, &m_threadSync,
                        &m_enable, &m_lock, &m_jogLeft, &m_jogRight}) button->begin();
+#ifdef ESP32
+  m_halfNut.begin();
+#else
   pinMode(hardware.direct.halfNut, INPUT_PULLUP);
+#endif
   if constexpr (hardware.encoder.a >= 0) return encoder.begin();
   return true;
 }
@@ -32,6 +40,14 @@ void ButtonHandler::poll(uint32_t) {
   enableHandler();
   lockHandler();
   jogHandler();
+#ifdef ESP32
+  m_halfNut.handle();
+  if (!m_halfNut.isPressed()) m_updateHoldHandled = false;
+  if (m_halfNut.isHeld() && !m_updateHoldHandled) {
+    m_updateHoldHandled = true;
+    controls.requestUpdate();
+  }
+#endif
 }
 
 void ButtonHandler::rateIncreaseHandler() {

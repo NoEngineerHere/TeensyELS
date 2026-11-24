@@ -1,10 +1,8 @@
 #include <gtest/gtest.h>
 #include <cstdint>
+#include <globalstate.h>
+#include <leadscrew.h>
 #define ELS_TEST_ESP_IO
-#define ELS_LEADSCREW_STEP 25
-#define ELS_LEADSCREW_DIR 26
-#define ELS_STEP_HIGH_US 20
-#define ELS_STEP_LOW_US 20
 using gpio_num_t=int;
 constexpr int GPIO_MODE_OUTPUT=1, RMT_CHANNEL_0=0, RMT_IDLE_LEVEL_LOW=0;
 constexpr int ESP_OK=0, ESP_ERR_TIMEOUT=1;
@@ -55,4 +53,23 @@ TEST_F(Rmt, BackendErrorsRemainFaulted) {
   configResult=installResult=sendResult=pollResult=0;
   EXPECT_FALSE(io.startPulse(100));EXPECT_FALSE(io.begin());
  }
+}
+
+TEST_F(Rmt, SharedEngineCreditsTheLowPhaseAlreadyGeneratedByRmtAcrossWrap) {
+ constexpr PulseTiming timing{20,220,4,4};
+ const uint32_t base=UINT32_MAX-300;
+ setTestMicros(base);
+ GlobalState state;Spindle spindle;TestRmtIO io(timing);
+ Leadscrew screw(state,&spindle,&io,timing,1000,30,1200,2,1200);
+ ASSERT_TRUE(screw.initializeOutputs());screw.setFaultInhibit(false);
+ state.setMotionMode(MM_ENABLED);screw.update();spindle.incrementCurrentPosition(1200);
+ setTestMicros(base+20);screw.update();
+ setTestMicros(base+219);screw.update();EXPECT_EQ(submissions,0);
+ setTestMicros(base+220);screw.update();ASSERT_EQ(submissions,1);
+ setTestMicros(base+459);screw.update();EXPECT_EQ(screw.getCurrentPosition(),0);
+ pollResult=ESP_OK;
+ setTestMicros(base+460);screw.update();EXPECT_EQ(screw.getCurrentPosition(),1);
+ pollResult=ESP_ERR_TIMEOUT;
+ setTestMicros(base+461);screw.update();EXPECT_EQ(submissions,2);
+ EXPECT_EQ(screw.getCurrentPosition(),1);EXPECT_TRUE(screw.needsPulseService());
 }

@@ -112,13 +112,14 @@ struct Mk2Rig {
 
 TEST(Mk2, MenuUnlocksAtBootAndUpdatesOnlyOnExplicitOk) {
   Mk2Rig rig(true);
+  ASSERT_TRUE(rig.screw.initializeOutputs());rig.screw.setFaultInhibit(false);
   rig.press(2,1);EXPECT_EQ(rig.panel.selection().view,Mk2View::Menu);
   EXPECT_EQ(rig.state.getButtonLock(),LK_LOCKED);
   rig.press(1,1);EXPECT_EQ(rig.state.getButtonLock(),LK_UNLOCKED);
   rig.press(1,0);EXPECT_EQ(rig.panel.selection().menu,unsigned(Mk2Menu::Update));
-  EXPECT_FALSE(rig.state.hasOTA());
-  rig.press(1,1,true);EXPECT_FALSE(rig.state.hasOTA());
-  rig.press(1,1);EXPECT_TRUE(rig.state.hasOTA());
+  EXPECT_FALSE(rig.state.updateArmed());
+  rig.press(1,1,true);EXPECT_FALSE(rig.state.updateArmed());
+  rig.press(1,1);EXPECT_TRUE(rig.state.updateArmed());
 
   Mk2Rig wired;
   wired.press(2,1);wired.panel.turn(-1);

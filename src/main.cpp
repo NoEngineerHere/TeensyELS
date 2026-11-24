@@ -11,7 +11,7 @@
 #include <pulse_timing.h>
 #include <spindle_encoder.h>
 #include <boot_diagnostics.h>
-#include "ESPCommsManager.h"
+#include "ManualUpdateReceiver.h"
 #include <panel_input.h>
 #include "config.h"
 #include "display.h"
@@ -37,13 +37,9 @@ Leadscrew leadscrew(globalState, &spindle, &leadscrewIOImpl, pulseTiming, ACCEL_
     ELS_LEADSCREW_PITCH_MM, ELS_SPINDLE_ENCODER_PPR);
 Controls controls(globalState, leadscrew);
 #ifdef ESP32
-ESPCommsManager commsManager(globalState);
-static bool maintenanceRequested() { return globalState.hasOTA(); }
-static void receiveUpdate() { commsManager.loop(); }
-#else
-static bool maintenanceRequested() { return false; }
-static void receiveUpdate() {}
+ManualUpdateReceiver updateReceiver(globalState);
 #endif
+static bool maintenanceRequested() { return compiledProcessor == Processor::Esp32 && globalState.updateArmed(); }
 PanelInput panel(controls);
 #if ELS_INPUT_LAYOUT == ELS_INPUT_MK2_MATRIX
 Display display(globalState, &spindle, &leadscrew, &panel.actions());
@@ -95,6 +91,7 @@ static std::atomic<uint32_t> timerCompletions{0}, displayReturns{0};
 #endif
 
 static void latchFault(const char* reason) {
+  if (faultReason.load(std::memory_order_acquire)) return;
   leadscrew.setFaultInhibit(true);
   const char* expected = nullptr;
   faultReason.compare_exchange_strong(expected, reason, std::memory_order_release);
@@ -116,10 +113,7 @@ static void reportFault() {
 void motionTick() {
   sampleAlarm();
   const bool maintenance = maintenanceRequested();
-  if (maintenance) {
-    leadscrew.setFaultInhibit(true);
-    ready.store(false, std::memory_order_release);
-  }
+  if (maintenance) ready.store(false, std::memory_order_release);
   spindleEncoder.sample(spindle);
   leadscrew.update();
   if (leadscrew.hasOutputFault()) latchFault("PULSE_OUTPUT_FAULT");
@@ -133,7 +127,7 @@ void motionTick() {
 }
 void inputTick() {
   const uint32_t now = millis();
-  if (ready.load(std::memory_order_acquire) && !display.failed()) panel.poll(now);
+  if (ready.load(std::memory_order_acquire) && !display.failed() && !maintenanceRequested()) panel.poll(now);
   updateIndicators(globalState, now);
 }
 void displayTick() {
@@ -220,6 +214,14 @@ void loop() {
       startMotionServices();
   }
   reportFault();
-  if (updateHandoff.exchange(false, std::memory_order_acquire) &&
-      !faultReason.load(std::memory_order_acquire) && !display.failed()) receiveUpdate();
 }
+
+#if defined(ESP32) || defined(ELS_TEST_ESP_RUNTIME)
+void serviceUpdateReceiver() {
+  if (!maintenanceRequested()) return;
+  sampleAlarm();
+  const bool healthy = !faultReason.load(std::memory_order_acquire) && !display.failed();
+  if (updateHandoff.exchange(false, std::memory_order_acquire) && healthy) updateReceiver.arm();
+  updateReceiver.poll(healthy);
+}
+#endif

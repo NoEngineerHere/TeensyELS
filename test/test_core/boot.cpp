@@ -46,7 +46,6 @@ bool initializeDisplayBus(){return busOK;}
 void enableDisplayBacklight(){}
 void updateIndicators(GlobalState&,uint32_t){}
 bool maintenanceRequested(){return false;}
-void receiveUpdate(){}
 RuntimeStartResult startRuntime();
 void serviceRuntimeForeground();
 #include "../../src/main.cpp"
@@ -55,7 +54,7 @@ void serviceRuntimeForeground();
 #undef ELS_TEST_TEENSY_RUNTIME
 void timerCallback() { motionInterrupt(); }
 void reset(){
- setTestMicros(0);BootDiagnosticsTest::reset();globalState.setMotionMode(MM_DISABLED);globalState.clearOTA();
+ setTestMicros(0);BootDiagnosticsTest::reset();globalState.~GlobalState();new(&globalState)GlobalState;
  spindle.~Spindle();new(&spindle)Spindle;
  io=LeadscrewIOMock{};leadscrew.~Leadscrew();new(&leadscrew)Leadscrew(globalState, &spindle,&io,testPulseTiming,1000,100,1200,2,1200);
  display=BootHW::Screen{};panel=BootHW::Keys{};timer=BootHW::Timer{};
@@ -69,7 +68,7 @@ GlobalState globalState;
 Spindle spindle;BootHW::Encoder spindleEncoder;LeadscrewIOMock io;
 Leadscrew leadscrew(globalState, &spindle,&io,testPulseTiming,1000,100,1200,2,1200);
 BootHW::Screen display;BootHW::Keys panel;BootHW::SerialPort Serial;
-struct Comms {int calls=0;void loop(){++calls;}} commsManager;
+struct Receiver {int calls=0;void arm(){++calls;} void poll(bool){}} updateReceiver;
 using TickType_t=uint32_t;using TaskHandle_t=void*;
 constexpr int portPRIVILEGE_BIT=0x800000,pdPASS=1;
 int tasks=0,failTask=0;
@@ -94,20 +93,20 @@ bool busOK=true;
 bool initializeDisplayBus(){return busOK;}
 void enableDisplayBacklight(){}
 void updateIndicators(GlobalState&,uint32_t){}
-bool maintenanceRequested(){return globalState.hasOTA();}
-void receiveUpdate(){commsManager.loop();}
+bool maintenanceRequested(){return globalState.updateArmed();}
+
 RuntimeStartResult startRuntime();
 void serviceRuntimeForeground();
-#include "../../src/main.cpp"
 #define ELS_TEST_ESP_RUNTIME
+#include "../../src/main.cpp"
 #include "../../src/runtime_esp32.cpp"
 #undef ELS_TEST_ESP_RUNTIME
 void timerCallback() { if (motionServiceNeeded()) motionTick(); }
 void reset(){
- setTestMicros(0);BootDiagnosticsTest::reset();globalState.setMotionMode(MM_DISABLED);globalState.clearOTA();
+ setTestMicros(0);BootDiagnosticsTest::reset();globalState.~GlobalState();new(&globalState)GlobalState;
  spindle.~Spindle();new(&spindle)Spindle;
  io=LeadscrewIOMock{};leadscrew.~Leadscrew();new(&leadscrew)Leadscrew(globalState, &spindle,&io,testPulseTiming,1000,100,1200,2,1200);
- display=BootHW::Screen{};panel=BootHW::Keys{};commsManager=Comms{};tasks=failTask=0;
+ display=BootHW::Screen{};panel=BootHW::Keys{};updateReceiver={};tasks=failTask=0;
  displayTaskStarted=false;
  stopAtYield=false;
  ready=false;faultReason=nullptr;displayReady=displayFaultShown=faultReported=false;bannerStarted=0;
@@ -167,11 +166,14 @@ TEST(Boot, OTAHandsOffOnlyAfterInflightCompletionAndNeverRearms) {
  using namespace EspBoot;reset();setup();setTestMicros(2000000);loop();ASSERT_TRUE(ready);
  globalState.setMotionMode(MM_ENABLED);timerCallback();spindle.incrementCurrentPosition(1200);
  for(int i=0;i<1000 && !io.step;++i){setTestMicros(elsMicros()+4);timerCallback();}
- ASSERT_EQ(io.step,1);globalState.setOTA();setTestMicros(elsMicros()+3);timerCallback();
- EXPECT_EQ(commsManager.calls,0);EXPECT_FALSE(leadscrew.isOutputIdle());
- setTestMicros(elsMicros()+1);timerCallback();EXPECT_EQ(commsManager.calls,0);
- loop();EXPECT_EQ(commsManager.calls,1);EXPECT_EQ(io.completions,1);
- EXPECT_TRUE(leadscrew.isOutputIdle());globalState.clearOTA();leadscrew.setFaultInhibit(false);
+ ASSERT_EQ(io.step,1);EXPECT_FALSE(leadscrew.requestMaintenance());
+ globalState.setButtonLock(LK_UNLOCKED);globalState.setMotionMode(MM_DISABLED);
+ ASSERT_TRUE(leadscrew.requestMaintenance());
+ setTestMicros(elsMicros()+3);timerCallback();loop();
+ EXPECT_EQ(updateReceiver.calls,0);EXPECT_FALSE(leadscrew.isOutputIdle());
+ setTestMicros(elsMicros()+1);timerCallback();EXPECT_EQ(updateReceiver.calls,0);
+ loop();EXPECT_EQ(updateReceiver.calls,1);EXPECT_EQ(io.completions,1);
+ EXPECT_TRUE(leadscrew.isOutputIdle());leadscrew.setFaultInhibit(false);
  globalState.setMotionMode(MM_ENABLED);spindle.incrementCurrentPosition(1200);
  for(int i=0;i<1000;++i){setTestMicros(elsMicros()+4);timerCallback();}
  EXPECT_EQ(io.completions,1);
@@ -225,12 +227,14 @@ TEST(Boot, AlarmDrainsPendingPulseButTerminalFaultParksWithoutCompletion) {
   globalState.setMotionMode(MM_JOG_RIGHT);
   for(int i=0;i<1000&&!io.step;++i){setTestMicros(elsMicros()+4);timerCallback();}
   ASSERT_EQ(io.step,1);
+  globalState.setButtonLock(LK_UNLOCKED);globalState.setMotionMode(MM_DISABLED);
+  ASSERT_TRUE(leadscrew.requestMaintenance());
   alarmLine=!terminal;io.completionOK=!terminal;setTestMicros(elsMicros()+4);timerCallback();
   EXPECT_FALSE(ready);EXPECT_FALSE(EspBoot::motionServiceNeeded());
   EXPECT_EQ(io.completions,terminal?0:1);EXPECT_EQ(leadscrew.getCurrentPosition(),terminal?0:1);
   EXPECT_EQ(leadscrew.isOutputIdle(),!terminal);
   EXPECT_STREQ(faultReason.load(),terminal?"PULSE_OUTPUT_FAULT":"DRIVER_ALARM");
-  globalState.setOTA();alarmLine=false;timerCallback();EXPECT_EQ(commsManager.calls,0);
+  EXPECT_FALSE(leadscrew.requestMaintenance());alarmLine=false;timerCallback();loop();EXPECT_EQ(updateReceiver.calls,0);
   stopAtYield=true;EXPECT_THROW(motionTask(nullptr),TaskYield);stopAtYield=false;
  }
 }

@@ -1,8 +1,6 @@
 #pragma once
 #include <els/hardware_types.h>
 
-#define ELS_INPUT_LAYOUT ELS_INPUT_DIRECT
-
 constexpr HardwareConfig teensyDirectWiring() {
   HardwareConfig c;
   c.processor = Processor::Teensy41;

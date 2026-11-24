@@ -15,7 +15,6 @@ protected:
     state.setMotionMode(MM_DISABLED);
     state.setThreadSyncState(SS_UNSYNC);
     state.setButtonLock(LK_LOCKED);
-    state.clearOTA();
   }
 };
 

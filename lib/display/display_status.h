@@ -17,3 +17,4 @@ struct DisplayStatus {
 using DisplayLines = char[7][22];
 DisplayStatus readDisplayStatus(GlobalState& state, Spindle& spindle, Leadscrew& screw);
 void formatDisplayLines(DisplayLines& lines, const DisplayStatus& status, const Mk2Panel* panel);
+bool formatUpdateLines(DisplayLines& lines, const UpdateStatus& status);

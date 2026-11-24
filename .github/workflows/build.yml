@@ -6,14 +6,25 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        environment: [native, native_sanitized, teensy41, teensy41_debug, esp32dev]
+        environment:
+          - native
+          - native_sanitized
+          - native_lvgl
+          - native_hardware
+          - teensy41
+          - teensy41_debug
+          - esp32dev
+          - teensy41_pcb
+          - esp32_halfnut
+          - esp32_oled
+          - teensy41_tft
+          - teensy41_lvgl
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - run: pip install platformio==6.2.0
-      - run: cp src/SECRETS-SAMPLE.h src/SECRETS.h
       - name: Compile or run native assertions
         env:
           ASAN_OPTIONS: halt_on_error=1
@@ -23,6 +34,9 @@ jobs:
             native*) pio test -e "${{ matrix.environment }}" ;;
             *) pio run -e "${{ matrix.environment }}" ;;
           esac
+      - name: Check ESP32 update descriptor and app slots
+        if: startsWith(matrix.environment, 'esp32')
+        run: python3 scripts/verify_esp_descriptor.py "${{ matrix.environment }}"
       - run: pio pkg list -e "${{ matrix.environment }}" > packages.txt
       - uses: actions/upload-artifact@v4
         with:
