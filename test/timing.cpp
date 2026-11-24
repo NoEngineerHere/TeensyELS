@@ -92,7 +92,7 @@ static std::vector<int> pulseTrace(uint32_t base, GlobalMotionMode mode) {
   state.setMotionMode(MM_DISABLED);
   Spindle spindle;
   LeadscrewIOMock io;
-  Leadscrew screw(state, &spindle, &io, 1000, 100, 800, 2.54, 1200);
+  Leadscrew screw(state, &spindle, &io, testPulseTiming, 1000, 100, 800, 2.54, 1200);
   EXPECT_TRUE(screw.initializeOutputs());
   screw.setFaultInhibit(false);
   screw.setTargetPitchMM(1.27);

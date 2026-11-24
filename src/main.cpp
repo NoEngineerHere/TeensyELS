@@ -6,6 +6,8 @@
 #include <controls.h>
 #include <leadscrew.h>
 #include <spindle.h>
+#include <board.h>
+#include <pulse_timing.h>
 #include <spindle_encoder.h>
 #include <boot_diagnostics.h>
 #include "ESPCommsManager.h"
@@ -16,28 +18,30 @@
 #include "keyarray.h"
 #ifdef ESP32
 #include <esp_task_wdt.h>
-#include <leadscrew_io_esp.h>
+#include <pulse_esp32.h>
 #else
-#include <leadscrew_io_teensy.h>
+#include <pulse_teensy.h>
 IntervalTimer timer;
 #endif
 
 GlobalState globalState;
 Spindle spindle;
-SpindleEncoder spindleEncoder(ELS_SPINDLE_ENCODER_A, ELS_SPINDLE_ENCODER_B);
+SpindleEncoder spindleEncoder(hardware.motion.spindleA, hardware.motion.spindleB);
 #ifdef ESP32
-LeadscrewIOESP leadscrewIOImpl;
+static_assert(pulseTiming.highUs > 0 && pulseTiming.highUs <= 32767, "RMT high duration out of range");
+static_assert(pulseTiming.lowUs > 0 && pulseTiming.lowUs <= 32767, "RMT low duration out of range");
+LeadscrewIOESP<hardware.motion.step, hardware.motion.dir> leadscrewIOImpl(pulseTiming);
 #else
-LeadscrewIOTeensy leadscrewIOImpl;
+LeadscrewIOTeensy<hardware.motion.step, hardware.motion.dir> leadscrewIOImpl(pulseTiming);
 #endif
-Leadscrew leadscrew(globalState, &spindle, &leadscrewIOImpl, ACCEL_PULSE_SEC,
+Leadscrew leadscrew(globalState, &spindle, &leadscrewIOImpl, pulseTiming, ACCEL_PULSE_SEC,
     LEADSCREW_INITIAL_PULSE_DELAY_US, ELS_LEADSCREW_STEPPER_PPR * ELS_GEARBOX_RATIO,
     ELS_LEADSCREW_PITCH_MM, ELS_SPINDLE_ENCODER_PPR);
 Controls controls(globalState, leadscrew);
 #ifdef ESP32
 ESPCommsManager commsManager(globalState);
 #endif
-#ifdef ELS_USE_BUTTON_ARRAY
+#if ELS_INPUT_LAYOUT == ELS_INPUT_LEGACY_MATRIX
 KeyArray keyArray;
 ButtonPad keyPad(controls, keyArray);
 #else
@@ -46,24 +50,22 @@ ButtonHandler keyPad(controls);
 Display display(globalState, &spindle, &leadscrew);
 static void initializeEnableOutput() {
   // Compatibility assertion only: LOW is not a claim of electrical disable.
-  digitalWrite(ELS_STEPPER_ENA, LOW);
-  pinMode(ELS_STEPPER_ENA, OUTPUT);
+  digitalWrite(hardware.motion.enable, LOW);
+  pinMode(hardware.motion.enable, OUTPUT);
 }
 static void initializeBoardControls() {
   CHECK_BOUNDS(DEFAULT_METRIC_THREAD_PITCH_IDX, threadPitchMetric, "Invalid thread default");
   CHECK_BOUNDS(DEFAULT_METRIC_FEED_PITCH_IDX, feedPitchMetric, "Invalid feed default");
   CHECK_BOUNDS(DEFAULT_IMPERIAL_THREAD_PITCH_IDX, threadPitchImperial, "Invalid thread default");
   CHECK_BOUNDS(DEFAULT_IMPERIAL_FEED_PITCH_IDX, feedPitchImperial, "Invalid feed default");
-#ifdef ELS_UI_ENCODER
-  pinMode(ELS_IND_GREEN, OUTPUT);
-  pinMode(ELS_IND_RED, OUTPUT);
-#endif
-#ifdef ELS_USE_BUTTON_ARRAY
+  if constexpr (hardware.indicators.green >= 0) pinMode(hardware.indicators.green, OUTPUT);
+  if constexpr (hardware.indicators.red >= 0) pinMode(hardware.indicators.red, OUTPUT);
+#if ELS_INPUT_LAYOUT == ELS_INPUT_LEGACY_MATRIX
   keyArray.initPad();
 #else
-  for (int pin : {ELS_RATE_INCREASE_BUTTON, ELS_RATE_DECREASE_BUTTON, ELS_MODE_CYCLE_BUTTON,
-                 ELS_THREAD_SYNC_BUTTON, ELS_HALF_NUT_BUTTON, ELS_ENABLE_BUTTON,
-                 ELS_LOCK_BUTTON, ELS_JOG_LEFT_BUTTON, ELS_JOG_RIGHT_BUTTON}) pinMode(pin, INPUT_PULLUP);
+  for (int pin : {hardware.direct.increase, hardware.direct.decrease, hardware.direct.mode,
+                 hardware.direct.sync, hardware.direct.halfNut, hardware.direct.enable,
+                 hardware.direct.lock, hardware.direct.left, hardware.direct.right}) pinMode(pin, INPUT_PULLUP);
 #endif
 }
 #endif

@@ -40,6 +40,7 @@ private:
   GlobalState& m_state;
   Spindle* m_spindle;
   LeadscrewIO* m_io;
+  const PulseTiming m_timing;
 
   double m_expectedPosition = 0;
 
@@ -92,7 +93,7 @@ private:
   int boundedInt(double value);
 
 public:
-  Leadscrew(GlobalState& state, Spindle* spindle, LeadscrewIO* io,
+  Leadscrew(GlobalState& state, Spindle* spindle, LeadscrewIO* io, PulseTiming timing,
     float leadscrewAccel, float initialPulseDelay, 
     int motorPulsePerRevolution,
     float leadscrewPitch, int encoderPPR);

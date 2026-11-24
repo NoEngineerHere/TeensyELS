@@ -8,7 +8,7 @@ protected:
  GlobalState state;
  Spindle spindle;
  LeadscrewIOMock io;
- Leadscrew screw{state, &spindle,&io,1000,100,1200,2,1200};
+ Leadscrew screw{state, &spindle,&io,testPulseTiming,1000,100,1200,2,1200};
  Controls controls{state, screw};
  // Production ButtonHandler has static storage. Mirror its zero-initialized
  // backing for AbleButtons' internal counters; exercise its real pin state machine.
@@ -29,39 +29,39 @@ protected:
  void release(int pin){ButtonHardwareTest::pins[pin]=HIGH;handler->handle();poll(50);}
 };
 TEST_F(Buttons, ModeHoldActsOnceAndReleaseDoesNotAlsoClick) {
- press(ELS_MODE_CYCLE_BUTTON);poll(1100);
+ press(hardware.direct.mode);poll(1100);
  EXPECT_EQ(state.getUnitMode(),IMPERIAL);
  poll(1100);EXPECT_EQ(state.getUnitMode(),IMPERIAL);
- release(ELS_MODE_CYCLE_BUTTON);EXPECT_EQ(state.getFeedMode(),FM_FEED);
- press(ELS_MODE_CYCLE_BUTTON);poll(1100);
+ release(hardware.direct.mode);EXPECT_EQ(state.getFeedMode(),FM_FEED);
+ press(hardware.direct.mode);poll(1100);
  EXPECT_EQ(state.getUnitMode(),METRIC);
 }
 TEST_F(Buttons, ShortModeClickChangesFeedNotUnits) {
- press(ELS_MODE_CYCLE_BUTTON);poll(150);release(ELS_MODE_CYCLE_BUTTON);
+ press(hardware.direct.mode);poll(150);release(hardware.direct.mode);
  EXPECT_EQ(state.getFeedMode(),FM_THREAD);
  EXPECT_EQ(state.getUnitMode(),METRIC);
 }
 TEST_F(Buttons, LockedHoldIsConsumedUntilDebouncedRelease) {
  auto* s=&state;s->setButtonLock(LK_LOCKED);
- press(ELS_MODE_CYCLE_BUTTON);poll(1200);s->setButtonLock(LK_UNLOCKED);poll(1200);
- EXPECT_EQ(s->getUnitMode(),METRIC);release(ELS_MODE_CYCLE_BUTTON);
+ press(hardware.direct.mode);poll(1200);s->setButtonLock(LK_UNLOCKED);poll(1200);
+ EXPECT_EQ(s->getUnitMode(),METRIC);release(hardware.direct.mode);
  EXPECT_EQ(s->getFeedMode(),FM_FEED);
- press(ELS_MODE_CYCLE_BUTTON);poll(1100);EXPECT_EQ(s->getUnitMode(),IMPERIAL);
+ press(hardware.direct.mode);poll(1100);EXPECT_EQ(s->getUnitMode(),IMPERIAL);
 }
 TEST_F(Buttons, JogStopsHaveIndependentOneShotHoldsAndNoReleaseJog) {
- press(ELS_JOG_LEFT_BUTTON);poll(1100);
+ press(hardware.direct.left);poll(1100);
  EXPECT_EQ(screw.getStopPositionState(LeadscrewStopPosition::LEFT),LeadscrewStopState::SET);
  poll(1100);EXPECT_EQ(screw.getStopPositionState(LeadscrewStopPosition::LEFT),LeadscrewStopState::SET);
- press(ELS_JOG_RIGHT_BUTTON);poll(1100);
+ press(hardware.direct.right);poll(1100);
  EXPECT_EQ(screw.getStopPositionState(LeadscrewStopPosition::LEFT),LeadscrewStopState::SET);
  EXPECT_EQ(screw.getStopPositionState(LeadscrewStopPosition::RIGHT),LeadscrewStopState::SET);
- release(ELS_JOG_LEFT_BUTTON);EXPECT_EQ(state.getMotionMode(),MM_DISABLED);
- press(ELS_JOG_LEFT_BUTTON);poll(1100);
+ release(hardware.direct.left);EXPECT_EQ(state.getMotionMode(),MM_DISABLED);
+ press(hardware.direct.left);poll(1100);
  EXPECT_EQ(screw.getStopPositionState(LeadscrewStopPosition::LEFT),LeadscrewStopState::UNSET);
  EXPECT_EQ(screw.getStopPositionState(LeadscrewStopPosition::RIGHT),LeadscrewStopState::SET);
 }
 TEST_F(Buttons, HoldLatchesAreNotSharedBetweenHandlerInstances) {
- press(ELS_MODE_CYCLE_BUTTON);poll(1100);ASSERT_EQ(state.getUnitMode(),IMPERIAL);
+ press(hardware.direct.mode);poll(1100);ASSERT_EQ(state.getUnitMode(),IMPERIAL);
  alignas(ButtonHandler) unsigned char secondStorage[sizeof(ButtonHandler)]{};
  auto* second=new(secondStorage) ButtonHandler(controls);
  second->handle();poll(1100,second);EXPECT_EQ(state.getUnitMode(),METRIC);
@@ -69,17 +69,17 @@ TEST_F(Buttons, HoldLatchesAreNotSharedBetweenHandlerInstances) {
  second->~ButtonHandler();
 }
 TEST_F(Buttons, HeldLeftJogIsNotUnconditionallyCancelledByBooleanPrecedence) {
- press(ELS_JOG_LEFT_BUTTON);poll(1100);
+ press(hardware.direct.left);poll(1100);
  state.setMotionMode(MM_JOG_LEFT);handler->handle();
  EXPECT_EQ(state.getMotionMode(),MM_JOG_LEFT);
- release(ELS_JOG_LEFT_BUTTON);EXPECT_EQ(state.getMotionMode(),MM_DISABLED);
+ release(hardware.direct.left);EXPECT_EQ(state.getMotionMode(),MM_DISABLED);
 }
 
 TEST_F(Buttons, OperatorActionsOnlyAffectTheirOwnMotionController) {
  GlobalState otherState;
  Spindle otherSpindle;
  LeadscrewIOMock otherIO;
- Leadscrew other(otherState, &otherSpindle, &otherIO, 1000, 100, 1200, 2, 1200);
+ Leadscrew other(otherState, &otherSpindle, &otherIO, testPulseTiming, 1000, 100, 1200, 2, 1200);
  ASSERT_TRUE(other.initializeOutputs());
  other.setFaultInhibit(false);
  other.update();

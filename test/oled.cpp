@@ -14,7 +14,7 @@ namespace OledSurface {
 }
 TEST(Oled, AllocationFailureReturnsAndLatchesMotionInhibit) {
  GlobalState state;setTestMicros(0);state.setMotionMode(MM_DISABLED);OledSurface::Wire={};
- Spindle spindle;LeadscrewIOMock io;Leadscrew screw(state, &spindle,&io,1000,100,1200,2,1200);
+ Spindle spindle;LeadscrewIOMock io;Leadscrew screw(state, &spindle,&io,testPulseTiming,1000,100,1200,2,1200);
  ASSERT_TRUE(screw.initializeOutputs());
  OledSurface::Display display(state, &spindle,&screw);display.m_ssd1306.beginOK=false;
  EXPECT_FALSE(display.init());display.update();
@@ -26,7 +26,7 @@ TEST(Oled, AllocationFailureReturnsAndLatchesMotionInhibit) {
 TEST(Oled, StartupDataTransferFailureDoesNotMistakeAllocationForCommunication) {
  for(uint8_t error:{2,4}) {
   GlobalState state;setTestMicros(0);OledSurface::Wire={};OledSurface::Wire.failAt=2;OledSurface::Wire.failure=error;
-  Spindle spindle;LeadscrewIOMock io;Leadscrew screw(state, &spindle,&io,1000,100,1200,2,1200);
+  Spindle spindle;LeadscrewIOMock io;Leadscrew screw(state, &spindle,&io,testPulseTiming,1000,100,1200,2,1200);
   ASSERT_TRUE(screw.initializeOutputs());OledSurface::Display display(state, &spindle,&screw);
   EXPECT_FALSE(display.init());
   screw.setFaultInhibit(false);state.setMotionMode(MM_JOG_RIGHT);
@@ -36,7 +36,7 @@ TEST(Oled, StartupDataTransferFailureDoesNotMistakeAllocationForCommunication) {
 }
 TEST(Oled, RuntimeDataFailureDrainsAcceptedPulseOnceAndNeverRearmsOrRetries) {
  GlobalState state;setTestMicros(0);OledSurface::Wire={};Spindle spindle;LeadscrewIOMock io;
- Leadscrew screw(state, &spindle,&io,1000,100,1200,2,1200);ASSERT_TRUE(screw.initializeOutputs());
+ Leadscrew screw(state, &spindle,&io,testPulseTiming,1000,100,1200,2,1200);ASSERT_TRUE(screw.initializeOutputs());
  OledSurface::Display display(state, &spindle,&screw);ASSERT_TRUE(display.init());screw.setFaultInhibit(false);
  state.setMotionMode(MM_JOG_RIGHT);
  for(int i=0;i<1000&&!io.step;++i){setTestMicros(elsMicros()+4);screw.update();}
@@ -50,7 +50,7 @@ TEST(Oled, RuntimeDataFailureDrainsAcceptedPulseOnceAndNeverRearmsOrRetries) {
 }
 TEST(Oled, ShortWireWriteAlsoLatchesInhibit) {
  GlobalState state;setTestMicros(0);OledSurface::Wire={};OledSurface::Wire.shortWrite=true;
- Spindle spindle;LeadscrewIOMock io;Leadscrew screw(state, &spindle,&io,1000,100,1200,2,1200);
+ Spindle spindle;LeadscrewIOMock io;Leadscrew screw(state, &spindle,&io,testPulseTiming,1000,100,1200,2,1200);
  ASSERT_TRUE(screw.initializeOutputs());OledSurface::Display display(state, &spindle,&screw);EXPECT_FALSE(display.init());
  screw.setFaultInhibit(false);state.setMotionMode(MM_JOG_LEFT);
  for(int i=0;i<1000;++i){setTestMicros(elsMicros()+4);screw.update();}

@@ -1,5 +1,5 @@
 #ifdef ESP32
-#include "spindle.h"
+#include <spindle.h>
 #include "spindle_encoder.h"
 #include <climits>
 SpindleEncoder::SpindleEncoder(int pinA, int pinB) {

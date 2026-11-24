@@ -2,6 +2,7 @@
 #include <leadscrew_io.h>
 #include <clock.h>
 #include <vector>
+inline constexpr PulseTiming testPulseTiming{4, 4, 4, 4};
 class LeadscrewIOMock : public LeadscrewIO {
 public:
   struct Edge { uint32_t time; int step; int dir; };
@@ -16,12 +17,12 @@ public:
     if (step || !startOK) return false;
     step = 1; started = now; edges.push_back({now, step, dir}); return true;
   }
-  PulseResult servicePulse(uint32_t now) override {
-    if (!step) return PulseResult::IDLE;
-    if (!completionOK) return PulseResult::FAULT;
+  PulseStatus servicePulse(uint32_t now) override {
+    if (!step) return {PulseResult::IDLE};
+    if (!completionOK) return {PulseResult::FAULT};
     const uint32_t elapsed = now - started;
-    if (elapsed < ELS_STEP_HIGH_US) return PulseResult::PENDING;
-    step = 0; ++completions; edges.push_back({now, step, dir}); return PulseResult::COMPLETE;
+    if (elapsed < testPulseTiming.highUs) return {PulseResult::PENDING};
+    step = 0; ++completions; edges.push_back({now, step, dir}); return {PulseResult::COMPLETE, now};
   }
   uint8_t readStepPin() const { return step; }
   uint8_t readDirPin() const { return dir; }

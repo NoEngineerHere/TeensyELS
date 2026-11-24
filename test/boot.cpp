@@ -22,7 +22,7 @@ struct Timer {bool ok=true;int starts=0;bool begin(void(*)(),int){++starts;retur
 namespace TeensyBoot {
 GlobalState globalState;
 Spindle spindle;BootHW::Encoder spindleEncoder;LeadscrewIOMock io;
-Leadscrew leadscrew(globalState, &spindle,&io,1000,100,1200,2,1200);
+Leadscrew leadscrew(globalState, &spindle,&io,testPulseTiming,1000,100,1200,2,1200);
 BootHW::Screen display;BootHW::Keys keyPad;BootHW::SerialPort Serial;BootHW::Timer timer;
 void initializeEnableOutput(){}
 void initializeBoardControls(){}
@@ -30,7 +30,7 @@ void initializeBoardControls(){}
 void reset(){
  setTestMicros(0);BootDiagnosticsTest::reset();globalState.setMotionMode(MM_DISABLED);globalState.clearOTA();
  spindle.~Spindle();new(&spindle)Spindle;
- io=LeadscrewIOMock{};leadscrew.~Leadscrew();new(&leadscrew)Leadscrew(globalState, &spindle,&io,1000,100,1200,2,1200);
+ io=LeadscrewIOMock{};leadscrew.~Leadscrew();new(&leadscrew)Leadscrew(globalState, &spindle,&io,testPulseTiming,1000,100,1200,2,1200);
  display=BootHW::Screen{};keyPad=BootHW::Keys{};timer=BootHW::Timer{};
  ready=false;bootFault=false;displayReady=false;bannerStarted=0;
 }
@@ -38,7 +38,7 @@ void reset(){
 namespace EspBoot {
 GlobalState globalState;
 Spindle spindle;BootHW::Encoder spindleEncoder;LeadscrewIOMock io;
-Leadscrew leadscrew(globalState, &spindle,&io,1000,100,1200,2,1200);
+Leadscrew leadscrew(globalState, &spindle,&io,testPulseTiming,1000,100,1200,2,1200);
 BootHW::Screen display;BootHW::Keys keyPad;BootHW::SerialPort Serial;
 struct Comms {int calls=0;void loop(){++calls;}} commsManager;
 using TickType_t=uint32_t;using TaskHandle_t=void*;
@@ -64,7 +64,7 @@ void initializeBoardControls(){}
 void reset(){
  setTestMicros(0);BootDiagnosticsTest::reset();globalState.setMotionMode(MM_DISABLED);globalState.clearOTA();
  spindle.~Spindle();new(&spindle)Spindle;
- io=LeadscrewIOMock{};leadscrew.~Leadscrew();new(&leadscrew)Leadscrew(globalState, &spindle,&io,1000,100,1200,2,1200);
+ io=LeadscrewIOMock{};leadscrew.~Leadscrew();new(&leadscrew)Leadscrew(globalState, &spindle,&io,testPulseTiming,1000,100,1200,2,1200);
  display=BootHW::Screen{};keyPad=BootHW::Keys{};commsManager=Comms{};tasks=failTask=0;
  stopAtYield=false;
  ready=false;bootFault=false;displayReady=false;bannerStarted=0;

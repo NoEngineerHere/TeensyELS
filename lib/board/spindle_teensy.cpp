@@ -1,5 +1,5 @@
 #ifdef CORE_TEENSY
-#include "spindle.h"
+#include <spindle.h>
 #include "spindle_encoder.h"
 SpindleEncoder::SpindleEncoder(int pinA, int pinB) : encoder(pinA, pinB) {}
 void SpindleEncoder::sample(Spindle& spindle) {

@@ -35,7 +35,7 @@ TEST(SharedState, ConcurrentSpindleConsumeConservesEveryEncoderIncrement) {
  EXPECT_EQ(spindle.getCurrentPosition(),counts%ELS_SPINDLE_ENCODER_PPR);EXPECT_FALSE(spindle.hasMotionFault());
 }
 TEST(SharedState, PositionReplacementAndErrorReadObserveOneCoherentPair) {
- GlobalState state;setTestMicros(1000000);Spindle spindle;LeadscrewIOMock io;Leadscrew screw(state, &spindle,&io,1000,100,1200,2,1200);
+ GlobalState state;setTestMicros(1000000);Spindle spindle;LeadscrewIOMock io;Leadscrew screw(state, &spindle,&io,testPulseTiming,1000,100,1200,2,1200);
  std::atomic<bool> done{false};bool mixed=false;
  std::thread writer([&]{for(int i=0;i<20000;++i)screw.setCurrentPosition(i%2?100000:-100000);done.store(true);});
  while(!done.load()){mixed|=screw.getPositionError()!=0;std::this_thread::yield();}

@@ -21,20 +21,24 @@ static int rmt_write_items(int,const rmt_item32_t* item,int count,bool wait) {
  EXPECT_EQ(count,1);EXPECT_FALSE(wait);submitted=*item;++submissions;return sendResult;
 }
 static int rmt_wait_tx_done(int,int timeout) {EXPECT_EQ(timeout,0);++polls;return pollResult;}
-#include <leadscrew_io_esp.h>
+#include <pulse_esp32.h>
+using TestRmtIO = LeadscrewIOESP<25, 26>;
 class Rmt : public testing::Test {
  void SetUp() override {configResult=installResult=sendResult=polls=submissions=0;pollResult=ESP_ERR_TIMEOUT;}
 };
 TEST_F(Rmt, PendingCompleteIsOneSubmissionAndOneCompletion) {
- LeadscrewIOESP io;ASSERT_TRUE(io.begin());
- EXPECT_EQ(io.servicePulse(0),LeadscrewIO::PulseResult::IDLE);EXPECT_EQ(polls,0);
+ TestRmtIO io({20, 20, 4, 4});ASSERT_TRUE(io.begin());
+ EXPECT_EQ(io.servicePulse(0).result,LeadscrewIO::PulseResult::IDLE);EXPECT_EQ(polls,0);
  ASSERT_TRUE(io.startPulse(0));EXPECT_FALSE(io.startPulse(1));
- EXPECT_EQ(io.servicePulse(1),LeadscrewIO::PulseResult::PENDING);
- EXPECT_EQ(io.servicePulse(20),LeadscrewIO::PulseResult::PENDING);
+ EXPECT_EQ(io.servicePulse(1).result,LeadscrewIO::PulseResult::PENDING);
+ EXPECT_EQ(io.servicePulse(20).result,LeadscrewIO::PulseResult::PENDING);
  pollResult=ESP_OK;
- EXPECT_EQ(io.servicePulse(40),LeadscrewIO::PulseResult::COMPLETE);
+ setTestMicros(41);
+ const auto completed = io.servicePulse(40);
+ EXPECT_EQ(completed.result,LeadscrewIO::PulseResult::COMPLETE);
+ EXPECT_EQ(completed.lowSince,21u);
  const int completedPolls=polls;
- EXPECT_EQ(io.servicePulse(44),LeadscrewIO::PulseResult::IDLE);EXPECT_EQ(polls,completedPolls);
+ EXPECT_EQ(io.servicePulse(44).result,LeadscrewIO::PulseResult::IDLE);EXPECT_EQ(polls,completedPolls);
  EXPECT_EQ(submissions,1);EXPECT_EQ(submitted.duration0,20u);EXPECT_EQ(submitted.duration1,20u);
  EXPECT_EQ(submitted.level0,1u);EXPECT_EQ(submitted.level1,0u);
  EXPECT_TRUE(io.startPulse(100));
@@ -43,11 +47,11 @@ TEST_F(Rmt, BackendErrorsRemainFaulted) {
  for(int which:{0,1,2,3}) {
   configResult=installResult=sendResult=0;pollResult=ESP_ERR_TIMEOUT;
   if(which==0)configResult=-1;if(which==1)installResult=-1;
-  LeadscrewIOESP io;EXPECT_EQ(io.begin(),which>=2);
+  TestRmtIO io({20, 20, 4, 4});EXPECT_EQ(io.begin(),which>=2);
   if(which==2)sendResult=-1;
   EXPECT_EQ(io.startPulse(0),which==3);
   if(which==3)pollResult=-1;
-  EXPECT_EQ(io.servicePulse(40),LeadscrewIO::PulseResult::FAULT);
+  EXPECT_EQ(io.servicePulse(40).result,LeadscrewIO::PulseResult::FAULT);
   configResult=installResult=sendResult=pollResult=0;
   EXPECT_FALSE(io.startPulse(100));EXPECT_FALSE(io.begin());
  }

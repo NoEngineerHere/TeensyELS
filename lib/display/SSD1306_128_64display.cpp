@@ -1,5 +1,5 @@
-#include <config.h>
-#if !defined(PIO_UNIT_TESTING) && ELS_DISPLAY == ELS_SSD1306_128_64
+#include <els/hardware_config.h>
+#if !defined(PIO_UNIT_TESTING) && ELS_SCREEN == ELS_SCREEN_SSD1306_128X64
 #include <display.h>
 #include <rpm_format.h>
 #include <boot_diagnostics.h>
@@ -188,15 +188,15 @@ void Display::drawEnabled() {
 void Display::writeLed() {
   int64_t time = micros() / 250000;
   EncoderColour c = time % 2 == 1 ? firstColour : secondColour;
-  digitalWrite(ELS_IND_GREEN, (c & 2) == 2);
-  digitalWrite(ELS_IND_RED, c & 1);
+  digitalWrite(hardware.indicators.green, (c & 2) == 2);
+  digitalWrite(hardware.indicators.red, c & 1);
 
 }
 #endif
 
 
 void Display::updateLed() {
-#ifdef ELS_IND_GREEN
+#ifdef ESP32
 
   GlobalState* state = &m_globalState;
   GlobalMotionMode mode = state->getMotionMode();

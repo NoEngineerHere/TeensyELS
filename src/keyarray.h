@@ -1,9 +1,10 @@
-#ifdef ELS_USE_BUTTON_ARRAY
+#include <els/hardware_config.h>
+#if ELS_INPUT_LAYOUT == ELS_INPUT_LEGACY_MATRIX
 #ifndef KEYARRAY_H
 #define KEYARRAY_H
 
 #include <Arduino.h>
-#ifdef ELS_UI_ENCODER
+#if defined(ESP32)
 #include <ESP32Encoder.h>
 #endif
 
@@ -24,7 +25,7 @@ private:
     hw_timer_t* Timer0_Cfg;
     void setupKeys();
     int getCodeFromArray();
-#ifdef ELS_UI_ENCODER
+#if defined(ESP32)
     ESP32Encoder m_encoder;
     int64_t encoderPos;
 #endif
@@ -34,7 +35,7 @@ public:
     void handle();
     void handleTimer();
     ButtonInfo consumeButton();
-#ifdef ELS_UI_ENCODER
+#if defined(ESP32)
     int64_t consumeEncoderDelta();
 #endif
 };
