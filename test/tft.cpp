@@ -4,8 +4,9 @@
 #include "mocks/leadscrewio_mock.h"
 // Compile the production display implementation against a recording screen,
 // without replacing its formatter, cache, class declaration or spindle math.
-#undef ELS_DISPLAY
-#define ELS_DISPLAY ST7789_240_135
+#include <els/hardware_config.h>
+#undef ELS_SCREEN
+#define ELS_SCREEN ELS_SCREEN_ST7789_240X135
 #undef PIO_UNIT_TESTING
 #include "../lib/display/ST7789_240_135display.cpp"
 #define PIO_UNIT_TESTING 1
@@ -21,7 +22,7 @@ public:
 };
 TEST(Tft, ValidInvalidTransitionsRedrawOnlyChangedCompleteStrings) {
  GlobalState state;setTestMicros(0);RpmSpindle spindle;LeadscrewIOMock io;
- Leadscrew screw(state, &spindle,&io,1000,100,1200,2,1200);
+ Leadscrew screw(state, &spindle,&io,testPulseTiming,1000,100,1200,2,1200);
  TestDisplay display(state, &spindle,&screw);ASSERT_TRUE(display.init());
  display.drawSpindleRpm();display.drawSpindleRpm();
  spindle.rpm=1000000;display.drawSpindleRpm();display.drawSpindleRpm();
@@ -33,7 +34,7 @@ TEST(Tft, ValidInvalidTransitionsRedrawOnlyChangedCompleteStrings) {
 
 TEST(Tft, BootBannerUsesLockedAndFaultStates) {
  GlobalState state;setTestMicros(0);RpmSpindle spindle;LeadscrewIOMock io;
- Leadscrew screw(state, &spindle,&io,1000,100,1200,2,1200);
+ Leadscrew screw(state, &spindle,&io,testPulseTiming,1000,100,1200,2,1200);
  TestDisplay display(state, &spindle,&screw);ASSERT_TRUE(display.init());
  display.showBootStatus(false);display.showBootStatus(true);
  EXPECT_EQ(display.tft.text,(std::vector<std::string>{"BOOT / LOCKED","BOOT / FAULT"}));

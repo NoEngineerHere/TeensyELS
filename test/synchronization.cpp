@@ -27,9 +27,9 @@ protected:
 };
 TEST_F(Synchronization, FreshAutomaticAndZeroStorageRemainUnregistered) {
  Spindle spindle; LeadscrewIOMock io;
- Leadscrew automatic(state, &spindle,&io,1000,100,1200,2,1200);
+ Leadscrew automatic(state, &spindle,&io,testPulseTiming,1000,100,1200,2,1200);
  alignas(Leadscrew) unsigned char storage[sizeof(Leadscrew)]{};
- auto* zeroed=new(storage) Leadscrew(state, &spindle,&io,1000,100,1200,2,1200);
+ auto* zeroed=new(storage) Leadscrew(state, &spindle,&io,testPulseTiming,1000,100,1200,2,1200);
  state.setMotionMode(MM_ENABLED);
  for(auto* screw:{&automatic,zeroed}) {
   ASSERT_TRUE(screw->initializeOutputs()); screw->setFaultInhibit(false);
@@ -42,7 +42,7 @@ TEST_F(Synchronization, FreshAutomaticAndZeroStorageRemainUnregistered) {
 }
 TEST_F(Synchronization, EitherFirstStopEstablishesPhaseAndOtherStopPreservesIt) {
  for(auto stop:{LeadscrewStopPosition::LEFT,LeadscrewStopPosition::RIGHT}) {
-  Spindle spindle; LeadscrewIOMock io; Leadscrew screw(state, &spindle,&io,1000,100,1200,2,1200);
+  Spindle spindle; LeadscrewIOMock io; Leadscrew screw(state, &spindle,&io,testPulseTiming,1000,100,1200,2,1200);
   ASSERT_TRUE(screw.initializeOutputs()); screw.setFaultInhibit(false);
   screw.setTargetPitchMM(1); spindle.setCurrentPosition(100); spindle.consumePosition();
   screw.setStopPosition(stop);
@@ -54,7 +54,7 @@ TEST_F(Synchronization, EitherFirstStopEstablishesPhaseAndOtherStopPreservesIt) 
  }
 }
 TEST_F(Synchronization, ActiveAnchorTransfersBeforeOldCoordinateIsCleared) {
- Spindle spindle; LeadscrewIOMock io; Leadscrew screw(state, &spindle,&io,1000,100,1200,2,1200);
+ Spindle spindle; LeadscrewIOMock io; Leadscrew screw(state, &spindle,&io,testPulseTiming,1000,100,1200,2,1200);
  ASSERT_TRUE(screw.initializeOutputs()); screw.setFaultInhibit(false);
  screw.setTargetPitchMM(1); spindle.setCurrentPosition(100); spindle.consumePosition();
  screw.setStopPosition(LeadscrewStopPosition::LEFT,0);
@@ -66,7 +66,7 @@ TEST_F(Synchronization, ActiveAnchorTransfersBeforeOldCoordinateIsCleared) {
  EXPECT_EQ(state.getThreadSyncState(),SS_UNSYNC);
 }
 TEST_F(Synchronization, ReplacingActiveAnchorUsesOldPhase) {
- Spindle spindle; LeadscrewIOMock io; Leadscrew screw(state, &spindle,&io,1000,100,1200,2,1200);
+ Spindle spindle; LeadscrewIOMock io; Leadscrew screw(state, &spindle,&io,testPulseTiming,1000,100,1200,2,1200);
  ASSERT_TRUE(screw.initializeOutputs()); screw.setFaultInhibit(false);
  screw.setTargetPitchMM(1); spindle.setCurrentPosition(100); spindle.consumePosition();
  screw.setStopPosition(LeadscrewStopPosition::LEFT,0);
@@ -76,13 +76,13 @@ TEST_F(Synchronization, ReplacingActiveAnchorUsesOldPhase) {
  expectPhase(screw,spindle,-100,1100);
 }
 TEST_F(Synchronization, RemoteFirstStopDoesNotManufactureRegistration) {
- Spindle spindle; LeadscrewIOMock io; Leadscrew screw(state, &spindle,&io,1000,100,1200,2,1200);
+ Spindle spindle; LeadscrewIOMock io; Leadscrew screw(state, &spindle,&io,testPulseTiming,1000,100,1200,2,1200);
  ASSERT_TRUE(screw.initializeOutputs()); screw.setFaultInhibit(false);
  screw.setStopPosition(LeadscrewStopPosition::RIGHT,100);
  EXPECT_EQ(state.getThreadSyncState(),SS_UNSYNC);
 }
 TEST_F(Synchronization, ExtremeAnchorQuotientInhibitsInsteadOfWrapping) {
- Spindle spindle; LeadscrewIOMock io; Leadscrew screw(state, &spindle,&io,1000,100,1200,2,1200);
+ Spindle spindle; LeadscrewIOMock io; Leadscrew screw(state, &spindle,&io,testPulseTiming,1000,100,1200,2,1200);
  ASSERT_TRUE(screw.initializeOutputs()); screw.setFaultInhibit(false);
  screw.setTargetPitchMM(1);
  screw.setCurrentPosition(INT32_MIN); screw.setStopPosition(LeadscrewStopPosition::LEFT);
@@ -97,7 +97,7 @@ TEST_F(Synchronization, ExtremeAnchorQuotientInhibitsInsteadOfWrapping) {
 }
 TEST_F(Synchronization, InvalidPitchLatchesMotionInhibit) {
  for(float pitch:{0.0f,-1.0f,std::numeric_limits<float>::quiet_NaN(),std::numeric_limits<float>::infinity()}) {
-  Spindle spindle; LeadscrewIOMock io; Leadscrew screw(state, &spindle,&io,1000,100,1200,2,1200);
+  Spindle spindle; LeadscrewIOMock io; Leadscrew screw(state, &spindle,&io,testPulseTiming,1000,100,1200,2,1200);
   ASSERT_TRUE(screw.initializeOutputs()); screw.setFaultInhibit(false);
   screw.setTargetPitchMM(pitch); screw.setTargetPitchMM(1);
   state.setMotionMode(MM_ENABLED); spindle.incrementCurrentPosition(600);
@@ -108,7 +108,7 @@ TEST_F(Synchronization, InvalidPitchLatchesMotionInhibit) {
 }
 TEST_F(Synchronization, OutOfRangeJogCannotAdvancePhysicalPosition) {
  for(auto mode:{MM_JOG_LEFT,MM_JOG_RIGHT}) {
-  Spindle spindle; LeadscrewIOMock io; Leadscrew screw(state, &spindle,&io,1000,100,1200,2,1200);
+  Spindle spindle; LeadscrewIOMock io; Leadscrew screw(state, &spindle,&io,testPulseTiming,1000,100,1200,2,1200);
   ASSERT_TRUE(screw.initializeOutputs()); screw.setFaultInhibit(false);
   const int position=mode==MM_JOG_LEFT?INT32_MIN:INT32_MAX;
   screw.setCurrentPosition(position); state.setMotionMode(mode);
@@ -120,7 +120,7 @@ TEST_F(Synchronization, OutOfRangeJogCannotAdvancePhysicalPosition) {
 }
 
 TEST_F(Synchronization, RightAnchorTransfersToLeftBeforeClearing) {
- Spindle spindle;LeadscrewIOMock io;Leadscrew screw(state, &spindle,&io,1000,100,1200,2,1200);
+ Spindle spindle;LeadscrewIOMock io;Leadscrew screw(state, &spindle,&io,testPulseTiming,1000,100,1200,2,1200);
  ASSERT_TRUE(screw.initializeOutputs());screw.setFaultInhibit(false);
  screw.setTargetPitchMM(1);spindle.setCurrentPosition(100);spindle.consumePosition();
  screw.setStopPosition(LeadscrewStopPosition::RIGHT);
@@ -135,7 +135,7 @@ TEST_F(Synchronization, InvalidMachineRatioInputsCannotBeRearmed) {
  for(const auto input:{Machine{0,2,1200},Machine{-1,2,1200},Machine{1200,0,1200},
      Machine{1200,-1,1200},Machine{1200,std::numeric_limits<float>::quiet_NaN(),1200},
      Machine{1200,std::numeric_limits<float>::infinity(),1200},Machine{1200,2,0},Machine{1200,2,-1}}) {
-  Spindle spindle;LeadscrewIOMock io;Leadscrew screw(state, &spindle,&io,1000,100,input.motor,input.pitch,input.encoder);
+  Spindle spindle;LeadscrewIOMock io;Leadscrew screw(state, &spindle,&io,testPulseTiming,1000,100,input.motor,input.pitch,input.encoder);
   ASSERT_TRUE(screw.initializeOutputs());screw.setFaultInhibit(false);
   state.setMotionMode(MM_ENABLED);screw.update();
   spindle.incrementCurrentPosition(1200);

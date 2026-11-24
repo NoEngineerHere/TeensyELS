@@ -6,8 +6,8 @@
 #include <climits>
 
 Leadscrew::Leadscrew(GlobalState& state, Spindle* spindle, LeadscrewIO* io,
-    float accel, float delay, int motorPPR, float pitch, int spindlePPR)
-    : m_state(state), m_spindle(spindle), m_io(io), motorPulsePerRevolution(motorPPR),
+    PulseTiming timing, float accel, float delay, int motorPPR, float pitch, int spindlePPR)
+    : m_state(state), m_spindle(spindle), m_io(io), m_timing(timing), motorPulsePerRevolution(motorPPR),
       leadscrewPitch(pitch), encoderPPR(spindlePPR), initialPulseDelay(delay),
       m_currentPulseDelay(delay), m_leadscrewAccel(accel), jogMicros(elsMicros()) {
   setTargetPitchMM(m_state.getCurrentFeedPitch());
@@ -163,6 +163,14 @@ bool Leadscrew::isOutputIdle() const {
   ElsCriticalSection guard;
   return m_initialized && !m_pulsePending && m_positionValid;
 }
+bool Leadscrew::needsPulseService() const {
+  ElsCriticalSection guard;
+  return m_pulsePending && !m_ioFault;
+}
+bool Leadscrew::hasOutputFault() const {
+  ElsCriticalSection guard;
+  return m_ioFault || m_numericFault;
+}
 void Leadscrew::latchIOFault(bool uncertain) {
   ElsCriticalSection guard;
   m_ioFault = true;
@@ -185,7 +193,7 @@ void Leadscrew::resetProfile(uint32_t now) {
 }
 
 void Leadscrew::update() {
-  const uint32_t now = elsMicros();
+  uint32_t now = elsMicros();
   auto* state = &m_state;
   bool reset;
   const auto mode = state->takeMotionRequest(reset);
@@ -195,9 +203,9 @@ void Leadscrew::update() {
   if (!initialized) { m_spindle->consumePosition(); return; }
 
   const auto pulse = m_io->servicePulse(now);
-  if (pulse == LeadscrewIO::PulseResult::FAULT) { latchIOFault(true); return; }
-  if (pulse == LeadscrewIO::PulseResult::COMPLETE) {
-    const uint32_t completedAt = elsMicros();
+  if (pulse.result == LeadscrewIO::PulseResult::FAULT) { latchIOFault(true); return; }
+  if (pulse.result == LeadscrewIO::PulseResult::COMPLETE) {
+    now = elsMicros();
     ElsCriticalSection guard;
     if (!m_pulsePending) { m_ioFault = m_inhibit = true; return; }
     const int64_t completed = int64_t(m_currentPosition) + static_cast<int>(m_pulseDirection);
@@ -206,15 +214,9 @@ void Leadscrew::update() {
       m_positionValid = false;
     } else m_currentPosition = static_cast<int>(completed);
     m_pulsePending = false;
-    const uint32_t elapsed = completedAt - m_lastPulseTimestamp;
-    m_lastFullPulseDurationMicros = elapsed;
-    m_lastPulseTimestamp = completedAt;
-#ifdef ESP32
-    // RMT COMPLETE includes the configured low phase.
-    m_lowTimestamp = completedAt - ELS_STEP_LOW_US;
-#else
-    m_lowTimestamp = completedAt;
-#endif
+    m_lastFullPulseDurationMicros = now - m_lastPulseTimestamp;
+    m_lastPulseTimestamp = now;
+    m_lowTimestamp = pulse.lowSince;
   }
   bool fault = m_spindle->hasMotionFault();
   bool inhibited, pending;
@@ -231,7 +233,7 @@ void Leadscrew::update() {
     if (!pending) resetProfile(now);
     return;
   }
-  if (pulse == LeadscrewIO::PulseResult::COMPLETE) return;
+  if (pulse.result == LeadscrewIO::PulseResult::COMPLETE) return;
   const uint32_t jogElapsed = now - jogMicros;
   const uint32_t pulseElapsed = now - m_lastPulseStartTimestamp;
   const int delta = m_spindle->consumePosition();
@@ -286,7 +288,7 @@ void Leadscrew::update() {
   if (next == LeadscrewDirection::UNKNOWN) return;
   if (m_currentDirection != next && m_leadscrewSpeed == 0) {
     const uint32_t holdElapsed = now - m_lastPulseStartTimestamp;
-    if (holdElapsed < ELS_DIR_HOLD_US) return;
+    if (holdElapsed < m_timing.dirHoldUs) return;
     { ElsCriticalSection guard; m_currentDirection = next; }
     m_io->writeDirPin(next == LeadscrewDirection::RIGHT ? ELS_DIR_RIGHT : ELS_DIR_LEFT);
     m_dirTimestamp = elsMicros();
@@ -297,8 +299,8 @@ void Leadscrew::update() {
   const int64_t nextPosition = int64_t(current) + static_cast<int>(m_currentDirection);
   const uint32_t lowElapsed = now - m_lowTimestamp;
   const uint32_t dirElapsed = now - m_dirTimestamp;
-  if (pulseElapsed < m_currentPulseDelay || lowElapsed < ELS_STEP_LOW_US ||
-      dirElapsed < ELS_DIR_SETUP_US) return;
+  if (pulseElapsed < m_currentPulseDelay || lowElapsed < m_timing.lowUs ||
+      dirElapsed < m_timing.dirSetupUs) return;
   {
     ElsCriticalSection guard;
     if (nextPosition < INT32_MIN || nextPosition > INT32_MAX) m_numericFault = true;

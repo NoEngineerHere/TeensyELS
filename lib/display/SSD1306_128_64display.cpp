@@ -1,5 +1,5 @@
-#include <config.h>
-#if !defined(PIO_UNIT_TESTING) && ELS_DISPLAY == ELS_SSD1306_128_64
+#include <els/hardware_config.h>
+#if !defined(PIO_UNIT_TESTING) && ELS_SCREEN == ELS_SCREEN_SSD1306_128X64
 #include <display.h>
 #include <rpm_format.h>
 #include <boot_diagnostics.h>
@@ -14,9 +14,9 @@
 #include <icons/unlockedSymbol.h>
 
 
-bool Display::flush() {
-  // Only this small I2C boundary replaces Adafruit's error-discarding display().
-  // Check every command/data transfer, not merely an address probe.
+bool Display::service(uint32_t) {
+  if (m_failed) return false;
+  if (m_frameOffset == frameSize) return true;
   auto transfer = [](uint8_t control, const uint8_t* bytes, size_t count) {
     Wire.beginTransmission(SCREEN_ADDRESS);
     const bool accepted = Wire.write(control) == 1 && Wire.write(bytes, count) == count;
@@ -24,43 +24,44 @@ bool Display::flush() {
     return accepted && status == 0;
   };
   constexpr uint8_t window[] = {0x21, 0, SCREEN_WIDTH - 1, 0x22, 0, SCREEN_HEIGHT / 8 - 1};
-  constexpr size_t frameSize = SCREEN_WIDTH * SCREEN_HEIGHT / 8;
   constexpr size_t chunk = 31; // Control byte + data fits even a 32-byte Wire buffer.
-  Wire.setClock(400000);
-  bool ok = transfer(0x00, window, sizeof(window));
-  const uint8_t* buffer = m_ssd1306.getBuffer();
-  for (size_t offset = 0; ok && offset < frameSize; offset += chunk) {
-    const size_t count = std::min(chunk, frameSize - offset);
-    ok = transfer(0x40, buffer + offset, count);
+  Wire.setClock(hardware.oled.frequencyHz);
+  bool ok;
+  if (m_sendWindow) {
+    ok = transfer(0x00, window, sizeof(window));
+    m_sendWindow = false;
+  } else {
+    const size_t count = std::min(chunk, frameSize - m_frameOffset);
+    ok = transfer(0x40, m_ssd1306.getBuffer() + m_frameOffset, count);
+    m_frameOffset += count;
   }
-  Wire.setClock(100000); // Same default during/after clocks as the pinned driver.
+  Wire.setClock(hardware.oled.restoreHz);
   if (!ok) {
     m_leadscrew->setFaultInhibit(true);
     m_failed.store(true);
   }
-  return ok;
+  return ok && m_frameOffset == frameSize;
 }
 
 bool Display::init() {
   if (m_failed) return false;
   m_failed = !m_ssd1306.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS);
-  if (m_failed) { m_leadscrew->setFaultInhibit(true); return false; }
-  m_ssd1306.clearDisplay();
-  return flush();
+  if (m_failed) m_leadscrew->setFaultInhibit(true);
+  return !m_failed;
 }
 
 void Display::showBootStatus(bool fault) {
-  if (m_failed) return;
+  if (m_failed || m_frameOffset != frameSize) return;
   m_ssd1306.clearDisplay();
   m_ssd1306.setCursor(0, 16);
   m_ssd1306.setTextSize(1);
   m_ssd1306.setTextColor(WHITE);
   m_ssd1306.print(fault ? "BOOT / FAULT" : "BOOT / LOCKED");
-  flush();
+  queueFrame();
 }
 
 void Display::update() {
-  if (m_failed) return;
+  if (m_failed || m_frameOffset != frameSize) return;
   m_ssd1306.clearDisplay();
 
   int bytes = m_globalState.getOTABytes();
@@ -80,7 +81,7 @@ void Display::update() {
   writeLed();
 #endif
 
-  flush();
+  queueFrame();
 }
 
 void Display::drawSpindleRpm() {
@@ -188,15 +189,15 @@ void Display::drawEnabled() {
 void Display::writeLed() {
   int64_t time = micros() / 250000;
   EncoderColour c = time % 2 == 1 ? firstColour : secondColour;
-  digitalWrite(ELS_IND_GREEN, (c & 2) == 2);
-  digitalWrite(ELS_IND_RED, c & 1);
+  digitalWrite(hardware.indicators.green, (c & 2) == 2);
+  digitalWrite(hardware.indicators.red, c & 1);
 
 }
 #endif
 
 
 void Display::updateLed() {
-#ifdef ELS_IND_GREEN
+#ifdef ESP32
 
   GlobalState* state = &m_globalState;
   GlobalMotionMode mode = state->getMotionMode();

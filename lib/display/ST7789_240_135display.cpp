@@ -1,6 +1,6 @@
-#include <config.h>
+#include <els/hardware_config.h>
 
-#if !defined(PIO_UNIT_TESTING) && ELS_DISPLAY == ST7789_240_135
+#if !defined(PIO_UNIT_TESTING) && ELS_SCREEN == ELS_SCREEN_ST7789_240X135
 #include <display.h>
 #include <globalstate.h>
 #include <rpm_format.h>
@@ -236,18 +236,18 @@ void Display::drawEnabled() {
 
 #ifdef ESP32   // TODO Make portable
 void Display::writeLed() {
-#ifdef ELS_UI_ENCODER
+#ifdef ESP32
   int64_t time = micros() / 250000;
   EncoderColour c = time % 2 == 1 ? firstColour : secondColour;
-  digitalWrite(ELS_IND_GREEN, (c & 2) == 2);
-  digitalWrite(ELS_IND_RED, c & 1);
+  digitalWrite(hardware.indicators.green, (c & 2) == 2);
+  digitalWrite(hardware.indicators.red, c & 1);
 #endif
 }
 #endif
 
 
 void Display::updateLed() {
-#ifdef ELS_UI_ENCODER
+#ifdef ESP32
 
   GlobalState* state = &m_globalState;
   GlobalMotionMode mode = state->getMotionMode();

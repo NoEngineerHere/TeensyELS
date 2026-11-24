@@ -1,47 +1,45 @@
-#include <config.h>
-#ifdef ELS_USE_BUTTON_ARRAY
+#include <els/hardware_config.h>
+#if ELS_INPUT_LAYOUT == ELS_INPUT_LEGACY_MATRIX
 #include <keyarray.h>
 
 
 
-KeyArray::KeyArray() {
-#ifdef ELS_UI_ENCODER
-    ESP32Encoder::useInternalWeakPullResistors = puType::none;
-    m_encoder.attachSingleEdge(ELS_UI_ENCODER_A, ELS_UI_ENCODER_B);
-    m_encoder.setFilter(1023);
-    encoderPos = m_encoder.getCount();
-#endif    
-}
 
 void KeyArray::setupKeys() {
 
     // Set pad H pins as input
-    pinMode(ELS_PAD_H1, INPUT_PULLDOWN);
-    pinMode(ELS_PAD_H2, INPUT_PULLDOWN);
-    pinMode(ELS_PAD_H3, INPUT_PULLDOWN);
+    pinMode(hardware.matrix.rows[0], INPUT_PULLDOWN);
+    pinMode(hardware.matrix.rows[1], INPUT_PULLDOWN);
+    pinMode(hardware.matrix.rows[2], INPUT_PULLDOWN);
 
     // Set pad V pins as out, high
-    pinMode(ELS_PAD_V1, OUTPUT);
-    pinMode(ELS_PAD_V2, OUTPUT);
-    pinMode(ELS_PAD_V3, OUTPUT);
-    digitalWrite(ELS_PAD_V1, 1);
-    digitalWrite(ELS_PAD_V2, 1);
-    digitalWrite(ELS_PAD_V3, 1);
+    pinMode(hardware.matrix.columns[0], OUTPUT);
+    pinMode(hardware.matrix.columns[1], OUTPUT);
+    pinMode(hardware.matrix.columns[2], OUTPUT);
+    digitalWrite(hardware.matrix.columns[0], 1);
+    digitalWrite(hardware.matrix.columns[1], 1);
+    digitalWrite(hardware.matrix.columns[2], 1);
 
-    attachInterrupt(digitalPinToInterrupt(ELS_PAD_H1), buttonInterrupt, CHANGE);
-    attachInterrupt(digitalPinToInterrupt(ELS_PAD_H2), buttonInterrupt, CHANGE);
-    attachInterrupt(digitalPinToInterrupt(ELS_PAD_H3), buttonInterrupt, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(hardware.matrix.rows[0]), buttonInterrupt, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(hardware.matrix.rows[1]), buttonInterrupt, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(hardware.matrix.rows[2]), buttonInterrupt, CHANGE);
 
 }
-
-void KeyArray::initPad() {
-
+bool KeyArray::initPad() {
+    if constexpr (hardware.encoder.a >= 0) {
+        ESP32Encoder::useInternalWeakPullResistors = hardware.encoder.externalPulls ? puType::none : puType::up;
+        m_encoder.attachSingleEdge(hardware.encoder.a, hardware.encoder.b);
+        if (!m_encoder.isAttached()) return false;
+        m_encoder.setFilter(1023);
+        encoderPos = m_encoder.getCount();
+    }
     Timer0_Cfg = timerBegin(0, 80, true);
     timerAttachInterrupt(Timer0_Cfg, &timerInterrupt, true);
     timerAlarmWrite(Timer0_Cfg, 1000000, true);
     timerStop(Timer0_Cfg);
     timerAlarmEnable(Timer0_Cfg);
     setupKeys();
+    return true;
 }
 
 void KeyArray::handleTimer() {
@@ -67,7 +65,7 @@ ButtonInfo KeyArray::consumeButton() {
     return ret;
 }
 
-#ifdef ELS_UI_ENCODER
+#if defined(ESP32)
 int64_t KeyArray::consumeEncoderDelta() {
     const int64_t count = m_encoder.getCount();
     const int64_t delta = count - encoderPos;
@@ -77,19 +75,19 @@ int64_t KeyArray::consumeEncoderDelta() {
 #endif
 
 int KeyArray::getCodeFromArray() {
-    int a = digitalRead(ELS_PAD_H1) | (digitalRead(ELS_PAD_H2) << 1) | (digitalRead(ELS_PAD_H3) << 2);
+    int a = digitalRead(hardware.matrix.rows[0]) | (digitalRead(hardware.matrix.rows[1]) << 1) | (digitalRead(hardware.matrix.rows[2]) << 2);
     // Now, flip the input to V and set H high
-    pinMode(ELS_PAD_V1, INPUT_PULLDOWN);
-    pinMode(ELS_PAD_V2, INPUT_PULLDOWN);
-    pinMode(ELS_PAD_V3, INPUT_PULLDOWN);
-    pinMode(ELS_PAD_H1, OUTPUT);
-    pinMode(ELS_PAD_H2, OUTPUT);
-    pinMode(ELS_PAD_H3, OUTPUT);
-    digitalWrite(ELS_PAD_H1, 1);
-    digitalWrite(ELS_PAD_H2, 1);
-    digitalWrite(ELS_PAD_H3, 1);
+    pinMode(hardware.matrix.columns[0], INPUT_PULLDOWN);
+    pinMode(hardware.matrix.columns[1], INPUT_PULLDOWN);
+    pinMode(hardware.matrix.columns[2], INPUT_PULLDOWN);
+    pinMode(hardware.matrix.rows[0], OUTPUT);
+    pinMode(hardware.matrix.rows[1], OUTPUT);
+    pinMode(hardware.matrix.rows[2], OUTPUT);
+    digitalWrite(hardware.matrix.rows[0], 1);
+    digitalWrite(hardware.matrix.rows[1], 1);
+    digitalWrite(hardware.matrix.rows[2], 1);
     // Now read the V states
-    int b = digitalRead(ELS_PAD_V1) | (digitalRead(ELS_PAD_V2) << 1) | (digitalRead(ELS_PAD_V3) << 2);
+    int b = digitalRead(hardware.matrix.columns[0]) | (digitalRead(hardware.matrix.columns[1]) << 1) | (digitalRead(hardware.matrix.columns[2]) << 2);
     int code = (a == 0 || b == 0) ? 0 : a | b << 3;
     setupKeys();
     return code;

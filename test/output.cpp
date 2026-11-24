@@ -16,7 +16,7 @@ struct MotionRig : ResetMotionState {
   Spindle spindle;
   LeadscrewIOMock io;
   Leadscrew screw;
-  explicit MotionRig(uint32_t time=0) : ResetMotionState(time), screw(state, &spindle,&io,1000,100,1200,2,1200) {
+  explicit MotionRig(uint32_t time=0) : ResetMotionState(time), screw(state, &spindle,&io,testPulseTiming,1000,100,1200,2,1200) {
     EXPECT_TRUE(screw.initializeOutputs()); screw.setFaultInhibit(false);
     screw.setTargetPitchMM(1); screw.update();
   }
@@ -50,10 +50,10 @@ TEST(Output, DisableHighFinishesExactlyOnceInOriginalDirection) {
   const int dir=r.io.dir;
   r.state.setMotionMode(MM_DISABLED);
   r.spindle.incrementCurrentPosition(-sign*1200);
-  r.tick(ELS_STEP_HIGH_US-1);
+  r.tick(testPulseTiming.highUs-1);
   EXPECT_EQ(r.io.step,1); EXPECT_FALSE(r.screw.isOutputIdle()); EXPECT_EQ(r.io.dir,dir);
   r.tick(1);
-  EXPECT_EQ(uint32_t(elsMicros()-started),ELS_STEP_HIGH_US);
+  EXPECT_EQ(uint32_t(elsMicros()-started),testPulseTiming.highUs);
   EXPECT_EQ(r.io.step,0); EXPECT_TRUE(r.screw.isOutputIdle());
   EXPECT_EQ(r.screw.getCurrentPosition(),sign); EXPECT_EQ(r.io.completions,1);
   for(int i=0;i<1000;++i)r.tick();
@@ -76,7 +76,7 @@ TEST(Output, InhibitClearAndFreshInitializationNeverEnable) {
  for(int i=0;i<1000;++i)r.tick();
  EXPECT_EQ(r.io.completions,completed);
  EXPECT_TRUE(r.screw.isOutputIdle());
- Leadscrew fresh(r.state, &r.spindle,&r.io,1000,100,1200,2,1200);
+ Leadscrew fresh(r.state, &r.spindle,&r.io,testPulseTiming,1000,100,1200,2,1200);
  r.state.setMotionMode(MM_ENABLED);
  r.spindle.incrementCurrentPosition(1000); fresh.update();
  EXPECT_EQ(fresh.getCurrentPosition(),0);
@@ -85,7 +85,7 @@ TEST(Output, InitializationSendAndCompletionFailuresStayLatched) {
  for(int failure:{0,1,2}) {
   ResetMotionState reset(0); Spindle spindle; LeadscrewIOMock io;
   io.beginOK=failure!=0; io.startOK=failure!=1;
-  Leadscrew screw(reset.state, &spindle,&io,1000,100,1200,2,1200);
+  Leadscrew screw(reset.state, &spindle,&io,testPulseTiming,1000,100,1200,2,1200);
   EXPECT_EQ(screw.initializeOutputs(),failure!=0);
   screw.setFaultInhibit(false); reset.state.setMotionMode(MM_ENABLED); screw.update();
   spindle.incrementCurrentPosition(1200);
@@ -107,14 +107,14 @@ TEST(Output, PulseTimingAndDirectionConstraintsHold) {
  bool hadRise=false,hadFall=false;
  int step=0,dir=0;
  for(const auto& e:r.io.edges) {
-  if(e.dir!=dir){ EXPECT_EQ(step,0); if(hadRise)EXPECT_GE(uint32_t(e.time-lastRise),ELS_DIR_HOLD_US); lastDir=e.time; }
+  if(e.dir!=dir){ EXPECT_EQ(step,0); if(hadRise)EXPECT_GE(uint32_t(e.time-lastRise),testPulseTiming.dirHoldUs); lastDir=e.time; }
   if(e.step && !step) {
    if(hadRise)EXPECT_GE(uint32_t(e.time-lastRise),8u);
-   if(hadFall)EXPECT_GE(uint32_t(e.time-lastFall),ELS_STEP_LOW_US);
-   EXPECT_GE(uint32_t(e.time-lastDir),ELS_DIR_SETUP_US);
+   if(hadFall)EXPECT_GE(uint32_t(e.time-lastFall),testPulseTiming.lowUs);
+   EXPECT_GE(uint32_t(e.time-lastDir),testPulseTiming.dirSetupUs);
    lastRise=e.time;hadRise=true;
   }
-  if(!e.step && step){EXPECT_GE(uint32_t(e.time-lastRise),ELS_STEP_HIGH_US);lastFall=e.time;hadFall=true;}
+  if(!e.step && step){EXPECT_GE(uint32_t(e.time-lastRise),testPulseTiming.highUs);lastFall=e.time;hadFall=true;}
   step=e.step;dir=e.dir;
  }
  EXPECT_EQ(r.screw.getCurrentPosition(),r.io.completions);
@@ -142,13 +142,13 @@ TEST(Output, DirectionSetupStartsAfterTheActualWriteNotCycleEntry) {
    dirWrittenAt=elsMicros();
   }
  } io;
- Spindle spindle;Leadscrew screw(reset.state, &spindle,&io,1000,100,1200,2,1200);
+ Spindle spindle;Leadscrew screw(reset.state, &spindle,&io,testPulseTiming,1000,100,1200,2,1200);
  ASSERT_TRUE(screw.initializeOutputs());screw.setFaultInhibit(false);
  reset.state.setMotionMode(MM_ENABLED);screw.update();
  spindle.incrementCurrentPosition(1200);setTestMicros(100);screw.update();
  EXPECT_EQ(io.step,0);
- setTestMicros(io.dirWrittenAt+ELS_DIR_SETUP_US-1);screw.update();EXPECT_EQ(io.step,0);
- setTestMicros(io.dirWrittenAt+ELS_DIR_SETUP_US);screw.update();EXPECT_EQ(io.step,1);
+ setTestMicros(io.dirWrittenAt+testPulseTiming.dirSetupUs-1);screw.update();EXPECT_EQ(io.step,0);
+ setTestMicros(io.dirWrittenAt+testPulseTiming.dirSetupUs);screw.update();EXPECT_EQ(io.step,1);
 }
 
 TEST(Output, PeriodicDisabledServiceAcrossTwoWrapsRearmsFromRest) {

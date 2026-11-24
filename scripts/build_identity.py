@@ -15,6 +15,9 @@ try:
 except (OSError, subprocess.CalledProcessError):
     revision = "unknown"
 env.Append(CPPDEFINES=[("FIRMWARE_REVISION", env.StringifyMacro(revision))])
+hardware_config = env.GetProjectOption("custom_hardware_config", None)
+if hardware_config is not None:
+    env.Append(CPPDEFINES=[("ELS_HARDWARE_CONFIG", env.StringifyMacro(hardware_config))])
 build_dir = pathlib.Path(env.subst("$BUILD_DIR"))
 build_dir.mkdir(parents=True, exist_ok=True)
 (build_dir / "firmware-identity.txt").write_text(revision + "\n", encoding="utf-8")

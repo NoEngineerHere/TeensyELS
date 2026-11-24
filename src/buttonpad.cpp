@@ -1,32 +1,32 @@
-#include <config.h>
+#include <els/hardware_config.h>
 
-#ifdef ELS_USE_BUTTON_ARRAY
+#if ELS_INPUT_LAYOUT == ELS_INPUT_LEGACY_MATRIX
 #include "buttonpad.h"
 
 void ButtonPad::handle() {
-#ifdef ELS_UI_ENCODER
-  const int64_t delta = pad.consumeEncoderDelta();
-  if (delta != 0) controls.changePitch(delta);
-#endif
+  if constexpr (hardware.encoder.a >= 0) {
+    const int64_t delta = pad.consumeEncoderDelta();
+    if (delta != 0) controls.changePitch(delta);
+  }
   const ButtonInfo press = pad.consumeButton();
   if (press.buttonState == BS_CLICKED) {
     switch (press.button) {
-      case ELS_RATE_INCREASE_BUTTON: controls.changePitch(1); break;
-      case ELS_RATE_DECREASE_BUTTON: controls.changePitch(-1); break;
-      case ELS_MODE_CYCLE_BUTTON: controls.toggleFeedMode(); break;
-      case ELS_THREAD_SYNC_BUTTON: controls.syncThread(); break;
-      case ELS_ENABLE_BUTTON: controls.toggleMotion(); break;
-      case ELS_LOCK_BUTTON: controls.toggleLock(); break;
-      case ELS_JOG_LEFT_BUTTON: controls.jogToStop(LeadscrewStopPosition::LEFT, Controls::JogGesture::MatrixToggle); break;
-      case ELS_JOG_RIGHT_BUTTON: controls.jogToStop(LeadscrewStopPosition::RIGHT, Controls::JogGesture::MatrixToggle); break;
+      case 17: controls.changePitch(1); break;
+      case 9: controls.changePitch(-1); break;
+      case 33: controls.toggleFeedMode(); break;
+      case 10: controls.syncThread(); break;
+      case 34: controls.toggleMotion(); break;
+      case 12: controls.toggleLock(); break;
+      case 20: controls.jogToStop(LeadscrewStopPosition::LEFT, Controls::JogGesture::MatrixToggle); break;
+      case 36: controls.jogToStop(LeadscrewStopPosition::RIGHT, Controls::JogGesture::MatrixToggle); break;
     }
   } else if (press.buttonState == BS_HELD) {
     switch (press.button) {
-      case ELS_MODE_CYCLE_BUTTON: controls.toggleUnits(); break;
-      case ELS_THREAD_SYNC_BUTTON: controls.requestDisplayReset(); break;
-      case ELS_HALF_NUT_BUTTON: controls.requestUpdate(); break;
-      case ELS_JOG_LEFT_BUTTON: controls.toggleStop(LeadscrewStopPosition::LEFT); break;
-      case ELS_JOG_RIGHT_BUTTON: controls.toggleStop(LeadscrewStopPosition::RIGHT); break;
+      case 33: controls.toggleUnits(); break;
+      case 10: controls.requestDisplayReset(); break;
+      case 18: controls.requestUpdate(); break;
+      case 20: controls.toggleStop(LeadscrewStopPosition::LEFT); break;
+      case 36: controls.toggleStop(LeadscrewStopPosition::RIGHT); break;
     }
   }
 }

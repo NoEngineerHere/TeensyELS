@@ -1,4 +1,6 @@
-#ifdef ELS_USE_BUTTON_ARRAY
+#pragma once
+#include <els/hardware_config.h>
+#if ELS_INPUT_LAYOUT == ELS_INPUT_LEGACY_MATRIX
 #include <controls.h>
 #include <keyarray.h>
 

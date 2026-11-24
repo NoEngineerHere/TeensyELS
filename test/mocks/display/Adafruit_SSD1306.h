@@ -6,9 +6,10 @@ constexpr int SSD1306_SWITCHCAPVCC=2;
 class OledWireMock {
 public:
  int transmissions=0,failAt=-1;uint8_t failure=2;bool shortWrite=false;
+ size_t bytes=0;
  void beginTransmission(uint8_t){}
  size_t write(uint8_t){return shortWrite?0:1;}
- size_t write(const uint8_t*,size_t count){return shortWrite?0:count;}
+ size_t write(const uint8_t*,size_t count){if(!shortWrite) bytes+=count;return shortWrite?0:count;}
  uint8_t endTransmission(){return ++transmissions==failAt?failure:0;}
  void setClock(uint32_t){}
 };

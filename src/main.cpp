@@ -6,6 +6,8 @@
 #include <controls.h>
 #include <leadscrew.h>
 #include <spindle.h>
+#include <board.h>
+#include <pulse_timing.h>
 #include <spindle_encoder.h>
 #include <boot_diagnostics.h>
 #include "ESPCommsManager.h"
@@ -14,30 +16,36 @@
 #include "config.h"
 #include "display.h"
 #include "keyarray.h"
+#include "runtime.h"
 #ifdef ESP32
-#include <esp_task_wdt.h>
-#include <leadscrew_io_esp.h>
+#include <pulse_esp32.h>
 #else
-#include <leadscrew_io_teensy.h>
-IntervalTimer timer;
+#include <pulse_teensy.h>
 #endif
 
 GlobalState globalState;
 Spindle spindle;
-SpindleEncoder spindleEncoder(ELS_SPINDLE_ENCODER_A, ELS_SPINDLE_ENCODER_B);
+SpindleEncoder spindleEncoder(hardware.motion.spindleA, hardware.motion.spindleB);
 #ifdef ESP32
-LeadscrewIOESP leadscrewIOImpl;
+static_assert(pulseTiming.highUs > 0 && pulseTiming.highUs <= 32767, "RMT high duration out of range");
+static_assert(pulseTiming.lowUs > 0 && pulseTiming.lowUs <= 32767, "RMT low duration out of range");
+LeadscrewIOESP<hardware.motion.step, hardware.motion.dir> leadscrewIOImpl(pulseTiming);
 #else
-LeadscrewIOTeensy leadscrewIOImpl;
+LeadscrewIOTeensy<hardware.motion.step, hardware.motion.dir> leadscrewIOImpl(pulseTiming);
 #endif
-Leadscrew leadscrew(globalState, &spindle, &leadscrewIOImpl, ACCEL_PULSE_SEC,
+Leadscrew leadscrew(globalState, &spindle, &leadscrewIOImpl, pulseTiming, ACCEL_PULSE_SEC,
     LEADSCREW_INITIAL_PULSE_DELAY_US, ELS_LEADSCREW_STEPPER_PPR * ELS_GEARBOX_RATIO,
     ELS_LEADSCREW_PITCH_MM, ELS_SPINDLE_ENCODER_PPR);
 Controls controls(globalState, leadscrew);
 #ifdef ESP32
 ESPCommsManager commsManager(globalState);
+static bool maintenanceRequested() { return globalState.hasOTA(); }
+static void receiveUpdate() { commsManager.loop(); }
+#else
+static bool maintenanceRequested() { return false; }
+static void receiveUpdate() {}
 #endif
-#ifdef ELS_USE_BUTTON_ARRAY
+#if ELS_INPUT_LAYOUT == ELS_INPUT_LEGACY_MATRIX
 KeyArray keyArray;
 ButtonPad keyPad(controls, keyArray);
 #else
@@ -46,97 +54,124 @@ ButtonHandler keyPad(controls);
 Display display(globalState, &spindle, &leadscrew);
 static void initializeEnableOutput() {
   // Compatibility assertion only: LOW is not a claim of electrical disable.
-  digitalWrite(ELS_STEPPER_ENA, LOW);
-  pinMode(ELS_STEPPER_ENA, OUTPUT);
+  digitalWrite(hardware.motion.enable, LOW);
+  pinMode(hardware.motion.enable, OUTPUT);
 }
-static void initializeBoardControls() {
+static bool initializeBoardControls() {
   CHECK_BOUNDS(DEFAULT_METRIC_THREAD_PITCH_IDX, threadPitchMetric, "Invalid thread default");
   CHECK_BOUNDS(DEFAULT_METRIC_FEED_PITCH_IDX, feedPitchMetric, "Invalid feed default");
   CHECK_BOUNDS(DEFAULT_IMPERIAL_THREAD_PITCH_IDX, threadPitchImperial, "Invalid thread default");
   CHECK_BOUNDS(DEFAULT_IMPERIAL_FEED_PITCH_IDX, feedPitchImperial, "Invalid feed default");
-#ifdef ELS_UI_ENCODER
-  pinMode(ELS_IND_GREEN, OUTPUT);
-  pinMode(ELS_IND_RED, OUTPUT);
-#endif
-#ifdef ELS_USE_BUTTON_ARRAY
-  keyArray.initPad();
+  if constexpr (hardware.indicators.green >= 0) pinMode(hardware.indicators.green, OUTPUT);
+  if constexpr (hardware.indicators.red >= 0) pinMode(hardware.indicators.red, OUTPUT);
+#if ELS_INPUT_LAYOUT == ELS_INPUT_LEGACY_MATRIX
+  return keyArray.initPad();
 #else
-  for (int pin : {ELS_RATE_INCREASE_BUTTON, ELS_RATE_DECREASE_BUTTON, ELS_MODE_CYCLE_BUTTON,
-                 ELS_THREAD_SYNC_BUTTON, ELS_HALF_NUT_BUTTON, ELS_ENABLE_BUTTON,
-                 ELS_LOCK_BUTTON, ELS_JOG_LEFT_BUTTON, ELS_JOG_RIGHT_BUTTON}) pinMode(pin, INPUT_PULLUP);
+  for (int pin : {hardware.direct.increase, hardware.direct.decrease, hardware.direct.mode,
+                 hardware.direct.sync, hardware.direct.halfNut, hardware.direct.enable,
+                 hardware.direct.lock, hardware.direct.left, hardware.direct.right}) pinMode(pin, INPUT_PULLUP);
+  return true;
 #endif
+}
+static void initializeAlarmInput() {
+  if constexpr (hardware.motion.alarm >= 0) pinMode(hardware.motion.alarm, INPUT);
+}
+static bool alarmAsserted() {
+  if constexpr (hardware.motion.alarm >= 0)
+    return digitalRead(hardware.motion.alarm) == (hardware.motion.alarmActiveLow ? LOW : HIGH);
+  return false;
 }
 #endif
 
 static std::atomic<bool> ready{false};
-static bool bootFault = false, displayReady = false;
+static std::atomic<const char*> faultReason{nullptr};
+static bool displayReady = false, displayFaultShown = false, faultReported = false;
+static bool runtimeStarted = false;
+static std::atomic<bool> initialFrameComplete{false}, updateHandoff{false};
+static uint32_t lastStatusMs = 0;
 static uint32_t bannerStarted = 0;
 #ifdef ELS_PROGRESS_TELEMETRY
 static uint32_t foregroundLoops = 0;
 static std::atomic<uint32_t> timerCompletions{0}, displayReturns{0};
 #endif
 
-void timerCallback() {
-#ifdef ESP32
-  if (globalState.hasOTA()) leadscrew.setFaultInhibit(true);
-#endif
+static void latchFault(const char* reason) {
+  leadscrew.setFaultInhibit(true);
+  const char* expected = nullptr;
+  faultReason.compare_exchange_strong(expected, reason, std::memory_order_release);
+  ready.store(false, std::memory_order_release);
+}
+static void sampleAlarm() {
+  if (alarmAsserted()) latchFault("DRIVER_ALARM");
+}
+bool motionServiceNeeded() {
+  return ready.load(std::memory_order_acquire) || leadscrew.needsPulseService();
+}
+static void reportFault() {
+  if (const char* reason = faultReason.load(std::memory_order_acquire); reason && !faultReported) {
+    recordBootFailure(reason);
+    faultReported = true;
+  }
+}
+
+void motionTick() {
+  sampleAlarm();
+  const bool maintenance = maintenanceRequested();
+  if (maintenance) {
+    leadscrew.setFaultInhibit(true);
+    ready.store(false, std::memory_order_release);
+  }
   spindleEncoder.sample(spindle);
   leadscrew.update();
-#ifdef ESP32
-  if (globalState.hasOTA() && leadscrew.isOutputIdle()) commsManager.loop();
-#endif
+  if (leadscrew.hasOutputFault()) latchFault("PULSE_OUTPUT_FAULT");
+  else if (spindle.hasMotionFault()) latchFault("SPINDLE_COUNT_FAULT");
+  if (maintenance && !faultReason.load(std::memory_order_acquire) &&
+      !display.failed() && leadscrew.isOutputIdle())
+    updateHandoff.store(true, std::memory_order_release);
 #ifdef ELS_PROGRESS_TELEMETRY
   timerCompletions.fetch_add(1, std::memory_order_relaxed);
 #endif
 }
-void displayLoop() {
-  if (!ready.load() || display.failed()) return;
-  keyPad.handle();
+void inputTick() {
+  if (ready.load(std::memory_order_acquire) && !display.failed()) keyPad.handle();
+}
+void displayTick() {
+  if (!displayReady) return;
+  const uint32_t now = millis();
+  const bool frameComplete = display.service(now);
+  if (display.failed()) { latchFault("DISPLAY_COMM_FAILED"); return; }
+  if (!frameComplete) return;
+  if (!initialFrameComplete.load(std::memory_order_relaxed))
+    initialFrameComplete.store(true, std::memory_order_release);
+  if (faultReason.load(std::memory_order_acquire)) {
+    if (!displayFaultShown) {
+      display.showBootStatus(true);
+      displayFaultShown = true;
+    }
+    return;
+  }
+  if (!ready.load(std::memory_order_acquire) && !maintenanceRequested()) return;
+  if (now - lastStatusMs < 250) return;
+  lastStatusMs = now;
   display.update();
 #ifdef ELS_PROGRESS_TELEMETRY
   displayReturns.fetch_add(1, std::memory_order_relaxed);
 #endif
 }
-#ifdef ESP32
-void DisplayTask(void*) {
-  TickType_t lastWake = xTaskGetTickCount();
-  while (true) {
-    displayLoop();
-    vTaskDelayUntil(&lastWake, pdMS_TO_TICKS(250));
-  }
-}
-void SpindleTask(void*) {
-  while (true) {
-    if (ready.load() || !leadscrew.isOutputIdle()) timerCallback();
-    else vTaskDelay(1); // A later task-creation failure must not starve IDLE0.
-  }
-}
-#endif
-static void failBoot(const char* reason) {
-  ready.store(false);
-  bootFault = true;
-  leadscrew.setFaultInhibit(true);
-  recordBootFailure(reason);
-  if (displayReady) display.showBootStatus(true);
-}
 static void startMotionServices() {
-#ifdef ESP32
-  TaskHandle_t spindleTask = nullptr, displayTask = nullptr;
-  if (xTaskCreatePinnedToCore(SpindleTask, "Spindle", 2048, nullptr, 24 | portPRIVILEGE_BIT, &spindleTask, 0) != pdPASS) {
-    failBoot("MOTION_TASK_INIT_FAILED"); return;
+  const auto result = startRuntime();
+  switch (result) {
+    case RuntimeStartResult::MotionFailed: latchFault("MOTION_SERVICE_INIT_FAILED"); return;
+    case RuntimeStartResult::InputFailed: latchFault("INPUT_TASK_INIT_FAILED"); return;
+    case RuntimeStartResult::DisplayFailed: latchFault("DISPLAY_TASK_INIT_FAILED"); return;
+    case RuntimeStartResult::Started: break;
   }
-  if (xTaskCreatePinnedToCore(DisplayTask, "Display", 8000, nullptr, 1, &displayTask, 1) != pdPASS) {
-    failBoot("DISPLAY_TASK_INIT_FAILED"); return;
-  }
-  disableLoopWDT();
-  esp_task_wdt_delete(xTaskGetHandle("IDLE0"));
-  esp_task_wdt_delete(xTaskGetHandle("IDLE1"));
-#else
-  if (!timer.begin(timerCallback, LEADSCREW_TIMER_US)) { failBoot("TIMER_INIT_FAILED"); return; }
-#endif
+  runtimeStarted = true;
+  sampleAlarm();
+  if (faultReason.load(std::memory_order_acquire)) return;
   recordBootStage(4);
   leadscrew.setFaultInhibit(false);
-  ready.store(true);
+  ready.store(true, std::memory_order_release);
 }
 void setup() {
   globalState.setButtonLock(LK_LOCKED);
@@ -148,12 +183,16 @@ void setup() {
   // Old breadcrumbs must be consumed before recording this boot's first stage.
   recordBootStage(1);
   recordBootStage(2);
-  if (!captureOK) { bootFault = true; leadscrew.setFaultInhibit(true); }
-  if (!outputsReady) failBoot("PULSE_IO_INIT_FAILED");
-  initializeBoardControls();
+  if (!captureOK) { latchFault("THERMAL_RESET"); faultReported = true; }
+  if (!outputsReady) latchFault("PULSE_IO_INIT_FAILED");
+  initializeAlarmInput();
+  sampleAlarm();
+  if (!spindleEncoder.begin()) latchFault("SPINDLE_ENCODER_INIT_FAILED");
+  if (!initializeBoardControls()) latchFault("UI_ENCODER_INIT_FAILED");
   displayReady = display.init();
-  if (!displayReady) { failBoot("DISPLAY_INIT_FAILED"); return; }
-  display.showBootStatus(bootFault);
+  if (!displayReady) { latchFault("DISPLAY_INIT_FAILED"); reportFault(); return; }
+  displayFaultShown = faultReason.load(std::memory_order_acquire) != nullptr;
+  display.showBootStatus(displayFaultShown);
   recordBootStage(3);
   leadscrew.setTargetPitchMM(globalState.getCurrentFeedPitch());
   bannerStarted = elsMicros();
@@ -163,18 +202,20 @@ void loop() {
   ++foregroundLoops;
 #endif
   serviceBootDiagnostics();
-  if (displayReady && display.failed() && !bootFault) failBoot("DISPLAY_COMM_FAILED");
+  serviceRuntimeForeground();
 #ifdef ELS_PROGRESS_TELEMETRY
   if (progressTelemetryDue()) {
     queueProgressTelemetry(foregroundLoops, timerCompletions.load(std::memory_order_relaxed),
         displayReturns.load(std::memory_order_relaxed), display.failed(), ready.load());
   }
 #endif
-  const uint32_t bannerElapsed = elsMicros() - bannerStarted;
-  if (!bootFault && displayReady && !ready.load() && bannerElapsed >= 2000000) startMotionServices();
-#ifdef ESP32
-  vTaskDelay(1);
-#else
-  displayLoop();
-#endif
+  if (!runtimeStarted && !faultReason.load(std::memory_order_acquire) && displayReady) {
+    sampleAlarm();
+    if (!faultReason.load(std::memory_order_acquire) && initialFrameComplete.load(std::memory_order_acquire) &&
+        elsMicros() - bannerStarted >= 2000000)
+      startMotionServices();
+  }
+  reportFault();
+  if (updateHandoff.exchange(false, std::memory_order_acquire) &&
+      !faultReason.load(std::memory_order_acquire) && !display.failed()) receiveUpdate();
 }

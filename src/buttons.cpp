@@ -1,17 +1,17 @@
 #include "buttons.h"
 
-#include <config.h>
+#include <els/hardware_config.h>
 
 ButtonHandler::ButtonHandler(Controls& controls)
   : controls(controls),
-  m_rateIncrease(ELS_RATE_INCREASE_BUTTON),
-  m_rateDecrease(ELS_RATE_DECREASE_BUTTON),
-  m_modeCycle(ELS_MODE_CYCLE_BUTTON),
-  m_threadSync(ELS_THREAD_SYNC_BUTTON),
-  m_enable(ELS_ENABLE_BUTTON),
-  m_lock(ELS_LOCK_BUTTON),
-  m_jogLeft(ELS_JOG_LEFT_BUTTON),
-  m_jogRight(ELS_JOG_RIGHT_BUTTON) {}
+  m_rateIncrease(hardware.direct.increase),
+  m_rateDecrease(hardware.direct.decrease),
+  m_modeCycle(hardware.direct.mode),
+  m_threadSync(hardware.direct.sync),
+  m_enable(hardware.direct.enable),
+  m_lock(hardware.direct.lock),
+  m_jogLeft(hardware.direct.left),
+  m_jogRight(hardware.direct.right) {}
 
 void ButtonHandler::handle() {
   // update the state of the application based on the button state
