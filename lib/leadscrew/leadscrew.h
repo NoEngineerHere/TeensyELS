@@ -112,6 +112,9 @@ public:
   int getStopPosition(LeadscrewStopPosition position);
   void setTargetPitchMM(float ratio) override;
   int getCurrentPosition() override;
+  enum class PositionDatum { Origin, Left, Right };
+  struct PositionReading { double millimeters; PositionDatum datum; bool valid; };
+  PositionReading positionReading() const;
   void setCurrentPosition(int position) override;
   void update() override;
   int getPositionError() override;

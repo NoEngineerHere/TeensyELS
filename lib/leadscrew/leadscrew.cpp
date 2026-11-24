@@ -105,6 +105,26 @@ int Leadscrew::getCurrentPosition() {
   ElsCriticalSection guard;
   return m_currentPosition;
 }
+Leadscrew::PositionReading Leadscrew::positionReading() const {
+  int position, datum;
+  PositionDatum source;
+  {
+    ElsCriticalSection guard;
+    if (!m_initialized || !m_positionValid || m_numericFault) return {};
+    position = m_currentPosition;
+    if (m_leftStopState == LeadscrewStopState::SET) {
+      datum = m_leftStopPosition;
+      source = PositionDatum::Left;
+    } else if (m_rightStopState == LeadscrewStopState::SET) {
+      datum = m_rightStopPosition;
+      source = PositionDatum::Right;
+    } else {
+      datum = 0;
+      source = PositionDatum::Origin;
+    }
+  }
+  return {double(int64_t(position) - datum) * leadscrewPitch / motorPulsePerRevolution, source, true};
+}
 void Leadscrew::setCurrentPosition(int position) {
   ElsCriticalSection guard;
   m_currentPosition = position;

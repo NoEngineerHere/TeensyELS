@@ -41,7 +41,7 @@ void ScaleBMP(const uint8_t source[], uint8_t dest[], int sizex, int sizey) {
 }
 
 void Display::resetStatus() {
-  m_rpmString[0] = m_pitchString[0] = '\0';
+  m_rpmString[0] = m_pitchString[0] = m_positionString[0] = '\0';
   m_mode = FM_UNSET;
   m_motionMode = MM_UNSET;
   m_locked = LK_UNSET;
@@ -94,6 +94,17 @@ void Display::drawLines(const DisplayLines& lines) {
     tft.setCursor(0, 4 + 18 * i);
     tft.print(row);
   }
+}
+
+void Display::drawPosition(const char* position) {
+  if (std::strcmp(position, m_positionString) == 0) return;
+  std::strcpy(m_positionString, position);
+  char row[21];
+  std::snprintf(row, sizeof(row), "%-20s", position);
+  tft.setCursor(0, 56);
+  tft.setTextSize(1);
+  tft.setTextColor(ST77XX_WHITE, ST77XX_BLACK);
+  tft.print(row);
 }
 
 void Display::drawSpindleRpm(const char* rpmString) {

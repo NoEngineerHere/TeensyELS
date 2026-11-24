@@ -11,6 +11,7 @@ struct DisplayStatus {
   bool leftStop, rightStop;
   char pitch[10];
   char rpm[8];
+  char position[21];
 };
 
 // The smallest display fits 21 characters at the built-in font's 6 px advance.

@@ -33,6 +33,7 @@ private:
 #if ELS_SCREEN == ELS_SCREEN_ST7789_240X135
   char m_rpmString[8]{};
   char m_pitchString[10]{};
+  char m_positionString[21]{};
   GlobalFeedMode m_mode = GlobalFeedMode::FM_UNSET;
   GlobalMotionMode m_motionMode = GlobalMotionMode::MM_UNSET;
   GlobalButtonLock m_locked = GlobalButtonLock::LK_UNSET;
@@ -83,6 +84,7 @@ protected:
   void drawSpindleRpm(const char* rpm);
   void drawStopStatus(bool left, bool right);
   void drawSyncStatus(GlobalThreadSyncState sync);
+  void drawPosition(const char* position);
   void drawLegacy(const DisplayStatus& s) {
     drawMode(s.feed);
     drawPitch(s.pitch);
@@ -91,5 +93,6 @@ protected:
     drawSpindleRpm(s.rpm);
     drawSyncStatus(s.sync);
     drawStopStatus(s.leftStop, s.rightStop);
+    drawPosition(s.position);
   }
 };

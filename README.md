@@ -94,6 +94,10 @@ transfer cannot prove pixels changed. ST7789 initialization does not detect
 panel presence. Input polling and LVGL service target 5 ms; the status refresh
 is 250 ms. A full TFT refresh can delay cooperative input polling on Teensy.
 
+The carriage readout uses the left stop when set, the right stop otherwise,
+then machine origin if neither is set. Its sign follows the machine coordinate.
+The display does not change stop positions or thread phase.
+
 ### Local firmware update (ESP32)
 
 Install the first image over a cable. For later updates, unlock the panel and
