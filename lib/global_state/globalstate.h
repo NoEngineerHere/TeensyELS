@@ -7,10 +7,9 @@
 #pragma once
 
 
-// Major modes are the main modes of the application, like the feed or thread
-// The spindle acts the same way in both threading and feeding mode
-// this is just for the indicator on the screen
-enum GlobalFeedMode { FM_UNSET = -1, FM_FEED = 0, FM_THREAD = 1 };
+// Feed follows the spindle. Thread modes select the cutting direction.
+enum GlobalFeedMode { FM_UNSET = -1, FM_FEED = 0, FM_THREAD = 1, FM_THREAD_REVERSE = 2 };
+constexpr bool isThreadMode(GlobalFeedMode mode) { return mode == FM_THREAD || mode == FM_THREAD_REVERSE; }
 
 // The motion mode of the leadscrew in relation to the spindle
 // Disabled: The leadscrew does not move when the spindle is moving
@@ -49,8 +48,8 @@ class GlobalState {
   std::atomic<bool> m_updateArmed{false};
   UpdateStatus m_updateStatus;
 
-  GlobalFeedMode m_feedMode;
-  GlobalMotionMode m_motionMode;
+  GlobalFeedMode m_feedMode = FM_UNSET;
+  GlobalMotionMode m_motionMode = MM_DISABLED;
   GlobalUnitMode m_unitMode;
   std::atomic<GlobalThreadSyncState> m_threadSyncState;
   GlobalButtonLock m_buttonLock;
@@ -73,7 +72,6 @@ class GlobalState {
     setButtonLock(LK_LOCKED);
     setFeedSelect(-1);
     setThreadSyncState(SS_UNSYNC);
-    m_motionMode = MM_DISABLED;
     m_resyncPulseCount = 0;
   }
 

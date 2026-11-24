@@ -104,3 +104,13 @@ TEST_F(Buttons, MatrixJogRequiresAStopAndSameKeyCancels) {
  controls.jogToStop(LeadscrewStopPosition::RIGHT, Controls::JogGesture::MatrixToggle);
  EXPECT_EQ(state.getMotionMode(), MM_DISABLED);
 }
+
+TEST_F(Buttons, ModeClickSelectsReverseOnlyWhileDisabled) {
+ auto click = [&] { press(hardware.direct.mode); poll(150); release(hardware.direct.mode); };
+ click(); ASSERT_EQ(state.getFeedMode(), FM_THREAD);
+ state.setMotionMode(MM_ENABLED);
+ click(); EXPECT_EQ(state.getFeedMode(), FM_THREAD);
+ state.setMotionMode(MM_DISABLED);
+ click(); EXPECT_EQ(state.getFeedMode(), FM_THREAD_REVERSE);
+ click(); EXPECT_EQ(state.getFeedMode(), FM_FEED);
+}

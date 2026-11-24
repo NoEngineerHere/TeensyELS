@@ -15,11 +15,12 @@ void Controls::changePitch(int64_t increments) {
 }
 
 void Controls::toggleFeedMode() {
-  if (locked()) return;
+  if (locked() || motionMode() != MM_DISABLED) return;
   switch (state.getFeedMode()) {
     case FM_FEED: state.setFeedMode(FM_THREAD); break;
-    case FM_THREAD: state.setFeedMode(FM_FEED); break;
-    case FM_UNSET: break;
+    case FM_THREAD: state.setFeedMode(FM_THREAD_REVERSE); break;
+    case FM_THREAD_REVERSE: state.setFeedMode(FM_FEED); break;
+    case FM_UNSET: return;
   }
   screw.setTargetPitchMM(state.getCurrentFeedPitch());
 }

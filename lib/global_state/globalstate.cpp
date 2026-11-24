@@ -3,6 +3,7 @@
 
 void GlobalState::setFeedMode(GlobalFeedMode mode) {
   ElsCriticalSection guard;
+  if (mode != m_feedMode && m_motionMode == MM_ENABLED) requestMotionUnlocked(MM_DISABLED);
   m_feedMode = mode;
 
   // when switching feed modes ensure that the default for the next mode is
@@ -20,13 +21,13 @@ int GlobalState::getCurrentFeedSelectArraySize() {
   // this just ensures that the feedSelect doesn't go out of bounds for the
   // current arry
   if (m_unitMode == METRIC) {
-    if (m_feedMode == FM_THREAD) {
+    if (isThreadMode(m_feedMode)) {
       return ARRAY_SIZE(threadPitchMetric);
     } else {
       return ARRAY_SIZE(feedPitchMetric);
     }
   } else {
-    if (m_feedMode == FM_THREAD) {
+    if (isThreadMode(m_feedMode)) {
       return ARRAY_SIZE(threadPitchImperial);
     } else {
       return ARRAY_SIZE(feedPitchImperial);
@@ -55,7 +56,7 @@ void GlobalState::setFeedSelectUnlocked(int select) {
     m_feedSelect = select;
   } else {
     // if we're out of bounds, just set the default
-    if (m_feedMode == FM_THREAD) {
+    if (isThreadMode(m_feedMode)) {
       if (m_unitMode == METRIC) {
         m_feedSelect = DEFAULT_METRIC_THREAD_PITCH_IDX;
       } else {
@@ -75,8 +76,8 @@ float GlobalState::getCurrentFeedPitch() {
   const auto selection = feedSelection();
   const auto index = selection.index;
   if (selection.unit == METRIC)
-    return selection.mode == FM_THREAD ? threadPitchMetric[index] : feedPitchMetric[index];
-  if (selection.mode == FM_THREAD) return (1.0 / threadPitchImperial[index]) * 25.4;
+    return isThreadMode(selection.mode) ? threadPitchMetric[index] : feedPitchMetric[index];
+  if (isThreadMode(selection.mode)) return (1.0 / threadPitchImperial[index]) * 25.4;
   return feedPitchImperial[index] * 25.4 / 1000;
 }
 
@@ -93,7 +94,11 @@ int GlobalState::prevFeedPitch() {
 
 void GlobalState::requestMotionUnlocked(GlobalMotionMode mode) {
   if (m_updateArmed.load(std::memory_order_relaxed) && mode != MM_DISABLED) return;
-  if (mode != m_motionMode) m_motionResetRequested = true;
+  if (mode != m_motionMode) {
+    if (isThreadMode(m_feedMode) && (mode == MM_ENABLED || m_motionMode == MM_ENABLED))
+      setThreadSyncState(SS_UNSYNC);
+    m_motionResetRequested = true;
+  }
   m_motionMode = mode;
 }
 void GlobalState::setMotionMode(GlobalMotionMode mode) {
