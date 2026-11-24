@@ -1,31 +1,9 @@
 #!/usr/bin/env python3
-"""Receive-only, opt-in ELS progress recorder (Python 3 + pyserial).
+"""Record TeensyELS serial logs without sending commands.
 
-Example: python scripts/els_event_capture.py --port /dev/serial/by-id/... \
-    --expected-source REV --output capture --duration 60
-No discovery, writes, reset, upload, watchdog or commands. Opening a serial port
-CAN change DTR/RTS (including pyserial/OS defaults); this is not a no-reset
-hardware guarantee. Disconnects erase identity proof. A valid sample establishes
-only its own claimed source, not cryptographic identity. Samples are not atomic.
-
-Raw bytes and timestamped JSONL events flush on every write. Each stream retains
-at most --files files of --max-bytes bytes (active plus .1, .2, ...); older data
-is deliberately deleted. fsync runs at --fsync-interval and on rotation/close;
-flushed data since the last fsync may be lost in a host crash. Use a dedicated
-output directory: existing logs are appended/rotated, not a fresh-session erase.
-Numeric archives outside new bounds and preexisting oversized files are deleted.
-Disk failures are fatal, printed to stderr, never a successful summary. Exit 0
-means valid samples and no observed faults; 1 means any fault (even restored),
-missing heartbeat/progress, invalid input or no valid sample; 2 is an I/O/setup
-failure. Ctrl-C preserves logs and follows the same health policy.
-Expected-source boot-report text is retained but never counts as progress proof.
-A finite capture can end mid-line: retained capture-end truncation is not a
-device-malformed-frame diagnosis. Nonzero legacy motion-output masks are faults.
-
-Missing progress is observational: host scheduling/USB gaps cannot prove a
-firmware hang. Frame-only stalls suggest a display-call path, not a failed
-screen. Uptime wraps are sanity-checked against host elapsed time; reset
-candidates never identify power cause. A reset near rollover may be ambiguous.
+Opening the port may still reset the board. Use a dedicated output directory:
+the recorder appends to existing logs and deletes files outside the retention
+limits. See docs/diagnostics.md for setup and exit codes.
 """
 import argparse
 from datetime import datetime, timezone
