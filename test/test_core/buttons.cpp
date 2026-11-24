@@ -114,3 +114,18 @@ TEST_F(Buttons, ModeClickSelectsReverseOnlyWhileDisabled) {
  click(); EXPECT_EQ(state.getFeedMode(), FM_THREAD_REVERSE);
  click(); EXPECT_EQ(state.getFeedMode(), FM_FEED);
 }
+
+TEST_F(Buttons, PitchAndUnitsStayFixedWhileThreadingIsArmed) {
+ controls.toggleFeedMode();
+ const float pitch = state.getCurrentFeedPitch();
+ state.setMotionMode(MM_ENABLED);
+ controls.changePitch(1);
+ controls.toggleUnits();
+ EXPECT_EQ(state.getUnitMode(), METRIC);
+ EXPECT_EQ(state.getCurrentFeedPitch(), pitch);
+ state.setMotionMode(MM_DISABLED);
+ controls.changePitch(1);
+ EXPECT_NE(state.getCurrentFeedPitch(), pitch);
+ controls.toggleUnits();
+ EXPECT_EQ(state.getUnitMode(), IMPERIAL);
+}

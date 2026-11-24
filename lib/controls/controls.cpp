@@ -2,6 +2,7 @@
 
 void Controls::changePitch(int64_t increments) {
   if (locked()) return;
+  if (motionMode() == MM_ENABLED && isThreadMode(state.getFeedMode())) return;
   while (increments > 0) {
     state.nextFeedPitch();
     screw.setTargetPitchMM(state.getCurrentFeedPitch());
@@ -27,6 +28,7 @@ void Controls::toggleFeedMode() {
 
 void Controls::toggleUnits() {
   if (locked()) return;
+  if (motionMode() == MM_ENABLED && isThreadMode(state.getFeedMode())) return;
   state.setUnitMode(state.getUnitMode() == METRIC ? IMPERIAL : METRIC);
   screw.setTargetPitchMM(state.getCurrentFeedPitch());
 }

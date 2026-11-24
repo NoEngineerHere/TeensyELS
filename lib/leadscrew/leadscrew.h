@@ -43,6 +43,8 @@ private:
   const PulseTiming m_timing;
 
   double m_expectedPosition = 0;
+  double m_pickupDistance = 0;
+  int m_pickupStart = 0;
 
   // the ratio of how much the leadscrew moves per spindle rotation
   const int motorPulsePerRevolution;
@@ -89,6 +91,7 @@ private:
   uint32_t jogMicros;
 
   bool phaseAtPosition(int position, int& phase) const;
+  bool registerThreadPickup(int current, int phase, int delta, int64_t room, int direction, uint32_t now);
   void setStopPositionUnlocked(LeadscrewStopPosition stop, int position);
   int boundedInt(double value);
 

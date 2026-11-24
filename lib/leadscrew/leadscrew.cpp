@@ -229,7 +229,29 @@ void Leadscrew::resetProfile(uint32_t now) {
   m_lastPulseStartTimestamp = m_lastPulseTimestamp = jogMicros = now;
   m_lastFullPulseDurationMicros = 0;
   m_expectedPosition = m_currentPosition;
+  m_pickupDistance = 0;
   m_resetPending = false;
+}
+
+// Caller holds the shared guard; phase and consumed delta describe this tick.
+bool Leadscrew::registerThreadPickup(int current, int phase, int delta, int64_t room,
+                                    int direction, uint32_t now) {
+  if (delta >= 0 || delta <= -encoderPPR) return false;
+  const auto& sample = m_spindle->m_velocity;
+  int lead = 0;
+  if (sample.valid && sample.counts < 0 && now - sample.timestamp <= US_PER_SECOND) {
+    const double rate = -double(sample.counts) * US_PER_SECOND * m_ratio / sample.duration;
+    const double counts = rate * rate / (2.0 * m_leadscrewAccel * m_ratio);
+    if (rate <= LEADSCREW_MAX_SPEED_PPS && counts < encoderPPR / 2 && counts * m_ratio < room)
+      lead = static_cast<int>(counts);
+  }
+  const int64_t phaseDifference = int64_t(phase) + lead - m_spindle->positionUnlocked();
+  const int offset = (phaseDifference % encoderPPR + encoderPPR) % encoderPPR;
+  if (offset >= -delta) return false;
+  m_pickupStart = current;
+  m_pickupDistance = double(lead) * m_ratio;
+  m_expectedPosition = current + direction * double(offset - lead) * m_ratio;
+  return true;
 }
 
 void Leadscrew::update() {
@@ -279,6 +301,7 @@ void Leadscrew::update() {
   const int delta = m_spindle->consumePosition();
   bool syncBlocked = false;
   bool threadBlocked = false;
+  double errorBeforeRounding;
   int current, left, right;
   bool leftSet, rightSet;
   float ratio;
@@ -297,28 +320,42 @@ void Leadscrew::update() {
     threadBlocked = threading && (m_syncPositionState == LeadscrewSpindleSyncPositionState::UNSET ||
         (reverse ? (!rightSet || current >= right) : (!leftSet || current <= left)) ||
         (state->getThreadSyncState() == SS_SYNC && delta > 0));
+    const bool waitingForPickup = state->getThreadSyncState() == SS_UNSYNC;
+    const auto& velocity = m_spindle->m_velocity;
+    if (threading && !waitingForPickup && m_pickupDistance > 0 &&
+        (!velocity.valid || velocity.counts >= 0 || now - velocity.timestamp > US_PER_SECOND))
+      threadBlocked = true;
     syncBlocked = syncBlocked || threadBlocked;
-    if (!syncBlocked && m_syncPositionState != LeadscrewSpindleSyncPositionState::UNSET && state->getThreadSyncState() == SS_UNSYNC) {
+    if (!syncBlocked && m_syncPositionState != LeadscrewSpindleSyncPositionState::UNSET && waitingForPickup) {
       int phase;
-      if (!phaseAtPosition(current, phase)) {
-        syncBlocked = true;
-      } else if (m_spindle->positionUnlocked() == phase && (!threading || delta < 0)) {
-        m_expectedPosition = current;
+      m_pickupDistance = 0;
+      m_expectedPosition = current;
+      if (phaseAtPosition(current, phase) && (threading ?
+          registerThreadPickup(current, phase, delta, reverse ? int64_t(right) - current : int64_t(current) - left,
+                               reverse ? 1 : -1, now) : m_spindle->positionUnlocked() == phase))
         state->setThreadSyncState(SS_SYNC);
-        syncBlocked = true; // no pulse from pre-registration movement
-      } else syncBlocked = true;
-    }
-    if (mode == MM_DISABLED || mode == MM_UNSET || fault || syncBlocked) m_expectedPosition = current;
-    else if (mode == MM_JOG_LEFT || mode == MM_JOG_RIGHT) {
+      syncBlocked = true; // Never dispatch a pulse in the pickup tick.
+    } else if (fault || syncBlocked) {
+      m_pickupDistance = 0;
+      m_expectedPosition = current;
+    } else if (mode == MM_JOG_LEFT || mode == MM_JOG_RIGHT) {
       if (jogElapsed > ELS_JOG_PULSE_DELAY) {
         m_expectedPosition = double(int64_t(current) + (mode == MM_JOG_LEFT ? -1500 : 1500));
         jogMicros = now;
       }
     } else m_expectedPosition += double(delta) * (reverse ? -ratio : ratio);
+    errorBeforeRounding = m_expectedPosition - current;
+    if (m_pickupDistance > 0 && !syncBlocked) {
+      const int direction = reverse ? 1 : -1;
+      const double travel = direction * (m_expectedPosition - m_pickupStart) + m_pickupDistance;
+      if (travel >= 2 * m_pickupDistance) m_pickupDistance = 0;
+      // The quadratic ramp meets the helix at the same position and slope.
+      else errorBeforeRounding = m_pickupStart - double(current) + direction * travel * travel / (4 * m_pickupDistance);
+    }
   }
   if (fault || threadBlocked) { state->setMotionMode(MM_DISABLED); return; }
   if (syncBlocked || pending) return;
-  const int error = getPositionError();
+  const int error = boundedInt(errorBeforeRounding);
   const bool hitLeft = leftSet && current <= left;
   const bool hitRight = rightSet && current >= right;
   if ((hitLeft || hitRight) && std::abs(double(error)) > double(encoderPPR) * ratio) {
