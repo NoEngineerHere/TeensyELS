@@ -1,77 +1,139 @@
-# Teensy Electronic leadscrew
-This is an implementation of an electronic leadscrew using a Teensy microcrontroller.
+# Teensy electronic leadscrew
 
-# Architecture
-We use [https://platformio.org/](platformio) as the infrastructure to build this project.
+Electronic leadscrew firmware for Teensy 4.1 and classic ESP32. The same motion
+controller handles both processors. The wiring header selects physical pins and
+controls. The PlatformIO environment selects the processor and screen driver.
+Lathe settings such as gear ratio, leadscrew pitch, encoder PPR and feed tables
+stay in `lib/config/config.h`.
 
-Firmware assembly lives in `src/main.cpp`. It owns the application state and passes it to
-the motion controller, display and ESP32 updater. Direct buttons and the matrix
-keypad translate hardware events into the same `Controls` actions. Spindle encoder
-adapters acquire counts, and `LeadscrewIO` adapters generate pulses; pitch, synchronization
-and motion policy stay in the shared code. Native fixtures construct their own state
-and exercise the same control and motion logic.
+## Build and wiring
 
-# Installation
-You will currently need to setup platformio to build this, it can also handle installation to your teensy as well.
-NOTE: you will have to modify some of the configuration to get this set up for your particular lathe, instructions coming soon.
+Use PlatformIO Core 6.2.0. The firmware environments pin their Arduino cores
+and libraries. These are wiring examples, not bench qualification results.
 
-# Testing
-We aim to have the business logic of this testable locally without having to program any hardware or run tests on hardware (for the most part)
-To test you just need to run the `pio test --environment native` command to run what tests we have written
+| Environment | Processor and wiring | Controls | Screen |
+|---|---|---|---|
+| `teensy41`, `teensy41_debug` | Teensy 4.1 direct | Direct buttons | SSD1306 128×64 |
+| `esp32dev` | LilyGO T-Display | Legacy matrix and encoder | ST7789 240×135 |
+| `teensy41_pcb` | Teensy 4.1 on the repository PCB | Legacy matrix and encoder | SSD1306 128×64 |
+| `esp32_halfnut` | ESP32 on the HalfNut Mk2 PCB | Mk2 matrix and encoder | ST7789 320×240, LVGL |
+| `esp32_oled` | ESP32 with HalfNut input wiring and a custom OLED connection | Mk2 matrix and encoder | SSD1306 128×64 |
+| `teensy41_tft` | Teensy 4.1 with custom TFT wiring | Direct buttons | ST7789 240×135 |
+| `teensy41_lvgl` | Teensy 4.1 with custom TFT wiring | Direct buttons | ST7789 320×240, LVGL |
 
-### Reproducible software gates
+The Teensy PCB preset follows `kicad/2Layer` and `kicad/4Layer`. The Mk2 wiring
+follows Martin Long's [board header](https://github.com/martinlong1978/HalfNutELS/blob/be12236846e6f1342a6e1437ec513952e00375c/lib/config/board.h)
+and [build configuration](https://github.com/martinlong1978/HalfNutELS/blob/be12236846e6f1342a6e1437ec513952e00375c/platformio.ini).
+The Mk2 keys and screen operate TeensyELS. This firmware does not run HalfNutELS
+or use its assets. The OLED example does not imply an OLED connector on that PCB.
 
-Use PlatformIO Core 6.2.0. Dependencies and both Arduino cores are pinned in
-`platformio.ini`; the ESP32 build deliberately retains Arduino 2.0.17.
-Native tests use production spindle/controller math with a controlled 32-bit
-`elsMicros()` clock. Button tests also compile production `ButtonHandler` and
-real AbleButtons0.4 against simulated GPIO/time; OLED tests simulate Wire errors.
+### Custom wiring
+
+Copy the closest header from `include/els/presets/` to `include/my_hardware.h`.
+For example, copy `teensy_tft.h`, edit `makeHardwareConfig()` and
+`ELS_INPUT_LAYOUT`, and add this environment to `platformio.ini`:
+
+```ini
+[env:my_teensy_tft]
+extends = env:teensy41_tft
+custom_hardware_config = my_hardware.h
+```
+
+Run `pio run -e my_teensy_tft`. To change the screen, inherit an environment
+for the same processor and the desired screen. The environment supplies the
+screen selector and its libraries. Do not set `ELS_SCREEN` in the wiring
+header or edit a driver to set pin numbers. You can choose direct, legacy
+matrix or Mk2 matrix controls with any screen, subject to valid GPIO and bus
+routes. Matrix rows and columns are GPIOs. The action assigned to a matrix
+position comes from the selected layout.
+
+Use `-1` for an absent reset, backlight, alarm or indicator. The UI encoder
+requires both pins or neither. Motion pins and the selected input and screen
+pins are required, except ESP32 SPI MISO may be absent. Inactive input and screen
+groups do not reserve pins. Teensy SPI still reserves MISO for a write-only TFT,
+though you do not need to wire that pin to the screen. TFT layouts accept
+landscape rotations 1 and 3.
+
+| Teensy 4.1 bus | Routes |
+|---|---|
+| I2C 0 (Wire) | SDA 18, SCL 19 |
+| I2C 1 (Wire1) | SDA 17 or 44, SCL 16 or 45 |
+| I2C 2 (Wire2) | SDA 25, SCL 24 |
+| SPI 0 | MOSI 11, SCK 13, MISO 12 |
+| SPI 1 | MOSI 26, SCK 27, MISO 1 or 39 |
+| SPI 2 | MOSI 43 or 50, SCK 45 or 49, MISO 42 or 54 |
+
+ESP32 I2C supports buses 0 and 1. ESP32 SPI bus 0 is VSPI and bus 1 is HSPI.
+Route valid pins through the GPIO matrix. GPIO 6–11 are reserved for flash.
+GPIO 34–39 are input-only and need external bias where pull resistors are
+required. The shipped ESP32 spindle and UI encoders require external bias.
+GPIOs used for boot straps must meet the ESP32 reset-level requirements; check
+those levels with the keypad and external circuits connected.
+
+### Controls and display faults
+
+Direct buttons keep AbleButtons timing and existing click and hold actions.
+The [portable matrix scanner](https://github.com/NoEngineerHere/TeensyELS/issues/40)
+uses 10 ms debounce and a one-shot hold at one second. Ambiguous chords cannot
+start motion. On Mk2, HALT stops on a debounced press in every view, even when
+locked. It is a software stop, not an emergency stop or power isolation.
+
+Mk2 MODE clicks change feed/thread and holds change units. RATE returns to pitch
+and jog controls. STOPS gives the arrows and encoder control of stop selection;
+OK sets or clears the selected stop. In Rate, OK syncs and a hold resets the
+display. MENU opens or leaves the menu. Navigate with the arrows or encoder and
+press OK to apply the selected entry. Lock and Unlock are available while
+locked. ENABLE uses the normal motion and lock rules in every view.
+
+The SSD1306 uses the configured bus and checks every frame command and data
+chunk. A failed transfer latches inhibit and reports `DISPLAY_COMM_FAILED`.
+Any accepted pulse still finishes once if the backend is healthy. Initial
+frame transfer must finish before startup releases inhibit. The SSD1306
+library cannot report every initialization command failure. A successful
+transfer cannot prove pixels changed. ST7789 initialization does not detect
+panel presence. Input polling and LVGL service target 5 ms; the status refresh
+is 250 ms. A full TFT refresh can delay cooperative input polling on Teensy.
+
+### Local firmware update (ESP32)
+
+Install the first image over a cable. For later updates, unlock the panel and
+disable motion. Select **Update** in the Mk2 menu and press OK, or hold the
+half-nut button on a legacy or direct panel. No receiver runs before local arm
+and confirmed output idle. Teensy updates remain wired.
+
+Join the `ELS-…` network shown on the screen. Enter the two displayed halves
+of the WPA2 key as one password. The receiver allows one station, uses a new
+key for each arm, and never connects to a LAN. Send the app binary, not a
+merged flash image. Set `ELS_ENV` to the matching environment and `ELS_AP` to
+the displayed IP:
+
+```sh
+curl --fail --upload-file ".pio/build/$ELS_ENV/firmware.bin" \
+  -H 'Content-Type: application/octet-stream' "http://$ELS_AP/firmware"
+```
+
+The receiver closes after five minutes, or after a transfer stalls for ten
+seconds. It also closes after a result. A failed update leaves motion inhibited
+until a local reboot. A valid image reaches the inactive app slot and restarts
+locked and disabled. The image must match the existing processor, wiring,
+input layout, screen and pulse timing. Change those over a cable. The match
+prevents accidental wrong-image uploads; it is not a firmware signature.
+
+## Software checks
 
 ```sh
 pio test -e native
-ASAN_OPTIONS=halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 pio test -e native_sanitized
-pio run -e teensy41 -e teensy41_debug
-cp src/SECRETS-SAMPLE.h src/SECRETS.h # isolated build only; empty compile fixtures
-pio run -e esp32dev
-python3 -m pip install -r requirements-capture.txt
-python3 -m unittest discover -s tests -p 'test_event_capture.py' -v
+pio test -e native_sanitized
+pio test -e native_lvgl
+pio test -e native_hardware
+pio run -e teensy41 -e teensy41_debug -e esp32dev -e teensy41_pcb -e esp32_halfnut -e esp32_oled -e teensy41_tft -e teensy41_lvgl
+python3 scripts/verify_esp_descriptor.py esp32dev esp32_halfnut esp32_oled
 ```
 
-CI builds without uploading. Teensy uses SSD1306 at I2C address `0x3C`, reset
-`-1`, default Wire SDA/SCL 18/19; ESP32 uses ST7789. These build profiles do
-not establish installed wiring or qualify an external motor driver. Do not
-flash a live coupled machine to verify these fixes.
-
-### Button hold semantics
-
-AbleButtons0.4's effective timing is preserved: debounce50ms, held1000ms,
-double-click window500ms. The old `Button setHeldTime(50)` and
-`Button setClickTime(200)` declarations constructed unused local buttons; they
-never configured timing and are removed, not replaced with a50ms hold.
-A short mode-button click changes feed/thread once. A long hold changes units
-once and its release does not also click. Each jog button independently toggles
-its stop once per hold. Debounced release rearms that button's latch; a press
-observed while locked (or jog-blocked by enabled motion) is consumed until release.
-ESP32's separate keypad already consumes its held event once; it is not retuned.
-
-### OLED communication faults
-
-The SSD1306 wrapper retains the vendor renderer/buffer but checks each frame
-window-command and data transfer through Wire, including short writes and
-nonzero `endTransmission` results. Data chunks fit a32-byte Wire buffer.
-Allocation or initial checked-frame failure inhibits startup; runtime failure
-latches inhibit, reports `DISPLAY_COMM_FAILED`, and stops controls/rearm.
-Existing accepted pulses still finish and are accounted exactly once before
-idle-low; ESP32's service task does not strand an in-flight completion merely
-because controls are no longer ready. No retry, reset or bus recovery is added;
-the pinned Wire implementation's existing bounded timeout/recovery still applies.
-
-**Limit:** vendor `begin()` initialization commands retain internally ignored
-transfer statuses. Successful subsequent frame commands/data do not prove that
-all initial panel configuration succeeded, or that physical pixels changed.
-ST7789 has no equivalent communication-status check here. Native transfer/pulse
-tests are simulations, not electrical, optical or powered-machine qualification.
-
+Native tests exercise production motion, panel and startup logic with simulated
+peripherals. `native_lvgl` renders with LVGL into an offscreen SPI target.
+`native_hardware` compiles real wiring headers and checks alternate bus routing.
+No build or native test qualifies an external driver, display, radio or machine.
 
 
 ## Debugging
@@ -111,7 +173,8 @@ once, then stays LOW, discards spindle backlog, and resets the acceleration
 profile. Position counts completed pulses; the external driver's counted edge
 must be measured. Re-enable requires a fresh explicit request. Initialization,
 arithmetic, pulse IO and explicit fault inhibits remain latched until reset;
-clearing the boot inhibit never requests motion. OTA waits for output idle.
+clearing the boot inhibit never requests motion. A terminal backend fault leaves
+position uncertain and blocks update handoff.
 
 `ELS_STEP_HIGH_US` / `ELS_STEP_LOW_US` default to 4/4 µs on Teensy and 20/20 µs
 on ESP32. `ELS_DIR_SETUP_US` / `ELS_DIR_HOLD_US` default to 4/4 µs. These are
@@ -127,6 +190,21 @@ and an independent inhibit available, scope power-on/reset, pause in each pulse
 phase, reversal, initialization failures and controller faults. Qualify the
 hardware safety chain separately; firmware cannot control pre-setup reset pins.
 
+On each board, first disconnect motor power. Verify cold-start pin levels,
+encoder direction and detents, each key and hold, scan timing under screen
+refresh, screen rotation, indicator polarity, and alarm and fault handling.
+Then measure STEP high/low and DIR setup/hold under display and input load. Check
+that inhibit drains one accepted pulse before trying mechanical motion.
+
+HalfNut uses the active-low alarm on GPIO 27. A sampled assertion latches
+inhibit until reset even if it clears during the boot banner. A disconnected
+alarm cable reads healthy, so this is not failsafe. The Teensy PCB alarm on
+GPIO 39 is not used; legacy presets do not provide alarm protection.
+
+For ESP32 updates on an isolated bench, verify that the wrong WPA2 password
+cannot join, a mismatched image leaves the old app selected, and a matching
+image restarts locked. Host tests do not prove RF or flash behavior.
+
 RPM display accepts finite values from -999 through 9999, truncating toward
 zero. Out-of-range/nonfinite samples display ` ---RPM` in the same bounded
 seven-character field. Native tests compile the production TFT rendering/cache
@@ -136,10 +214,11 @@ against a recording screen; this is not physical panel verification.
 
 Startup initializes inhibited outputs before Serial, captures the old reset
 evidence, and shows `BOOT / LOCKED` for two seconds without blocking diagnostic
-service. Motion timers/tasks start only after that interval; all creation
-results are checked while still inhibited. Successful startup remains locked
-and disabled. Any initialization failure shows `BOOT / FAULT` when the display
-is available and leaves diagnostic service running without accepting controls.
+service. Output stays inhibited until the banner interval, initial OLED frame,
+encoder attachment, display bus and required timer/tasks have passed their
+available checks. Successful startup remains locked and disabled. A fault shows
+`BOOT / FAULT` if the display can still render it; diagnostics continue without
+accepting controls.
 
 A single 4096-byte NUL-terminated RAM report retains the current boot's capture.
 It contains the current capturing firmware revision, build target/date/time,

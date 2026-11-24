@@ -1,13 +1,18 @@
 #include <gtest/gtest.h>
 #include <firmware_upload.h>
 #include <vector>
+#include <pulse_timing.h>
 
 #undef ELS_HARDWARE_CONFIG
 #define ELS_HARDWARE_CONFIG "native_oled.h"
+namespace UploadConfig {
 #include <firmware_descriptor.h>
+}
 
 namespace {
 using namespace FirmwareUpload;
+using UploadConfig::hardware;
+using UploadConfig::makeFirmwareDescriptor;
 constexpr auto descriptor = makeFirmwareDescriptor(hardware, PulseTiming{20,20,4,4});
 constexpr size_t prefix = descriptorOffset + descriptor.size();
 void putWord(std::vector<uint8_t>& bytes, size_t offset, uint32_t value) {

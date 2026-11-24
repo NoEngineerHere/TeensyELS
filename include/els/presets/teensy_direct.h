@@ -1,5 +1,7 @@
 #pragma once
-#include "teensy_direct_wiring.h"
+#include <els/presets/teensy_direct_wiring.h>
+
+#define ELS_INPUT_LAYOUT ELS_INPUT_DIRECT
 
 constexpr HardwareConfig makeHardwareConfig() {
   auto c = teensyDirectWiring();
