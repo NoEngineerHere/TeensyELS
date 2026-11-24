@@ -26,8 +26,6 @@ ASAN_OPTIONS=halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 pio test -e native_sa
 pio run -e teensy41 -e teensy41_debug
 cp src/SECRETS-SAMPLE.h src/SECRETS.h # isolated build only; empty compile fixtures
 pio run -e esp32dev
-python3 -m pip install -r requirements-capture.txt
-python3 -m unittest discover -s tests -p 'test_event_capture.py' -v
 ```
 
 CI builds without uploading. Teensy uses SSD1306 at I2C address `0x3C`, reset
@@ -150,7 +148,7 @@ Teensy USB connection detection restarts replay. ESP32's UART Serial API does
 not expose USB-bridge host connection state: use `R` after connecting there.
 Retention is RAM for the running boot only, not persistent crash history.
 
-### Opt-in progress and durable receive-only capture
+### Opt-in progress telemetry
 
 `ELS_PROGRESS_TELEMETRY` adds bounded foreground progress output. It is enabled
 in `teensy41_debug` and native test profiles, **off in normal release/ESP32
@@ -174,43 +172,6 @@ readiness, not a powered-stage or motion-inhibition measurement. All counters
 wrap at32 bits; `us` wraps approximately every71.6minutes. A blocked foreground
 can prevent output even while interrupts run; USB presence alone proves no
 application progress. The original intermittent reset cause remains unknown.
-
-Install optional pyserial with `python3 -m pip install -r requirements-capture.txt`.
-For a separately authorized receive-only observation, set `ELS_PORT` to the
-explicit serial path and `ELS_SOURCE` to the **exact installed image's emitted
-source token**, not merely the revision of a newly compiled artifact:
-
-```sh
-python3 scripts/els_event_capture.py \
-  --port "$ELS_PORT" --expected-source "$ELS_SOURCE" \
-  --output .validation/capture-session --duration 3600 \
-  --stall 3 --grace 5 --max-bytes 1048576 --files 4 --fsync-interval 1
-```
-
-Default baud is921600. The recorder also explicitly supports installed legacy
-`ELS_LEGACY_TEST_20261006_C` and its pinned full source SHA, using `ms`, `fg`,
-`timer_done`, `frames` and inhibited-state fields. That support does not equate
-C with this PR firmware or the unknown original installed image. Boot-report
-text alone never establishes ongoing identity/progress; ordinary release
-firmware without progress output cannot satisfy unattended stall monitoring.
-
-Raw bytes and monotonic/UTC JSONL events append and flush during capture.
-Each stream retains at most `--files` files of `--max-bytes` bytes; older data
-is deliberately rotated away. Use a dedicated output directory and archive a
-fault window before retention overwrites it. `--fsync-interval` bounds the
-unsynced loss window; rotation/close also sync. Source/state validation restarts
-per connection, with bounded `--reconnects`/`--reconnect-delay`. Alerts distinguish
-disconnect, missing heartbeat, stalled counters, wraps and reset candidates;
-they do not diagnose power/EMI or prove a physical display failure.
-Exit0 means valid ready samples and no observed fault; exit1 means an observed
-fault/missing progress/invalid input; exit2 means an I/O/setup/durability failure.
-Ending a bounded capture mid-line is an audited truncation, not a device fault.
-
-The recorder sends no commands, uploads or autonomous resets and performs no
-implicit device discovery. **Opening a port may change DTR/RTS** through OS/
-pyserial defaults; receive-only is not a hardware no-reset guarantee. Host
-unit/fake-port/PTY tests are simulations, not live PR firmware validation.
-
 
 `scripts/build_identity.py` supplies git's 12-character revision plus `-dirty`
 when applicable; source exports report `unknown`. Identity labels the capturing
