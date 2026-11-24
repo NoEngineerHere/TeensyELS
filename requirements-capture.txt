@@ -1,2 +1,0 @@
-# Optional receive-only event capture CLI; no firmware build dependency.
-pyserial>=3.5,<4
