@@ -36,7 +36,8 @@ bool Leadscrew::phaseAtPosition(int position, int& phase) const {
       m_rightStopState == LeadscrewStopState::SET) anchor = m_rightStopPosition;
   else return false;
   if (encoderPPR <= 0 || !std::isfinite(m_ratio) || m_ratio <= 0) return false;
-  const double quotient = double(int64_t(position) - int64_t(anchor)) / double(m_ratio);
+  const double signedRatio = m_state.m_feedMode == FM_THREAD_REVERSE ? -m_ratio : m_ratio;
+  const double quotient = double(int64_t(position) - int64_t(anchor)) / signedRatio;
   if (!std::isfinite(quotient) || quotient < INT32_MIN || quotient > INT32_MAX) return false;
   const int64_t value = int64_t(static_cast<int32_t>(quotient)) + m_spindleSyncPosition;
   phase = (value % encoderPPR + encoderPPR) % encoderPPR;
@@ -277,6 +278,7 @@ void Leadscrew::update() {
   const uint32_t pulseElapsed = now - m_lastPulseStartTimestamp;
   const int delta = m_spindle->consumePosition();
   bool syncBlocked = false;
+  bool threadBlocked = false;
   int current, left, right;
   bool leftSet, rightSet;
   float ratio;
@@ -289,11 +291,18 @@ void Leadscrew::update() {
     ratio = m_ratio;
     fault = fault || m_numericFault;
     syncBlocked = m_syncInvalid;
-    if (m_syncPositionState != LeadscrewSpindleSyncPositionState::UNSET && state->getThreadSyncState() == SS_UNSYNC) {
+    const auto feedMode = state->m_feedMode;
+    const bool reverse = feedMode == FM_THREAD_REVERSE;
+    const bool threading = mode == MM_ENABLED && isThreadMode(feedMode);
+    threadBlocked = threading && (m_syncPositionState == LeadscrewSpindleSyncPositionState::UNSET ||
+        (reverse ? (!rightSet || current >= right) : (!leftSet || current <= left)) ||
+        (state->getThreadSyncState() == SS_SYNC && delta > 0));
+    syncBlocked = syncBlocked || threadBlocked;
+    if (!syncBlocked && m_syncPositionState != LeadscrewSpindleSyncPositionState::UNSET && state->getThreadSyncState() == SS_UNSYNC) {
       int phase;
       if (!phaseAtPosition(current, phase)) {
         syncBlocked = true;
-      } else if (m_spindle->positionUnlocked() == phase) {
+      } else if (m_spindle->positionUnlocked() == phase && (!threading || delta < 0)) {
         m_expectedPosition = current;
         state->setThreadSyncState(SS_SYNC);
         syncBlocked = true; // no pulse from pre-registration movement
@@ -305,9 +314,9 @@ void Leadscrew::update() {
         m_expectedPosition = double(int64_t(current) + (mode == MM_JOG_LEFT ? -1500 : 1500));
         jogMicros = now;
       }
-    } else m_expectedPosition += double(delta) * ratio;
+    } else m_expectedPosition += double(delta) * (reverse ? -ratio : ratio);
   }
-  if (fault) { state->setMotionMode(MM_DISABLED); return; }
+  if (fault || threadBlocked) { state->setMotionMode(MM_DISABLED); return; }
   if (syncBlocked || pending) return;
   const int error = getPositionError();
   const bool hitLeft = leftSet && current <= left;

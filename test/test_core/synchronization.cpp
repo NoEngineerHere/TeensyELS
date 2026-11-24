@@ -144,3 +144,62 @@ TEST_F(Synchronization, InvalidMachineRatioInputsCannotBeRearmed) {
   EXPECT_EQ(state.getMotionMode(),MM_DISABLED);
  }
 }
+
+TEST_F(Synchronization, ThreadDirectionsRepeatPickupAcrossSpindleWrapAndStopAtDestination) {
+ for(const auto mode : {FM_THREAD, FM_THREAD_REVERSE}) {
+  const bool reverse = mode == FM_THREAD_REVERSE;
+  const int destination = reverse ? 30 : -30;
+  state.setFeedMode(mode);
+  Spindle spindle; LeadscrewIOMock io;
+  Leadscrew screw(state, &spindle, &io, testPulseTiming, 1000, 100, 1200, 2, 1200);
+  ASSERT_TRUE(screw.initializeOutputs()); screw.setFaultInhibit(false); screw.setTargetPitchMM(1);
+  screw.setCurrentPosition(destination);
+  spindle.setCurrentPosition(1150);
+  screw.setStopPosition(reverse ? LeadscrewStopPosition::RIGHT : LeadscrewStopPosition::LEFT);
+  auto tick = [&] { setTestMicros(elsMicros() + 4); screw.update(); };
+  for(int pass = 0; pass < 2; ++pass) {
+   screw.setCurrentPosition(0);
+   spindle.setCurrentPosition(11);
+   state.setThreadSyncState(SS_SYNC); // A stored sync indicator must not bypass rearm.
+   state.setMotionMode(MM_ENABLED); tick();
+   ASSERT_EQ(state.getThreadSyncState(), SS_UNSYNC);
+   const int completed = io.completions;
+   for(int i = 0; i < 100; ++i) tick();
+   EXPECT_EQ(io.completions, completed);
+   spindle.incrementCurrentPosition(-1); tick();
+   ASSERT_EQ(state.getThreadSyncState(), SS_SYNC);
+   EXPECT_EQ(io.completions, completed);
+   spindle.incrementCurrentPosition(-80);
+   for(int i = 0; i < 2000; ++i) tick();
+   EXPECT_EQ(io.completions - completed, 30);
+   EXPECT_EQ(screw.getCurrentPosition(), destination);
+   EXPECT_EQ(io.readDirPin(), reverse ? ELS_DIR_RIGHT : ELS_DIR_LEFT);
+   EXPECT_EQ(state.getMotionMode(), MM_DISABLED);
+   EXPECT_TRUE(screw.isOutputIdle());
+  }
+ }
+}
+
+TEST_F(Synchronization, ReverseThreadRejectsMissingWrongSideStopAndOppositeSpindleDirection) {
+ state.setFeedMode(FM_THREAD_REVERSE);
+ Spindle spindle; LeadscrewIOMock io;
+ Leadscrew screw(state, &spindle, &io, testPulseTiming, 1000, 100, 1200, 2, 1200);
+ ASSERT_TRUE(screw.initializeOutputs()); screw.setFaultInhibit(false); screw.setTargetPitchMM(1);
+ auto tick = [&] { setTestMicros(elsMicros() + 100); screw.update(); };
+ screw.setStopPosition(LeadscrewStopPosition::LEFT);
+ for(int scenario = 0; scenario < 2; ++scenario) {
+  if(scenario == 1) screw.setStopPosition(LeadscrewStopPosition::RIGHT, -1);
+  state.setMotionMode(MM_ENABLED); tick(); tick();
+  EXPECT_EQ(state.getMotionMode(), MM_DISABLED);
+  EXPECT_TRUE(io.edges.empty());
+ }
+ screw.setStopPosition(LeadscrewStopPosition::RIGHT, 20);
+ spindle.setCurrentPosition(1);
+ state.setMotionMode(MM_ENABLED); tick();
+ spindle.incrementCurrentPosition(-1); tick();
+ ASSERT_EQ(state.getThreadSyncState(), SS_SYNC);
+ spindle.incrementCurrentPosition(1); tick();
+ EXPECT_EQ(state.getMotionMode(), MM_DISABLED);
+ EXPECT_EQ(state.getThreadSyncState(), SS_UNSYNC);
+ EXPECT_TRUE(io.edges.empty());
+}

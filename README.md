@@ -78,7 +78,7 @@ uses 10 ms debounce and a one-shot hold at one second. Ambiguous chords cannot
 start motion. On Mk2, HALT stops on a debounced press in every view, even when
 locked. It is a software stop, not an emergency stop or power isolation.
 
-Mk2 MODE clicks change feed/thread and holds change units. RATE returns to pitch
+Mk2 MODE clicks cycle Feed, Thread and Reverse while disabled and holds change units. RATE returns to pitch
 and jog controls. STOPS gives the arrows and encoder control of stop selection;
 OK sets or clears the selected stop. In Rate, OK syncs and a hold resets the
 display. MENU opens or leaves the menu. Navigate with the arrows or encoder and
@@ -169,6 +169,13 @@ registers spindle phase; editing/removing that anchor extrapolates before
 changing its coordinate. Invalid phase arithmetic inhibits registration.
 An explicit enable without an anchor follows relative spindle movement but
 does not claim thread registration. Invalid motion ratios remain reset-latched.
+
+Thread cuts toward the left stop; Reverse cuts toward the right stop with the
+same spindle rotation. Both require a taught phase and a destination stop ahead
+of the carriage. Enabling waits for a fresh pickup; reversing the spindle
+while synced disables the cut. Check STEP/DIR and both end stops on an isolated
+bench before cutting.
+
 
 ## Output and machine qualification
 

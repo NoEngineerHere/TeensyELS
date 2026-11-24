@@ -163,6 +163,11 @@ void Display::drawMode(GlobalFeedMode mode) {
     uint8_t scaled[128 * 64 / 8];
     ScaleBMP(mode == FM_FEED ? feedSymbol : threadSymbol, scaled, 64, 32);
     tft.drawBitmap(104, 64, scaled, 128, 64, ST77XX_WHITE);
+  } else if (mode == FM_THREAD_REVERSE) {
+    tft.setTextSize(3);
+    tft.setTextColor(ST77XX_WHITE);
+    tft.setCursor(110, 85);
+    tft.print("Reverse");
   }
 }
 

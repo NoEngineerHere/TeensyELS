@@ -9,7 +9,7 @@ DisplayStatus readDisplayStatus(GlobalState& state, Spindle& spindle, Leadscrew&
     screw.getStopPositionState(LeadscrewStopPosition::LEFT) == LeadscrewStopState::SET,
     screw.getStopPositionState(LeadscrewStopPosition::RIGHT) == LeadscrewStopState::SET, {}, {}, {}};
   const auto index = selection.index;
-  const bool thread = status.feed == FM_THREAD;
+  const bool thread = isThreadMode(status.feed);
   if (selection.unit == METRIC) {
     std::snprintf(status.pitch, sizeof(status.pitch), "%.2fmm",
         thread ? threadPitchMetric[index] : feedPitchMetric[index]);
@@ -41,7 +41,7 @@ void formatDisplayLines(DisplayLines& lines, const DisplayStatus& s, const Mk2Pa
     s.motion == MM_JOG_LEFT || s.motion == MM_JOG_RIGHT ? "Jogging" : "Disabled";
   std::snprintf(lines[0], sizeof(lines[0]), "%s", !panel ? "TeensyELS" :
       sel.view == Mk2View::Menu ? "Menu" : sel.view == Mk2View::Stops ? "Stops" : "Rate");
-  std::snprintf(lines[1], sizeof(lines[1]), "%s %s", s.feed == FM_THREAD ? "Thread" : "Feed", s.pitch);
+  std::snprintf(lines[1], sizeof(lines[1]), "%s %s", s.feed == FM_THREAD_REVERSE ? "Reverse" : s.feed == FM_THREAD ? "Thread" : "Feed", s.pitch);
   std::snprintf(lines[2], sizeof(lines[2]), "%s %s", motion, locked ? "Locked" : "Unlocked");
   std::snprintf(lines[3], sizeof(lines[3]), "%s %s %c%c", s.rpm,
       s.sync == SS_SYNC ? "Sync" : "Unsynced", s.leftStop ? '[' : '-', s.rightStop ? ']' : '-');
