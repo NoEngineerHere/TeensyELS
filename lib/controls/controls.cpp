@@ -41,6 +41,10 @@ void Controls::toggleMotion() {
   if (mode == MM_DISABLED) state.setMotionMode(MM_ENABLED);
 }
 
+void Controls::stopMotion() {
+  state.setMotionMode(MM_DISABLED);
+}
+
 void Controls::syncThread() {
   if (!locked()) state.setThreadSyncState(motionMode() == MM_ENABLED ? SS_UNSYNC : SS_SYNC);
 }

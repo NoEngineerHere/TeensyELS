@@ -20,9 +20,7 @@ void LegacyPanel::key(MatrixEvent event) {
     switch (event.key) {
       case Mode: controls.toggleUnits(); break;
       case Sync: controls.requestDisplayReset(); break;
-#ifdef ESP32
-      case HalfNut: controls.requestUpdate(); break;
-#endif
+      case HalfNut: if (supportsUpdate) controls.requestUpdate(); break;
       case Left: controls.toggleStop(LeadscrewStopPosition::LEFT); break;
       case Right: controls.toggleStop(LeadscrewStopPosition::RIGHT); break;
     }

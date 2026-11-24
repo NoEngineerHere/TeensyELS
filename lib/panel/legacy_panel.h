@@ -4,9 +4,10 @@
 
 class LegacyPanel {
   Controls& controls;
+  const bool supportsUpdate;
 public:
   static constexpr uint16_t haltMask = 0;
-  explicit LegacyPanel(Controls& controls) : controls(controls) {}
+  LegacyPanel(Controls& controls, bool supportsUpdate) : controls(controls), supportsUpdate(supportsUpdate) {}
   void key(MatrixEvent event);
   void turn(int64_t detents) { controls.changePitch(detents); }
 };

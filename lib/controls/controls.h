@@ -16,6 +16,7 @@ class Controls {
   void toggleUnits();
   void toggleLock();
   void toggleMotion();
+  void stopMotion();
   void syncThread();
   enum class JogGesture { DirectClick, MatrixToggle };
   void jogToStop(LeadscrewStopPosition stop, JogGesture gesture);

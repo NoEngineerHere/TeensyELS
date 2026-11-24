@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <encoder_detents.h>
 #include <legacy_panel.h>
+#include <mk2_panel.h>
 #include <globalstate.h>
 #include "mocks/leadscrewio_mock.h"
 
@@ -73,7 +74,7 @@ TEST(Panel, DetentsRetainPartialCountsAndCancelOnReversal) {
 TEST(Panel, LegacyPhysicalPositionsPreserveExistingClickAndHoldBindings) {
   GlobalState state;Spindle spindle;LeadscrewIOMock io;
   Leadscrew screw(state,&spindle,&io,testPulseTiming,1000,100,1200,2,1200);
-  Controls controls(state,screw);LegacyPanel panel(controls);MatrixScanner scanner;
+  Controls controls(state,screw);LegacyPanel panel(controls,false);MatrixScanner scanner;
   uint32_t time=0;
   const auto sample = [&](uint16_t mask,uint32_t ms){time+=ms;panel.key(scan(scanner,mask,time));};
   const auto press = [&](uint16_t mask,bool hold=false){
@@ -88,4 +89,69 @@ TEST(Panel, LegacyPhysicalPositionsPreserveExistingClickAndHoldBindings) {
   press(matrixBit(2,1));EXPECT_EQ(state.getMotionMode(),MM_JOG_LEFT);
   press(matrixBit(2,1));EXPECT_EQ(state.getMotionMode(),MM_DISABLED);
   press(matrixBit(1,2));EXPECT_EQ(state.getMotionMode(),MM_ENABLED);
+}
+
+struct Mk2Rig {
+  GlobalState state;
+  Spindle spindle;
+  LeadscrewIOMock io;
+  Leadscrew screw{state,&spindle,&io,testPulseTiming,1000,100,1200,2,1200};
+  Controls controls{state,screw};
+  Mk2Panel panel;
+  MatrixScanner scanner{Mk2Panel::haltMask};
+  uint32_t now=0;
+  explicit Mk2Rig(bool updates=false) : panel(controls,updates) {}
+  void sample(uint16_t mask, uint32_t delay) {now+=delay;panel.key(scan(scanner,mask,now));}
+  void press(unsigned row,unsigned col,bool hold=false) {
+    const auto mask=matrixBit(row,col);
+    sample(mask,5);sample(mask,10);
+    if(hold) sample(mask,1000);
+    sample(0,5);sample(0,10);
+  }
+};
+
+TEST(Mk2, MenuUnlocksAtBootAndUpdatesOnlyOnExplicitOk) {
+  Mk2Rig rig(true);
+  rig.press(2,1);EXPECT_EQ(rig.panel.selection().view,Mk2View::Menu);
+  EXPECT_EQ(rig.state.getButtonLock(),LK_LOCKED);
+  rig.press(1,1);EXPECT_EQ(rig.state.getButtonLock(),LK_UNLOCKED);
+  rig.press(1,0);EXPECT_EQ(rig.panel.selection().menu,unsigned(Mk2Menu::Update));
+  EXPECT_FALSE(rig.state.hasOTA());
+  rig.press(1,1,true);EXPECT_FALSE(rig.state.hasOTA());
+  rig.press(1,1);EXPECT_TRUE(rig.state.hasOTA());
+
+  Mk2Rig wired;
+  wired.press(2,1);wired.panel.turn(-1);
+  EXPECT_EQ(wired.panel.selection().menu,unsigned(Mk2Menu::ResetDisplay));
+  wired.panel.turn(1);EXPECT_EQ(wired.panel.selection().menu,unsigned(Mk2Menu::Lock));
+}
+
+TEST(Mk2, ViewsRouteArrowsAndRotaryWithoutJoggingOnMenuNavigation) {
+  Mk2Rig rig;
+  rig.press(2,1);rig.press(1,1);rig.press(2,1);
+  rig.press(0,2);EXPECT_EQ(rig.panel.selection().view,Mk2View::Stops);
+  rig.panel.turn(1);EXPECT_EQ(rig.panel.selection().stop,LeadscrewStopPosition::RIGHT);
+  rig.press(1,1);EXPECT_EQ(rig.screw.getStopPositionState(LeadscrewStopPosition::RIGHT),LeadscrewStopState::SET);
+  rig.press(1,2);EXPECT_EQ(rig.state.getMotionMode(),MM_DISABLED);
+  rig.press(2,1);rig.press(1,2);rig.press(1,2,true);
+  EXPECT_EQ(rig.state.getMotionMode(),MM_DISABLED);EXPECT_EQ(rig.panel.selection().menu,unsigned(Mk2Menu::Units));
+  rig.press(1,1);EXPECT_EQ(rig.state.getUnitMode(),IMPERIAL);
+  rig.press(0,1);EXPECT_EQ(rig.panel.selection().view,Mk2View::Rate);
+  const int pitch=rig.state.getFeedSelect();rig.panel.turn(1);EXPECT_NE(rig.state.getFeedSelect(),pitch);
+  rig.press(1,2);EXPECT_EQ(rig.state.getMotionMode(),MM_JOG_RIGHT);
+}
+
+TEST(Mk2, HaltDisablesEvenLockedAndSuppressesAnOverlappedEnableRelease) {
+  for (auto mode : {MM_ENABLED,MM_JOG_LEFT,MM_JOG_RIGHT}) {
+    Mk2Rig rig;
+    rig.state.setMotionMode(mode);
+    constexpr auto halt=matrixBit(2,0), enable=matrixBit(2,2);
+    rig.sample(enable,5);rig.sample(enable,10);
+    rig.sample(halt|enable,5);rig.sample(halt|enable,10);
+    EXPECT_EQ(rig.state.getMotionMode(),MM_DISABLED);
+    rig.state.setButtonLock(LK_UNLOCKED);
+    rig.sample(enable,5);rig.sample(enable,10);rig.sample(0,5);rig.sample(0,10);
+    EXPECT_EQ(rig.state.getMotionMode(),MM_DISABLED);
+    rig.press(2,2);EXPECT_EQ(rig.state.getMotionMode(),MM_ENABLED);
+  }
 }
