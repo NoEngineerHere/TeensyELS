@@ -3,6 +3,7 @@
 #include "hardware_validation.h"
 
 #if defined(ESP32)
+#include <esp_bit_defs.h>
 #include <soc/soc_caps.h>
 static_assert(SOC_GPIO_VALID_GPIO_MASK == hardwareValidation::espInputMask &&
     SOC_GPIO_VALID_OUTPUT_GPIO_MASK == hardwareValidation::espOutputMask);

@@ -1,6 +1,7 @@
-#include "buttons.h"
-
 #include <els/hardware_config.h>
+#if ELS_INPUT_LAYOUT == ELS_INPUT_DIRECT
+#include "direct_panel.h"
+
 
 ButtonHandler::ButtonHandler(Controls& controls)
   : controls(controls),
@@ -13,7 +14,16 @@ ButtonHandler::ButtonHandler(Controls& controls)
   m_jogLeft(hardware.direct.left),
   m_jogRight(hardware.direct.right) {}
 
-void ButtonHandler::handle() {
+bool ButtonHandler::begin() {
+  for (auto* button : {&m_rateIncrease, &m_rateDecrease, &m_modeCycle, &m_threadSync,
+                       &m_enable, &m_lock, &m_jogLeft, &m_jogRight}) button->begin();
+  pinMode(hardware.direct.halfNut, INPUT_PULLUP);
+  if constexpr (hardware.encoder.a >= 0) return encoder.begin();
+  return true;
+}
+
+void ButtonHandler::poll(uint32_t) {
+  if constexpr (hardware.encoder.a >= 0) controls.changePitch(encoder.poll());
   // update the state of the application based on the button state
   rateIncreaseHandler();
   rateDecreaseHandler();
@@ -153,3 +163,4 @@ void ButtonHandler::jogHandler() {
   // if neither jog button is held, reset the motion mode
   if (!m_jogLeft.isHeld() && !m_jogRight.isHeld()) controls.cancelJog(motionMode);
 }
+#endif

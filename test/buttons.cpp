@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include <new>
 #include "mocks/leadscrewio_mock.h"
-#include "../src/buttons.cpp"
+#include <direct_panel.h>
 
 class Buttons : public testing::Test {
 protected:
@@ -19,14 +19,15 @@ protected:
   auto* s=&state;s->setUnitMode(METRIC);s->setFeedMode(FM_FEED);
   s->setButtonLock(LK_UNLOCKED);s->setMotionMode(MM_DISABLED);s->setThreadSyncState(SS_UNSYNC);
   handler=new(storage) ButtonHandler(controls);
+  ASSERT_TRUE(handler->begin());
   poll(60);
  }
  void TearDown() override {handler->~ButtonHandler();}
  void poll(unsigned ms,ButtonHandler* target=nullptr) {
-  for(unsigned i=0;i<ms;i+=10){setTestMicros(elsMicros()+10000);(target?target:handler)->handle();}
+  for(unsigned i=0;i<ms;i+=10){setTestMicros(elsMicros()+10000);(target?target:handler)->poll(elsMicros()/1000);}
  }
- void press(int pin){ButtonHardwareTest::pins[pin]=LOW;handler->handle();}
- void release(int pin){ButtonHardwareTest::pins[pin]=HIGH;handler->handle();poll(50);}
+ void press(int pin){ButtonHardwareTest::pins[pin]=LOW;handler->poll(elsMicros()/1000);}
+ void release(int pin){ButtonHardwareTest::pins[pin]=HIGH;handler->poll(elsMicros()/1000);poll(50);}
 };
 TEST_F(Buttons, ModeHoldActsOnceAndReleaseDoesNotAlsoClick) {
  press(hardware.direct.mode);poll(1100);
@@ -64,13 +65,13 @@ TEST_F(Buttons, HoldLatchesAreNotSharedBetweenHandlerInstances) {
  press(hardware.direct.mode);poll(1100);ASSERT_EQ(state.getUnitMode(),IMPERIAL);
  alignas(ButtonHandler) unsigned char secondStorage[sizeof(ButtonHandler)]{};
  auto* second=new(secondStorage) ButtonHandler(controls);
- second->handle();poll(1100,second);EXPECT_EQ(state.getUnitMode(),METRIC);
- handler->handle();EXPECT_EQ(state.getUnitMode(),METRIC);
+ second->poll(elsMicros()/1000);poll(1100,second);EXPECT_EQ(state.getUnitMode(),METRIC);
+ handler->poll(elsMicros()/1000);EXPECT_EQ(state.getUnitMode(),METRIC);
  second->~ButtonHandler();
 }
 TEST_F(Buttons, HeldLeftJogIsNotUnconditionallyCancelledByBooleanPrecedence) {
  press(hardware.direct.left);poll(1100);
- state.setMotionMode(MM_JOG_LEFT);handler->handle();
+ state.setMotionMode(MM_JOG_LEFT);handler->poll(elsMicros()/1000);
  EXPECT_EQ(state.getMotionMode(),MM_JOG_LEFT);
  release(hardware.direct.left);EXPECT_EQ(state.getMotionMode(),MM_DISABLED);
 }

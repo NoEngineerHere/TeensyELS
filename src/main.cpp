@@ -11,11 +11,9 @@
 #include <spindle_encoder.h>
 #include <boot_diagnostics.h>
 #include "ESPCommsManager.h"
-#include "buttons.h"
-#include "buttonpad.h"
+#include <panel_input.h>
 #include "config.h"
 #include "display.h"
-#include "keyarray.h"
 #include "runtime.h"
 #ifdef ESP32
 #include <pulse_esp32.h>
@@ -45,12 +43,7 @@ static void receiveUpdate() { commsManager.loop(); }
 static bool maintenanceRequested() { return false; }
 static void receiveUpdate() {}
 #endif
-#if ELS_INPUT_LAYOUT == ELS_INPUT_LEGACY_MATRIX
-KeyArray keyArray;
-ButtonPad keyPad(controls, keyArray);
-#else
-ButtonHandler keyPad(controls);
-#endif
+PanelInput panel(controls);
 Display display(globalState, &spindle, &leadscrew);
 static void initializeEnableOutput() {
   // Compatibility assertion only: LOW is not a claim of electrical disable.
@@ -64,14 +57,7 @@ static bool initializeBoardControls() {
   CHECK_BOUNDS(DEFAULT_IMPERIAL_FEED_PITCH_IDX, feedPitchImperial, "Invalid feed default");
   if constexpr (hardware.indicators.green >= 0) pinMode(hardware.indicators.green, OUTPUT);
   if constexpr (hardware.indicators.red >= 0) pinMode(hardware.indicators.red, OUTPUT);
-#if ELS_INPUT_LAYOUT == ELS_INPUT_LEGACY_MATRIX
-  return keyArray.initPad();
-#else
-  for (int pin : {hardware.direct.increase, hardware.direct.decrease, hardware.direct.mode,
-                 hardware.direct.sync, hardware.direct.halfNut, hardware.direct.enable,
-                 hardware.direct.lock, hardware.direct.left, hardware.direct.right}) pinMode(pin, INPUT_PULLUP);
-  return true;
-#endif
+  return panel.begin();
 }
 static void initializeAlarmInput() {
   if constexpr (hardware.motion.alarm >= 0) pinMode(hardware.motion.alarm, INPUT);
@@ -133,7 +119,7 @@ void motionTick() {
 #endif
 }
 void inputTick() {
-  if (ready.load(std::memory_order_acquire) && !display.failed()) keyPad.handle();
+  if (ready.load(std::memory_order_acquire) && !display.failed()) panel.poll(millis());
 }
 void displayTick() {
   if (!displayReady) return;
