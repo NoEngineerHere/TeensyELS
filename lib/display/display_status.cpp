@@ -7,7 +7,7 @@ DisplayStatus readDisplayStatus(GlobalState& state, Spindle& spindle, Leadscrew&
   DisplayStatus status{selection.mode, state.getMotionMode(), state.getButtonLock(),
     state.getThreadSyncState(),
     screw.getStopPositionState(LeadscrewStopPosition::LEFT) == LeadscrewStopState::SET,
-    screw.getStopPositionState(LeadscrewStopPosition::RIGHT) == LeadscrewStopState::SET, {}, {}};
+    screw.getStopPositionState(LeadscrewStopPosition::RIGHT) == LeadscrewStopState::SET, {}, {}, {}};
   const auto index = selection.index;
   const bool thread = status.feed == FM_THREAD;
   if (selection.unit == METRIC) {
@@ -18,6 +18,19 @@ DisplayStatus readDisplayStatus(GlobalState& state, Spindle& spindle, Leadscrew&
         int(thread ? threadPitchImperial[index] : feedPitchImperial[index] * 1000));
   }
   formatRpm(spindle.getEstimatedVelocityInRPM(), status.rpm);
+  const auto position = screw.positionReading();
+  if (!position.valid) {
+    std::snprintf(status.position, sizeof(status.position), "Position unknown");
+  } else {
+    using Datum = Leadscrew::PositionDatum;
+    const char* label = position.datum == Datum::Left ? "Left" : position.datum == Datum::Right ? "Right" : "Origin";
+    const bool metric = selection.unit == METRIC;
+    const double value = metric ? position.millimeters : position.millimeters / 25.4;
+    const char* unit = metric ? "mm" : "in";
+    const int length = std::snprintf(status.position, sizeof(status.position), "%s %+.3f%s", label, value, unit);
+    if (length >= int(sizeof(status.position)))
+      std::snprintf(status.position, sizeof(status.position), "%s %+.4g%s", label, value, unit);
+  }
   return status;
 }
 
@@ -41,6 +54,9 @@ void formatDisplayLines(DisplayLines& lines, const DisplayStatus& s, const Mk2Pa
   } else if (sel.view == Mk2View::Stops) {
     std::snprintf(lines[4], sizeof(lines[4]), "Selected: %s",
         sel.stop == LeadscrewStopPosition::LEFT ? "left" : "right");
+    std::snprintf(lines[5], sizeof(lines[5]), "%s", s.position);
+  } else {
+    std::snprintf(lines[4], sizeof(lines[4]), "%s", s.position);
   }
 }
 

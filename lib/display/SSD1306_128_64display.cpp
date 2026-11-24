@@ -75,6 +75,13 @@ void Display::drawLines(const DisplayLines& lines) {
   }
 }
 
+void Display::drawPosition(const char* position) {
+  m_ssd1306.setCursor(0, 56);
+  m_ssd1306.setTextSize(1);
+  m_ssd1306.setTextColor(WHITE);
+  m_ssd1306.print(position);
+}
+
 void Display::drawSpindleRpm(const char* rpmString) {
   m_ssd1306.setCursor(0, 0);
   m_ssd1306.setTextSize(1);
@@ -113,9 +120,9 @@ void Display::drawSyncStatus(GlobalThreadSyncState sync) {
 void Display::drawMode(GlobalFeedMode mode) {
 
   if (mode == GlobalFeedMode::FM_FEED) {
-    m_ssd1306.drawBitmap(57, 32, feedSymbol, 64, 32, WHITE);
+    m_ssd1306.drawBitmap(57, 24, feedSymbol, 64, 32, WHITE);
   } else if (mode == GlobalFeedMode::FM_THREAD) {
-    m_ssd1306.drawBitmap(57, 32, threadSymbol, 64, 32, WHITE);
+    m_ssd1306.drawBitmap(57, 24, threadSymbol, 64, 32, WHITE);
   }
 
 }
@@ -128,33 +135,33 @@ void Display::drawPitch(const char* pitch) {
 }
 
 void Display::drawEnabled(GlobalMotionMode mode) {
-  m_ssd1306.fillRoundRect(26, 40, 20, 20, 2, WHITE);
+  m_ssd1306.fillRoundRect(26, 36, 20, 20, 2, WHITE);
   switch (mode) {
   case GlobalMotionMode::MM_DISABLED:
-    m_ssd1306.drawBitmap(28, 42, pauseSymbol, 16, 16, BLACK);
+    m_ssd1306.drawBitmap(28, 38, pauseSymbol, 16, 16, BLACK);
     break;
   case GlobalMotionMode::MM_JOG_LEFT:
   case GlobalMotionMode::MM_JOG_RIGHT:
     // todo bitmap for jogging
-    m_ssd1306.setCursor(28, 42);
+    m_ssd1306.setCursor(28, 38);
     m_ssd1306.setTextSize(2);
     m_ssd1306.setTextColor(BLACK);
     m_ssd1306.print("J");
     break;
   case GlobalMotionMode::MM_ENABLED:
-    m_ssd1306.drawBitmap(28, 42, runSymbol, 16, 16, BLACK);
+    m_ssd1306.drawBitmap(28, 38, runSymbol, 16, 16, BLACK);
     break;
   }
 }
 
 void Display::drawLocked(GlobalButtonLock lock) {
-  m_ssd1306.fillRoundRect(2, 40, 20, 20, 2, WHITE);
+  m_ssd1306.fillRoundRect(2, 36, 20, 20, 2, WHITE);
   switch (lock) {
   case GlobalButtonLock::LK_LOCKED:
-    m_ssd1306.drawBitmap(4, 42, lockedSymbol, 16, 16, BLACK);
+    m_ssd1306.drawBitmap(4, 38, lockedSymbol, 16, 16, BLACK);
     break;
   case GlobalButtonLock::LK_UNLOCKED:
-    m_ssd1306.drawBitmap(4, 42, unlockedSymbol, 16, 16, BLACK);
+    m_ssd1306.drawBitmap(4, 38, unlockedSymbol, 16, 16, BLACK);
     break;
   }
 }

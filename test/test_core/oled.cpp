@@ -111,3 +111,25 @@ TEST_F(Oled, MaintenanceProgressReplacesCredentialsAndFailureClearsThem) {
  screw.setFaultInhibit(false);state.setMotionMode(MM_ENABLED);
  EXPECT_EQ(state.getMotionMode(),MM_DISABLED);
 }
+
+TEST_F(Oled, CarriageReadoutLabelsOriginAndZeroAtASetStopWithoutMovingIt) {
+ OledSurface::Display display(state,&spindle,&screw);
+ ASSERT_TRUE(OledSurface::initializeDisplayBus());ASSERT_TRUE(display.init());
+ ASSERT_TRUE(screw.initializeOutputs());
+ screw.setCurrentPosition(600);
+ display.update();
+ ASSERT_FALSE(display.m_ssd1306.printed.empty());
+ EXPECT_EQ(display.m_ssd1306.printed.back().value,"Origin +1.000mm");
+ EXPECT_EQ(display.m_ssd1306.printed.back().y,56);
+ for(uint32_t ms=5;ms<=175;ms+=5) display.service(ms);
+ const auto stop=LeadscrewStopPosition::LEFT;
+ screw.setStopPosition(stop);
+ state.setThreadSyncState(SS_UNSYNC);
+ display.update();
+ EXPECT_EQ(display.m_ssd1306.printed.back().value,"Left +0.000mm");
+ EXPECT_EQ(screw.getCurrentPosition(),600);
+ EXPECT_EQ(screw.getStopPosition(stop),600);
+ EXPECT_EQ(state.getThreadSyncState(),SS_UNSYNC);
+ EXPECT_EQ(state.getMotionMode(),MM_DISABLED);
+ EXPECT_EQ(io.completions,0);
+}

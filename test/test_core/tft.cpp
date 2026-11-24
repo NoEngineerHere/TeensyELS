@@ -71,3 +71,25 @@ TEST_F(Tft, BootBannerAndMk2MenuUseTheSameTransport) {
  }
  display.tft.capture("tft-menu");
 }
+
+TEST_F(Tft, CarriageReadoutPreservesSignAndSwitchesDatum) {
+ TftSurface::Display display(state,&spindle,&screw);
+ ASSERT_TRUE(TftSurface::initializeDisplayBus());ASSERT_TRUE(display.init());
+ ASSERT_TRUE(screw.initializeOutputs());
+ using Stop=LeadscrewStopPosition;
+ screw.setCurrentPosition(0);
+ screw.setStopPosition(Stop::RIGHT,1200);
+ display.update();
+ auto readout=[&] {
+  for(auto it=display.tft.printed.rbegin();it!=display.tft.printed.rend();++it)
+   if(it->y==56) return it->value.substr(0,it->value.find_last_not_of(' ')+1);
+  return std::string{};
+ };
+ EXPECT_EQ(readout(),"Right -2.000mm");
+ screw.setStopPosition(Stop::LEFT,-600);
+ display.update();
+ EXPECT_EQ(readout(),"Left +1.000mm");
+ state.setUnitMode(IMPERIAL);
+ display.update();
+ EXPECT_EQ(readout(),"Left +0.039in");
+}
