@@ -1,10 +1,8 @@
 #include <els/hardware_config.h>
-#if !defined(PIO_UNIT_TESTING) && ELS_SCREEN == ELS_SCREEN_SSD1306_128X64
+#if (!defined(PIO_UNIT_TESTING) || defined(ELS_TEST_OLED)) && ELS_SCREEN == ELS_SCREEN_SSD1306_128X64
 #include <display.h>
-#include <rpm_format.h>
-#include <boot_diagnostics.h>
+#include <Wire.h>
 #include <algorithm>
-#include <globalstate.h>
 // Images
 #include <icons/feedSymbol.h>
 #include <icons/lockedSymbol.h>
@@ -17,15 +15,16 @@
 bool Display::service(uint32_t) {
   if (m_failed) return false;
   if (m_frameOffset == frameSize) return true;
-  auto transfer = [](uint8_t control, const uint8_t* bytes, size_t count) {
-    Wire.beginTransmission(SCREEN_ADDRESS);
-    const bool accepted = Wire.write(control) == 1 && Wire.write(bytes, count) == count;
-    const uint8_t status = Wire.endTransmission();
+  auto& bus = displayI2cBus();
+  auto transfer = [&bus](uint8_t control, const uint8_t* bytes, size_t count) {
+    bus.beginTransmission(hardware.oled.address);
+    const bool accepted = bus.write(control) == 1 && bus.write(bytes, count) == count;
+    const uint8_t status = bus.endTransmission();
     return accepted && status == 0;
   };
-  constexpr uint8_t window[] = {0x21, 0, SCREEN_WIDTH - 1, 0x22, 0, SCREEN_HEIGHT / 8 - 1};
+  constexpr uint8_t window[] = {0x21, 0, screenWidth - 1, 0x22, 0, screenHeight / 8 - 1};
   constexpr size_t chunk = 31; // Control byte + data fits even a 32-byte Wire buffer.
-  Wire.setClock(hardware.oled.frequencyHz);
+  bus.setClock(hardware.oled.frequencyHz);
   bool ok;
   if (m_sendWindow) {
     ok = transfer(0x00, window, sizeof(window));
@@ -35,18 +34,14 @@ bool Display::service(uint32_t) {
     ok = transfer(0x40, m_ssd1306.getBuffer() + m_frameOffset, count);
     m_frameOffset += count;
   }
-  Wire.setClock(hardware.oled.restoreHz);
-  if (!ok) {
-    m_leadscrew->setFaultInhibit(true);
-    m_failed.store(true);
-  }
+  bus.setClock(hardware.oled.restoreHz);
+  if (!ok) m_failed.store(true);
   return ok && m_frameOffset == frameSize;
 }
 
 bool Display::init() {
   if (m_failed) return false;
-  m_failed = !m_ssd1306.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS);
-  if (m_failed) m_leadscrew->setFaultInhibit(true);
+  m_failed = !m_ssd1306.begin(SSD1306_SWITCHCAPVCC, hardware.oled.address, true, false);
   return !m_failed;
 }
 
@@ -62,31 +57,25 @@ void Display::showBootStatus(bool fault) {
 
 void Display::update() {
   if (m_failed || m_frameOffset != frameSize) return;
+  if (m_globalState.getDisplayReset() && !init()) return;
   m_ssd1306.clearDisplay();
-
-  int bytes = m_globalState.getOTABytes();
-  int length = m_globalState.getOTALength();
-  if (bytes > 0) {
-  } else {
-    drawMode();
-    drawPitch();
-    drawLocked();
-    drawEnabled();
-    drawSpindleRpm();
-    drawSyncStatus();
-
-    drawStopStatus();
-  }
-#ifdef ESP32
-  writeLed();
-#endif
-
+  const auto status = readDisplayStatus(m_globalState, *m_spindle, *m_leadscrew);
+  DisplayLines lines{};
+  if (composeText(lines, status)) drawLines(lines);
+  else drawLegacy(status);
   queueFrame();
 }
 
-void Display::drawSpindleRpm() {
-  char rpmString[8];
-  formatRpm(m_spindle->getEstimatedVelocityInRPM(), rpmString);
+void Display::drawLines(const DisplayLines& lines) {
+  m_ssd1306.setTextSize(1);
+  m_ssd1306.setTextColor(WHITE);
+  for (unsigned i = 0; i < 7; ++i) {
+    m_ssd1306.setCursor(0, i * 8);
+    m_ssd1306.print(lines[i]);
+  }
+}
+
+void Display::drawSpindleRpm(const char* rpmString) {
   m_ssd1306.setCursor(0, 0);
   m_ssd1306.setTextSize(1);
   m_ssd1306.setTextColor(WHITE);
@@ -94,26 +83,23 @@ void Display::drawSpindleRpm() {
   m_ssd1306.print(rpmString);
 }
 
-void Display::drawStopStatus() {
+void Display::drawStopStatus(bool left, bool right) {
   m_ssd1306.setCursor(0, 8);
   m_ssd1306.setTextSize(1);
   m_ssd1306.setTextColor(WHITE);
-  if (m_leadscrew->getStopPositionState(LeadscrewStopPosition::LEFT) ==
-    LeadscrewStopState::SET) {
+  if (left) {
     m_ssd1306.print("[");
   } else {
     m_ssd1306.print(" ");
   }
-  if (m_leadscrew->getStopPositionState(LeadscrewStopPosition::RIGHT) ==
-    LeadscrewStopState::SET) {
+  if (right) {
     m_ssd1306.print("]");
   } else {
     m_ssd1306.print(" ");
   }
 }
 
-void Display::drawSyncStatus() {
-  GlobalThreadSyncState sync = m_globalState.getThreadSyncState();
+void Display::drawSyncStatus(GlobalThreadSyncState sync) {
   m_ssd1306.setCursor(0, 16);
   m_ssd1306.setTextSize(2);
   m_ssd1306.setTextColor(WHITE);
@@ -124,8 +110,7 @@ void Display::drawSyncStatus() {
   }
 }
 
-void Display::drawMode() {
-  GlobalFeedMode mode = m_globalState.getFeedMode();
+void Display::drawMode(GlobalFeedMode mode) {
 
   if (mode == GlobalFeedMode::FM_FEED) {
     m_ssd1306.drawBitmap(57, 32, feedSymbol, 64, 32, WHITE);
@@ -135,36 +120,14 @@ void Display::drawMode() {
 
 }
 
-void Display::drawPitch() {
-  GlobalState* state = &m_globalState;
-  GlobalUnitMode unit = state->getUnitMode();
-  GlobalFeedMode mode = state->getFeedMode();
-  int feedSelect = state->getFeedSelect();
-  char pitch[10];
-  if (unit == GlobalUnitMode::METRIC) {
-    if (mode == GlobalFeedMode::FM_THREAD) {
-      sprintf(pitch, "%.2fmm", threadPitchMetric[feedSelect]);
-    } else {
-      sprintf(pitch, "%.2fmm", feedPitchMetric[feedSelect]);
-    }
-  } else {
-    if (mode == GlobalFeedMode::FM_THREAD) {
-      sprintf(pitch, "%dTPI", (int)threadPitchImperial[feedSelect]);
-    } else {
-      sprintf(pitch, "%dth", (int)(feedPitchImperial[feedSelect] * 1000));
-    }
-  }
-
+void Display::drawPitch(const char* pitch) {
   m_ssd1306.setCursor(55, 8);
   m_ssd1306.setTextSize(2);
   m_ssd1306.setTextColor(WHITE);
   m_ssd1306.print(pitch);
 }
 
-void Display::drawEnabled() {
-  GlobalState* state = &m_globalState;
-  GlobalMotionMode mode = state->getMotionMode();
-
+void Display::drawEnabled(GlobalMotionMode mode) {
   m_ssd1306.fillRoundRect(26, 40, 20, 20, 2, WHITE);
   switch (mode) {
   case GlobalMotionMode::MM_DISABLED:
@@ -182,48 +145,9 @@ void Display::drawEnabled() {
     m_ssd1306.drawBitmap(28, 42, runSymbol, 16, 16, BLACK);
     break;
   }
-  updateLed();
 }
 
-#ifdef ESP32   // TODO Make portable
-void Display::writeLed() {
-  int64_t time = micros() / 250000;
-  EncoderColour c = time % 2 == 1 ? firstColour : secondColour;
-  digitalWrite(hardware.indicators.green, (c & 2) == 2);
-  digitalWrite(hardware.indicators.red, c & 1);
-
-}
-#endif
-
-
-void Display::updateLed() {
-#ifdef ESP32
-
-  GlobalState* state = &m_globalState;
-  GlobalMotionMode mode = state->getMotionMode();
-  GlobalButtonLock lock = m_globalState.getButtonLock();
-
-  switch (mode) {
-  case GlobalMotionMode::MM_DISABLED:
-    firstColour = lock == LK_LOCKED ? EC_RED : EC_NONE;
-    secondColour = lock == LK_LOCKED ? EC_RED : EC_NONE;
-    break;
-  case GlobalMotionMode::MM_JOG_LEFT:
-  case GlobalMotionMode::MM_JOG_RIGHT:
-    firstColour = EC_YELLOW;
-    secondColour = EC_YELLOW;
-    break;
-  case GlobalMotionMode::MM_ENABLED:
-    firstColour = lock == LK_LOCKED ? EC_RED : EC_GREEN;
-    secondColour = EC_GREEN;
-    break;
-  }
-#endif
-
-}
-
-void Display::drawLocked() {
-  GlobalButtonLock lock = m_globalState.getButtonLock();
+void Display::drawLocked(GlobalButtonLock lock) {
   m_ssd1306.fillRoundRect(2, 40, 20, 20, 2, WHITE);
   switch (lock) {
   case GlobalButtonLock::LK_LOCKED:

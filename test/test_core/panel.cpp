@@ -3,7 +3,7 @@
 #include <legacy_panel.h>
 #include <mk2_panel.h>
 #include <globalstate.h>
-#include "mocks/leadscrewio_mock.h"
+#include "../mocks/leadscrewio_mock.h"
 
 static MatrixEvent scan(MatrixScanner& scanner, uint16_t mask, uint32_t now) {
   scanner.sample(mask, now);

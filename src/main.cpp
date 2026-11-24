@@ -7,6 +7,7 @@
 #include <leadscrew.h>
 #include <spindle.h>
 #include <board.h>
+#include <board_indicators.h>
 #include <pulse_timing.h>
 #include <spindle_encoder.h>
 #include <boot_diagnostics.h>
@@ -44,7 +45,20 @@ static bool maintenanceRequested() { return false; }
 static void receiveUpdate() {}
 #endif
 PanelInput panel(controls);
+#if ELS_INPUT_LAYOUT == ELS_INPUT_MK2_MATRIX
+Display display(globalState, &spindle, &leadscrew, &panel.actions());
+#else
 Display display(globalState, &spindle, &leadscrew);
+#endif
+static void enableDisplayBacklight() {
+#if ELS_SCREEN != ELS_SCREEN_SSD1306_128X64
+  if constexpr (hardware.tft.backlight >= 0) {
+    digitalWrite(hardware.tft.backlight, hardware.tft.backlightActiveHigh);
+    pinMode(hardware.tft.backlight, OUTPUT);
+    digitalWrite(hardware.tft.backlight, hardware.tft.backlightActiveHigh);
+  }
+#endif
+}
 static void initializeEnableOutput() {
   // Compatibility assertion only: LOW is not a claim of electrical disable.
   digitalWrite(hardware.motion.enable, LOW);
@@ -55,8 +69,7 @@ static bool initializeBoardControls() {
   CHECK_BOUNDS(DEFAULT_METRIC_FEED_PITCH_IDX, feedPitchMetric, "Invalid feed default");
   CHECK_BOUNDS(DEFAULT_IMPERIAL_THREAD_PITCH_IDX, threadPitchImperial, "Invalid thread default");
   CHECK_BOUNDS(DEFAULT_IMPERIAL_FEED_PITCH_IDX, feedPitchImperial, "Invalid feed default");
-  if constexpr (hardware.indicators.green >= 0) pinMode(hardware.indicators.green, OUTPUT);
-  if constexpr (hardware.indicators.red >= 0) pinMode(hardware.indicators.red, OUTPUT);
+  initializeIndicators();
   return panel.begin();
 }
 static void initializeAlarmInput() {
@@ -119,7 +132,9 @@ void motionTick() {
 #endif
 }
 void inputTick() {
-  if (ready.load(std::memory_order_acquire) && !display.failed()) panel.poll(millis());
+  const uint32_t now = millis();
+  if (ready.load(std::memory_order_acquire) && !display.failed()) panel.poll(now);
+  updateIndicators(globalState, now);
 }
 void displayTick() {
   if (!displayReady) return;
@@ -140,6 +155,7 @@ void displayTick() {
   if (now - lastStatusMs < 250) return;
   lastStatusMs = now;
   display.update();
+  if (display.failed()) { latchFault("DISPLAY_COMM_FAILED"); return; }
 #ifdef ELS_PROGRESS_TELEMETRY
   displayReturns.fetch_add(1, std::memory_order_relaxed);
 #endif
@@ -175,8 +191,10 @@ void setup() {
   sampleAlarm();
   if (!spindleEncoder.begin()) latchFault("SPINDLE_ENCODER_INIT_FAILED");
   if (!initializeBoardControls()) latchFault("UI_ENCODER_INIT_FAILED");
+  if (!initializeDisplayBus()) { latchFault("DISPLAY_BUS_INIT_FAILED"); reportFault(); return; }
   displayReady = display.init();
   if (!displayReady) { latchFault("DISPLAY_INIT_FAILED"); reportFault(); return; }
+  enableDisplayBacklight();
   displayFaultShown = faultReason.load(std::memory_order_acquire) != nullptr;
   display.showBootStatus(displayFaultShown);
   recordBootStage(3);

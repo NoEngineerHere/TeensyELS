@@ -1,0 +1,15 @@
+#ifndef LV_CONF_H
+#define LV_CONF_H
+
+#define LV_COLOR_DEPTH 16
+#define LV_MEM_SIZE (48U * 1024U)
+#define LV_DEF_REFR_PERIOD 25
+#define LV_FONT_MONTSERRAT_20 1
+#define LV_FONT_MONTSERRAT_24 1
+#define LV_DRAW_BUF_STRIDE_ALIGN 1
+#define LV_DRAW_BUF_ALIGN 4
+#define LV_USE_THEME_DEFAULT 0
+#define LV_USE_THEME_SIMPLE 0
+#define LV_USE_THEME_MONO 0
+
+#endif

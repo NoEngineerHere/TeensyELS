@@ -5,7 +5,6 @@
 
 #pragma once
 
-enum EncoderColour { EC_NONE = 0, EC_RED = 1, EC_GREEN = 2, EC_YELLOW = 3 };
 
 // Major modes are the main modes of the application, like the feed or thread
 // The spindle acts the same way in both threading and feeding mode
@@ -56,7 +55,7 @@ class GlobalState {
   GlobalButtonLock m_buttonLock;
 
   volatile bool m_debugMode = false;
-  volatile bool m_displayReset = false;
+  std::atomic<bool> m_displayReset{false};
 
   int m_feedSelect;
 

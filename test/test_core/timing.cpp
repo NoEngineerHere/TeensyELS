@@ -6,7 +6,7 @@
 #include <thread>
 #include <vector>
 #include <climits>
-#include "mocks/leadscrewio_mock.h"
+#include "../mocks/leadscrewio_mock.h"
 
 TEST(Timing, SpindleWindowAcrossWrapAndBothDirections) {
   for (int sign : {-1, 1}) {

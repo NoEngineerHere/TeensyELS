@@ -4,8 +4,8 @@
 #include <globalstate.h>
 #include <leadscrew.h>
 #include <boot_diagnostics.h>
-#include "mocks/leadscrewio_mock.h"
-#include "../src/runtime.h"
+#include "../mocks/leadscrewio_mock.h"
+#include "../../src/runtime.h"
 static uint32_t millis() { return elsMicros() / 1000; }
 
 namespace BootHW {
@@ -41,13 +41,17 @@ bool inputOK = true, alarmLine = false;
 void initializeAlarmInput(){}
 bool alarmAsserted(){return alarmLine;}
 bool initializeBoardControls(){return inputOK;}
+bool busOK=true;
+bool initializeDisplayBus(){return busOK;}
+void enableDisplayBacklight(){}
+void updateIndicators(GlobalState&,uint32_t){}
 bool maintenanceRequested(){return false;}
 void receiveUpdate(){}
 RuntimeStartResult startRuntime();
 void serviceRuntimeForeground();
-#include "../src/main.cpp"
+#include "../../src/main.cpp"
 #define ELS_TEST_TEENSY_RUNTIME
-#include "../src/runtime_teensy.cpp"
+#include "../../src/runtime_teensy.cpp"
 #undef ELS_TEST_TEENSY_RUNTIME
 void timerCallback() { motionInterrupt(); }
 void reset(){
@@ -57,7 +61,7 @@ void reset(){
  display=BootHW::Screen{};panel=BootHW::Keys{};timer=BootHW::Timer{};
  ready=false;faultReason=nullptr;displayReady=displayFaultShown=faultReported=false;bannerStarted=0;
  runtimeStarted=initialFrameComplete=updateHandoff=false;lastStatusMs=lastInputMs=0;
- inputOK=true;alarmLine=false;spindleEncoder={};
+ inputOK=busOK=true;alarmLine=false;spindleEncoder={};
 }
 }
 namespace EspBoot {
@@ -86,13 +90,17 @@ bool inputOK = true, alarmLine = false;
 void initializeAlarmInput(){}
 bool alarmAsserted(){return alarmLine;}
 bool initializeBoardControls(){return inputOK;}
+bool busOK=true;
+bool initializeDisplayBus(){return busOK;}
+void enableDisplayBacklight(){}
+void updateIndicators(GlobalState&,uint32_t){}
 bool maintenanceRequested(){return globalState.hasOTA();}
 void receiveUpdate(){commsManager.loop();}
 RuntimeStartResult startRuntime();
 void serviceRuntimeForeground();
-#include "../src/main.cpp"
+#include "../../src/main.cpp"
 #define ELS_TEST_ESP_RUNTIME
-#include "../src/runtime_esp32.cpp"
+#include "../../src/runtime_esp32.cpp"
 #undef ELS_TEST_ESP_RUNTIME
 void timerCallback() { if (motionServiceNeeded()) motionTick(); }
 void reset(){
@@ -104,7 +112,7 @@ void reset(){
  stopAtYield=false;
  ready=false;faultReason=nullptr;displayReady=displayFaultShown=faultReported=false;bannerStarted=0;
  runtimeStarted=initialFrameComplete=updateHandoff=false;lastStatusMs=lastBootDisplayMs=0;
- inputOK=true;alarmLine=false;spindleEncoder={};
+ inputOK=busOK=true;alarmLine=false;spindleEncoder={};
 }
 }
 TEST(Boot, BannerRemainsLockedWhileDiagnosticsDrainWithoutUSBWait) {
@@ -120,20 +128,20 @@ TEST(Boot, BannerRemainsLockedWhileDiagnosticsDrainWithoutUSBWait) {
 }
 TEST(Boot, OutputDisplayTimerAndThermalFailuresNeverStartMotionOrControls) {
  using namespace TeensyBoot;
- for(int failure:{0,1,2,3,4,5,6}){
+ for(int failure:{0,1,2,3,4,5,6,7}){
   reset();if(failure==0)io.beginOK=false;if(failure==1)display.initOK=false;
   if(failure==2)timer.ok=false;if(failure==3)BootDiagnosticsTest::port().thermal=true;
-  if(failure==4)spindleEncoder.ok=false;if(failure==5)inputOK=false;if(failure==6)alarmLine=true;
+  if(failure==4)spindleEncoder.ok=false;if(failure==5)inputOK=false;if(failure==6)alarmLine=true;if(failure==7)busOK=false;
   setup();alarmLine=false;setTestMicros(2000000);loop();EXPECT_NE(faultReason.load(), nullptr);EXPECT_FALSE(ready);
   loop();
   EXPECT_EQ(timer.starts,failure==2?1:0);EXPECT_EQ(panel.calls,0);EXPECT_EQ(display.updates,0);
-  if(failure!=1)EXPECT_TRUE(display.fault);
+  if(failure!=1 && failure!=7)EXPECT_TRUE(display.fault);
   auto& port=BootDiagnosticsTest::port();port.connected=true;loop();EXPECT_FALSE(port.output.empty());
   leadscrew.setFaultInhibit(false);globalState.setMotionMode(MM_ENABLED);spindle.incrementCurrentPosition(1200);
   for(int i=0;i<1000;++i){setTestMicros(elsMicros()+4);timerCallback();}
   EXPECT_EQ(io.completions,0);
   const char* reasons[] = {"PULSE_IO_INIT_FAILED", "DISPLAY_INIT_FAILED", "MOTION_SERVICE_INIT_FAILED", "THERMAL_RESET",
-                           "SPINDLE_ENCODER_INIT_FAILED", "UI_ENCODER_INIT_FAILED", "DRIVER_ALARM"};
+                           "SPINDLE_ENCODER_INIT_FAILED", "UI_ENCODER_INIT_FAILED", "DRIVER_ALARM", "DISPLAY_BUS_INIT_FAILED"};
   const char* reason = reasons[failure];
   EXPECT_NE(std::string(BootDiagnosticsTest::report()).find(reason),std::string::npos);
  }
