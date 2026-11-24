@@ -1,3 +1,5 @@
+#pragma once
+#include <ui_encoder.h>
 #include <AbleButtons.h>
 #include <controls.h>
 
@@ -7,6 +9,7 @@ using ButtonList = AblePullupDoubleClickerButtonList;
 class ButtonHandler {
  private:
   Controls& controls;
+  UiEncoder encoder;
 
   Button m_rateIncrease;
   Button m_rateDecrease;
@@ -36,5 +39,6 @@ class ButtonHandler {
  public:
   explicit ButtonHandler(Controls& controls);
 
-  void handle();
+  bool begin();
+  void poll(uint32_t nowMs);
 };
