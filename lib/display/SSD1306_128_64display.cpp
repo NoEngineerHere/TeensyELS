@@ -123,6 +123,11 @@ void Display::drawMode(GlobalFeedMode mode) {
     m_ssd1306.drawBitmap(57, 24, feedSymbol, 64, 32, WHITE);
   } else if (mode == GlobalFeedMode::FM_THREAD) {
     m_ssd1306.drawBitmap(57, 24, threadSymbol, 64, 32, WHITE);
+  } else if (mode == FM_THREAD_REVERSE) {
+    m_ssd1306.setTextSize(2);
+    m_ssd1306.setTextColor(WHITE);
+    m_ssd1306.setCursor(57, 38);
+    m_ssd1306.print("Rev");
   }
 
 }

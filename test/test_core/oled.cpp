@@ -133,3 +133,16 @@ TEST_F(Oled, CarriageReadoutLabelsOriginAndZeroAtASetStopWithoutMovingIt) {
  EXPECT_EQ(state.getMotionMode(),MM_DISABLED);
  EXPECT_EQ(io.completions,0);
 }
+
+TEST_F(Oled, ReverseThreadingIsLabeledOnBothPanelLayouts) {
+ state.setFeedMode(FM_THREAD_REVERSE);
+ ASSERT_TRUE(OledSurface::initializeDisplayBus());
+ OledSurface::Display legacy(state,&spindle,&screw);
+ ASSERT_TRUE(legacy.init()); legacy.update();
+ const auto& text=legacy.m_ssd1306.text;
+ EXPECT_NE(std::find(text.begin(),text.end(),"Rev"),text.end());
+ OledSurface::Display mk2(state,&spindle,&screw,&panel);
+ ASSERT_TRUE(mk2.init()); mk2.update();
+ ASSERT_GE(mk2.m_ssd1306.text.size(),2u);
+ EXPECT_EQ(mk2.m_ssd1306.text[1].find("Reverse "),0u);
+}
