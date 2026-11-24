@@ -163,6 +163,14 @@ bool Leadscrew::isOutputIdle() const {
   ElsCriticalSection guard;
   return m_initialized && !m_pulsePending && m_positionValid;
 }
+bool Leadscrew::needsPulseService() const {
+  ElsCriticalSection guard;
+  return m_pulsePending && !m_ioFault;
+}
+bool Leadscrew::hasOutputFault() const {
+  ElsCriticalSection guard;
+  return m_ioFault || m_numericFault;
+}
 void Leadscrew::latchIOFault(bool uncertain) {
   ElsCriticalSection guard;
   m_ioFault = true;

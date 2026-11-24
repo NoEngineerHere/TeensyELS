@@ -49,7 +49,10 @@ public:
 #if ELS_SCREEN == ELS_SCREEN_SSD1306_128X64
   Adafruit_SSD1306 m_ssd1306;
 private:
-  bool flush();
+  static constexpr size_t frameSize = SCREEN_WIDTH * SCREEN_HEIGHT / 8;
+  size_t m_frameOffset = frameSize;
+  bool m_sendWindow = false;
+  void queueFrame() { m_sendWindow = true; m_frameOffset = 0; }
 public:
 #elif ELS_SCREEN == ELS_SCREEN_ST7789_240X135
   TFT_eSPI tft = TFT_eSPI();
@@ -66,6 +69,12 @@ public:
   bool init();
   void showBootStatus(bool fault);
   void update();
+  // Pump at most one transfer. True when there is no frame pending.
+#if ELS_SCREEN == ELS_SCREEN_SSD1306_128X64
+  bool service(uint32_t nowMs);
+#else
+  bool service(uint32_t) { return true; }
+#endif
   bool failed() const { return m_failed.load(); }
 
 protected:

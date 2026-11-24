@@ -75,7 +75,6 @@
 #define LEADSCREW_MAX_SPEED_PPS  LEADSCREW_MAX_SPEED_MM * ELS_LEADSCREW_STEPS_PER_MM
 
 
-#define LEADSCREW_TIMER_US 4
 
 // The initial delay between pulses in microseconds for the leadscrew starting
 // from 0 do not change - this is a calculated value, to change the initial

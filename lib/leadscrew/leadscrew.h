@@ -102,6 +102,8 @@ public:
   bool initializeOutputs();
   void setFaultInhibit(bool inhibit);
   bool isOutputIdle() const;
+  bool needsPulseService() const;
+  bool hasOutputFault() const;
   void setStopPosition(LeadscrewStopPosition position);
   void setStopPosition(LeadscrewStopPosition position, int stopPosition);
   LeadscrewStopState getStopPositionState(LeadscrewStopPosition position);

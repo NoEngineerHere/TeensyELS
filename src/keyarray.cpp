@@ -4,14 +4,6 @@
 
 
 
-KeyArray::KeyArray() {
-#if defined(ESP32)
-    ESP32Encoder::useInternalWeakPullResistors = puType::none;
-    m_encoder.attachSingleEdge(hardware.encoder.a, hardware.encoder.b);
-    m_encoder.setFilter(1023);
-    encoderPos = m_encoder.getCount();
-#endif    
-}
 
 void KeyArray::setupKeys() {
 
@@ -33,15 +25,21 @@ void KeyArray::setupKeys() {
     attachInterrupt(digitalPinToInterrupt(hardware.matrix.rows[2]), buttonInterrupt, CHANGE);
 
 }
-
-void KeyArray::initPad() {
-
+bool KeyArray::initPad() {
+    if constexpr (hardware.encoder.a >= 0) {
+        ESP32Encoder::useInternalWeakPullResistors = hardware.encoder.externalPulls ? puType::none : puType::up;
+        m_encoder.attachSingleEdge(hardware.encoder.a, hardware.encoder.b);
+        if (!m_encoder.isAttached()) return false;
+        m_encoder.setFilter(1023);
+        encoderPos = m_encoder.getCount();
+    }
     Timer0_Cfg = timerBegin(0, 80, true);
     timerAttachInterrupt(Timer0_Cfg, &timerInterrupt, true);
     timerAlarmWrite(Timer0_Cfg, 1000000, true);
     timerStop(Timer0_Cfg);
     timerAlarmEnable(Timer0_Cfg);
     setupKeys();
+    return true;
 }
 
 void KeyArray::handleTimer() {

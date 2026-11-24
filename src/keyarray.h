@@ -30,8 +30,7 @@ private:
     int64_t encoderPos;
 #endif
 public:
-    KeyArray();
-    void initPad();
+    bool initPad();
     void handle();
     void handleTimer();
     ButtonInfo consumeButton();
