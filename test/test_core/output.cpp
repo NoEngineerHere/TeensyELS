@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include <leadscrew.h>
 #include <globalstate.h>
-#include "mocks/leadscrewio_mock.h"
+#include "../mocks/leadscrewio_mock.h"
 
 struct ResetMotionState {
   GlobalState state;

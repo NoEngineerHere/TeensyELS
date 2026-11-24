@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include <new>
-#include "mocks/leadscrewio_mock.h"
+#include "../mocks/leadscrewio_mock.h"
 #include <direct_panel.h>
 
 class Buttons : public testing::Test {

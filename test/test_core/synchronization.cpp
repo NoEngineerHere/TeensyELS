@@ -3,7 +3,7 @@
 #include <globalstate.h>
 #include <limits>
 #include <new>
-#include "mocks/leadscrewio_mock.h"
+#include "../mocks/leadscrewio_mock.h"
 
 class Synchronization : public testing::Test {
 protected:

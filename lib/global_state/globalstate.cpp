@@ -133,8 +133,6 @@ int  GlobalState::getOTALength() { return OTAlength; }
 void  GlobalState::setOTAContentLength(int length) { OTAlength = length; }
 
 void  GlobalState::setDisplayReset() { m_displayReset = true; }
-bool  GlobalState::getDisplayReset() {
-  bool ret = m_displayReset;
-  m_displayReset = false;
-  return ret;
+bool GlobalState::getDisplayReset() {
+  return m_displayReset.exchange(false);
 }

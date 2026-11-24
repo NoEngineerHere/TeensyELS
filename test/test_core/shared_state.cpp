@@ -2,7 +2,7 @@
 #include <atomic>
 #include <thread>
 #include <globalstate.h>
-#include "mocks/leadscrewio_mock.h"
+#include "../mocks/leadscrewio_mock.h"
 #include <leadscrew.h>
 
 namespace {

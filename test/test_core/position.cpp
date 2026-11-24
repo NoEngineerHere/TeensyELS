@@ -2,7 +2,7 @@
 #include <clock.h>
 #include <globalstate.h>
 #include <leadscrew.h>
-#include "mocks/leadscrewio_mock.h"
+#include "../mocks/leadscrewio_mock.h"
 
 class PositionTest : public testing::Test {
 protected:
