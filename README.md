@@ -176,6 +176,12 @@ of the carriage. Enabling waits for a fresh pickup; reversing the spindle
 while synced disables the cut. Check STEP/DIR and both end stops on an isolated
 bench before cutting.
 
+When spindle velocity is fresh and the calculated ramp fits before the
+stop and within half a spindle turn, threading can start before the taught
+phase. Measured encoder movement drives the ramp, which rejoins the taught
+helix. Otherwise pickup starts at the taught phase. Change pitch or units
+with threading disabled. Verify run-up on the machine before cutting; it
+varies with spindle speed, pitch, and acceleration.
 
 ## Output and machine qualification
 

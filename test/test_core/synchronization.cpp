@@ -203,3 +203,123 @@ TEST_F(Synchronization, ReverseThreadRejectsMissingWrongSideStopAndOppositeSpind
  EXPECT_EQ(state.getThreadSyncState(), SS_UNSYNC);
  EXPECT_TRUE(io.edges.empty());
 }
+
+namespace {
+struct PickupRun {
+ GlobalState state;
+ Spindle spindle;
+ LeadscrewIOMock io;
+ Leadscrew screw{state,&spindle,&io,testPulseTiming,4000,4000,1200,2,1200};
+ explicit PickupRun(GlobalFeedMode mode, int stop = 150) {
+  state.setFeedMode(mode);
+  EXPECT_TRUE(screw.initializeOutputs());
+  screw.setFaultInhibit(false);
+  screw.setTargetPitchMM(1);
+  spindle.setCurrentPosition(1175);
+  const bool reverse = mode == FM_THREAD_REVERSE;
+  screw.setStopPosition(reverse ? LeadscrewStopPosition::LEFT : LeadscrewStopPosition::RIGHT);
+  screw.setStopPosition(reverse ? LeadscrewStopPosition::RIGHT : LeadscrewStopPosition::LEFT,
+                        reverse ? stop : -stop);
+  screw.update();
+ }
+ void tick(uint32_t elapsed = 50) {
+  setTestMicros(elsMicros() + elapsed);
+  screw.update();
+ }
+ void encoderCount() {
+  for(int i = 0; i < 24; ++i) tick();
+  setTestMicros(elsMicros() + 50);
+  spindle.incrementCurrentPosition(-1);
+  screw.update();
+ }
+ void approach() {
+  setTestMicros(elsMicros() + 500000);
+  spindle.incrementCurrentPosition(-400); // 800 counts/sec; 40-count lead at 0.5 pulses/count.
+  screw.update();
+  for(int i = 0; i < 759; ++i) encoderCount();
+  EXPECT_EQ(spindle.getCurrentPosition(), 16);
+ }
+ void arm() { state.setMotionMode(MM_ENABLED); tick(); }
+};
+}
+
+TEST(ThreadRamp, StartsBeforeTaughtPhaseAndRejoinsWithoutPitchOffsetAtClockWrap) {
+ for(auto mode : {FM_THREAD, FM_THREAD_REVERSE}) {
+  std::vector<uint32_t> first;
+  for(uint32_t base : {0u, UINT32_MAX - 350000}) {
+   setTestMicros(base);
+   PickupRun run(mode);
+   run.approach();
+   run.arm();
+   const uint32_t start = elsMicros();
+   run.encoderCount();
+   ASSERT_EQ(run.state.getThreadSyncState(), SS_SYNC);
+   EXPECT_TRUE(run.io.edges.empty());
+   for(int i = 0; i < 40; ++i) run.encoderCount();
+   EXPECT_EQ(run.spindle.getCurrentPosition(), 1175);
+   EXPECT_GT(run.io.completions, 0);
+   for(int i = 0; i < 100; ++i) run.encoderCount();
+   for(int i = 0; i < 2000; ++i) run.tick();
+   EXPECT_EQ(run.screw.getCurrentPosition(), mode == FM_THREAD_REVERSE ? 50 : -50);
+   EXPECT_EQ(run.io.completions, 50);
+   std::vector<uint32_t> trace;
+   for(const auto& edge : run.io.edges) if(edge.step) trace.push_back(edge.time - start);
+   if(base == 0) first = trace;
+   else EXPECT_EQ(trace, first);
+  }
+ }
+}
+
+TEST(ThreadRamp, UnusableVelocityOrInsufficientStopRoomFallsBackToTaughtPhase) {
+ for(int scenario = 0; scenario < 3; ++scenario) {
+  setTestMicros(0);
+  PickupRun run(FM_THREAD, scenario == 2 ? 2 : 150);
+  if(scenario == 0) {
+   run.spindle.incrementCurrentPosition(-1159); // Same clock tick: invalid velocity.
+   run.screw.update();
+  } else {
+   run.approach();
+   if(scenario == 1) run.tick(1000001); // Expired estimate.
+  }
+  run.arm();
+  run.encoderCount();
+  ASSERT_EQ(run.state.getThreadSyncState(), SS_UNSYNC);
+  for(int i = 0; i < 40; ++i) run.encoderCount();
+  EXPECT_EQ(run.state.getThreadSyncState(), SS_SYNC);
+  EXPECT_TRUE(run.io.edges.empty());
+  if(scenario == 2) {
+   for(int i = 0; i < 100; ++i) run.encoderCount();
+   EXPECT_EQ(run.screw.getCurrentPosition(), -2);
+   EXPECT_EQ(run.io.completions, 2);
+   EXPECT_EQ(run.state.getMotionMode(), MM_DISABLED);
+  }
+ }
+}
+
+TEST(ThreadRamp, StopRequestsDrainOnlyTheAcceptedPulseAndClearPickup) {
+ for(int scenario = 0; scenario < 3; ++scenario) {
+  setTestMicros(0);
+  PickupRun run(FM_THREAD_REVERSE);
+  run.approach();
+  run.arm();
+  for(int i = 0; i < 40 && !run.io.step; ++i) {
+   setTestMicros(elsMicros() + 1250);
+   run.spindle.incrementCurrentPosition(-1);
+   run.screw.update();
+  }
+  ASSERT_TRUE(run.io.step);
+  const int completed = run.io.completions;
+ if(scenario == 1) run.screw.setStopPosition(LeadscrewStopPosition::RIGHT, completed + 1);
+ else if(scenario == 2) run.tick(1000001);
+ else run.state.setMotionMode(MM_DISABLED);
+  run.tick(); run.tick();
+  EXPECT_EQ(run.io.completions, completed + 1);
+  EXPECT_EQ(run.state.getMotionMode(), MM_DISABLED);
+  EXPECT_TRUE(run.screw.isOutputIdle());
+  run.screw.setStopPosition(LeadscrewStopPosition::RIGHT, 150);
+  run.arm();
+  for(int i = 0; i < 200; ++i) run.tick();
+  EXPECT_EQ(run.io.completions, completed + 1);
+  EXPECT_EQ(run.state.getThreadSyncState(), SS_UNSYNC);
+ }
+}
