@@ -6,7 +6,9 @@ bool SpindleEncoder::begin() {
   encoder.write(0);
   return true;
 }
-void SpindleEncoder::sample(Spindle& spindle) {
-  spindle.incrementCurrentPosition(encoder.readAndReset());
+int SpindleEncoder::sample(Spindle& spindle) {
+  const int delta = encoder.readAndReset();
+  spindle.incrementCurrentPosition(delta);
+  return delta;
 }
 #endif

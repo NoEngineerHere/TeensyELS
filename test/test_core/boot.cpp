@@ -25,7 +25,7 @@ struct Screen {
 struct Encoder {
  bool ok=true;
  bool begin(){return ok;}
- void sample(Spindle& spindle){spindle.incrementCurrentPosition(0);}
+ int sample(Spindle& spindle){spindle.incrementCurrentPosition(0);return 0;}
 };
 struct Keys {int calls=0;void poll(uint32_t){++calls;}};
 struct SerialPort {void begin(int){}};

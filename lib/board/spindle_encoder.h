@@ -13,7 +13,7 @@ class SpindleEncoder {
  public:
   SpindleEncoder(int pinA, int pinB) : a(pinA), b(pinB) {}
   bool begin();
-  void sample(Spindle& spindle);
+  int sample(Spindle& spindle);
 
  private:
   const int a, b;

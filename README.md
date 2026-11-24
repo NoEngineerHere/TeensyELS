@@ -261,6 +261,12 @@ wrap at32 bits; `us` wraps approximately every71.6minutes. A blocked foreground
 can prevent output even while interrupts run; USB presence alone proves no
 application progress. The original intermittent reset cause remains unknown.
 
+`ELS_MOTION_TRACE` extends progress telemetry in `teensy41_debug`. At most
+once per 10 ms it records motion callback time in microseconds, sampled
+encoder delta in counts, and following error in step pulses. The queue holds
+16 samples and counts dropped samples if serial falls behind. The receive-only
+recorder emits `motion_trace` JSONL records; these are not progress heartbeats.
+
 Install optional pyserial with `python3 -m pip install -r requirements-capture.txt`.
 For a separately authorized receive-only observation, set `ELS_PORT` to the
 explicit serial path and `ELS_SOURCE` to the **exact installed image's emitted

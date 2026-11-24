@@ -126,6 +126,15 @@ int Leadscrew::getPositionError() {
   { ElsCriticalSection guard; error = m_expectedPosition - double(m_currentPosition); }
   return boundedInt(error);
 }
+#ifdef ELS_MOTION_TRACE
+int Leadscrew::traceFollowingError() const {
+  ElsCriticalSection guard;
+  const double error = m_expectedPosition - m_currentPosition;
+  if (!std::isfinite(error)) return 0;
+  return static_cast<int>(std::clamp(error, double(INT32_MIN), double(INT32_MAX)));
+}
+#endif
+
 int Leadscrew::getStoppingDistanceInPulses() {
   return boundedInt(double(m_leadscrewSpeed) * m_leadscrewSpeed / (2.0 * m_leadscrewAccel));
 }

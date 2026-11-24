@@ -115,6 +115,9 @@ public:
   void setCurrentPosition(int position) override;
   void update() override;
   int getPositionError() override;
+#ifdef ELS_MOTION_TRACE
+  int traceFollowingError() const;
+#endif
   LeadscrewDirection getCurrentDirection();
   float getEstimatedVelocityInMillimetersPerSecond() override;
 
