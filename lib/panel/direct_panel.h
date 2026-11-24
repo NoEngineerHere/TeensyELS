@@ -19,6 +19,10 @@ class ButtonHandler {
   Button m_lock;
   Button m_jogLeft;
   Button m_jogRight;
+#ifdef ESP32
+  Button m_halfNut;
+  bool m_updateHoldHandled = false;
+#endif
 
   bool m_modeHoldHandled = false;
   bool m_leftHoldHandled = false;

@@ -80,5 +80,5 @@ void Controls::requestDisplayReset() {
 }
 
 void Controls::requestUpdate() {
-  if (!locked()) state.setOTA();
+  screw.requestMaintenance();
 }

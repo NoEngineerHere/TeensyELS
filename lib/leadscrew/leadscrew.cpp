@@ -153,11 +153,21 @@ bool Leadscrew::initializeOutputs() {
 void Leadscrew::setFaultInhibit(bool inhibit) {
   ElsCriticalSection guard;
   m_faultInhibitLatched = m_faultInhibitLatched || inhibit;
-  m_inhibit = m_faultInhibitLatched || !m_initialized || m_ioFault || m_numericFault;
+  m_inhibit = m_faultInhibitLatched || m_state.updateArmed() || !m_initialized || m_ioFault || m_numericFault;
   auto* state = &m_state;
   state->requestMotionUnlocked(MM_DISABLED);
   state->m_motionResetRequested = true;
   if (inhibit) state->setThreadSyncState(SS_UNSYNC);
+}
+bool Leadscrew::requestMaintenance() {
+  ElsCriticalSection guard;
+  if (m_inhibit || m_ioFault || m_numericFault || m_spindle->m_motionFault ||
+      m_state.m_buttonLock != LK_UNLOCKED || m_state.m_motionMode != MM_DISABLED) return false;
+  m_inhibit = true;
+  m_state.m_motionResetRequested = true;
+  m_state.m_updateStatus.phase = UpdatePhase::Draining;
+  m_state.m_updateArmed.store(true, std::memory_order_release);
+  return true;
 }
 bool Leadscrew::isOutputIdle() const {
   ElsCriticalSection guard;

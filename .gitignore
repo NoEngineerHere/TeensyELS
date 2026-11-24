@@ -13,7 +13,6 @@ kicad/4Layer/~TeensyELS.kicad_pcb.lck
 kicad/4Layer/~TeensyELS.kicad_sch.lck
 publish.cmd
 src/SECRETS.h
-src/SECRETS-SAMPLE.h
 
 
 stats-callib.csv

@@ -2,16 +2,20 @@
 #include <critical_section.h>
 
 void GlobalState::setFeedMode(GlobalFeedMode mode) {
+  ElsCriticalSection guard;
   m_feedMode = mode;
 
   // when switching feed modes ensure that the default for the next mode is
   // selected via setFeedSelect - depends on the fallback in the function
-  setFeedSelect(-1);
+  setFeedSelectUnlocked(-1);
 }
 
-GlobalFeedMode GlobalState::getFeedMode() { return m_feedMode; }
-
-int GlobalState::getFeedSelect() { return m_feedSelect; }
+GlobalState::FeedSelection GlobalState::feedSelection() const {
+  ElsCriticalSection guard;
+  return {m_feedMode, m_unitMode, m_feedSelect};
+}
+GlobalFeedMode GlobalState::getFeedMode() { return feedSelection().mode; }
+int GlobalState::getFeedSelect() { return feedSelection().index; }
 int GlobalState::getCurrentFeedSelectArraySize() {
   // this just ensures that the feedSelect doesn't go out of bounds for the
   // current arry
@@ -33,11 +37,20 @@ int GlobalState::getCurrentFeedSelectArraySize() {
   return -1;
 }
 
-void GlobalState::setButtonLock(GlobalButtonLock lock) { m_buttonLock = lock; }
-
-GlobalButtonLock GlobalState::getButtonLock() { return m_buttonLock; }
+void GlobalState::setButtonLock(GlobalButtonLock lock) {
+  ElsCriticalSection guard;
+  m_buttonLock = lock;
+}
+GlobalButtonLock GlobalState::getButtonLock() {
+  ElsCriticalSection guard;
+  return m_buttonLock;
+}
 
 void GlobalState::setFeedSelect(int select) {
+  ElsCriticalSection guard;
+  setFeedSelectUnlocked(select);
+}
+void GlobalState::setFeedSelectUnlocked(int select) {
   if (select >= 0 && select < getCurrentFeedSelectArraySize()) {
     m_feedSelect = select;
   } else {
@@ -59,40 +72,27 @@ void GlobalState::setFeedSelect(int select) {
 }
 
 float GlobalState::getCurrentFeedPitch() {
-  if (m_unitMode == METRIC) {
-    if (m_feedMode == FM_THREAD) {
-      return threadPitchMetric[m_feedSelect];
-    } else {
-      return feedPitchMetric[m_feedSelect];
-    }
-  }
-
-  // special cases for imperial
-  if (m_feedMode == FM_THREAD) {
-    // threads are defined in TPI, not pitch
-    return (1.0 / threadPitchImperial[m_feedSelect]) * 25.4;
-  }
-  // feeds are defined in thou/rev, not mm/rev
-  return feedPitchImperial[m_feedSelect] * 25.4 / 1000;
+  const auto selection = feedSelection();
+  const auto index = selection.index;
+  if (selection.unit == METRIC)
+    return selection.mode == FM_THREAD ? threadPitchMetric[index] : feedPitchMetric[index];
+  if (selection.mode == FM_THREAD) return (1.0 / threadPitchImperial[index]) * 25.4;
+  return feedPitchImperial[index] * 25.4 / 1000;
 }
 
 int GlobalState::nextFeedPitch() {
-  if (m_feedSelect != getCurrentFeedSelectArraySize() - 1) {
-    setFeedSelect(m_feedSelect + 1);
-  }
-
+  ElsCriticalSection guard;
+  if (m_feedSelect != getCurrentFeedSelectArraySize() - 1) ++m_feedSelect;
   return m_feedSelect;
 }
-
 int GlobalState::prevFeedPitch() {
-  if (m_feedSelect != 0) {
-    setFeedSelect(m_feedSelect - 1);
-  }
-
+  ElsCriticalSection guard;
+  if (m_feedSelect != 0) --m_feedSelect;
   return m_feedSelect;
 }
 
 void GlobalState::requestMotionUnlocked(GlobalMotionMode mode) {
+  if (m_updateArmed.load(std::memory_order_relaxed) && mode != MM_DISABLED) return;
   if (mode != m_motionMode) m_motionResetRequested = true;
   m_motionMode = mode;
 }
@@ -111,9 +111,11 @@ GlobalMotionMode GlobalState::takeMotionRequest(bool& reset) {
   return m_motionMode;
 }
 
-void GlobalState::setUnitMode(GlobalUnitMode mode) { m_unitMode = mode; }
-
-GlobalUnitMode GlobalState::getUnitMode() { return m_unitMode; }
+void GlobalState::setUnitMode(GlobalUnitMode mode) {
+  ElsCriticalSection guard;
+  m_unitMode = mode;
+}
+GlobalUnitMode GlobalState::getUnitMode() { return feedSelection().unit; }
 
 void GlobalState::setThreadSyncState(GlobalThreadSyncState state) {
   m_threadSyncState = state;
@@ -123,14 +125,14 @@ GlobalThreadSyncState GlobalState::getThreadSyncState() {
   return m_threadSyncState;
 }
 
-bool  GlobalState::hasOTA() { return OTA; };
-void GlobalState::setOTA() { OTA = true; };
-void  GlobalState::clearOTA() { OTA = false; };
-
-void  GlobalState::setOTABytes(int bytes) { OTAbytes = bytes; }
-int  GlobalState::getOTABytes() { return OTAbytes; }
-int  GlobalState::getOTALength() { return OTAlength; }
-void  GlobalState::setOTAContentLength(int length) { OTAlength = length; }
+UpdateStatus GlobalState::updateStatus() const {
+  ElsCriticalSection guard;
+  return m_updateStatus;
+}
+void GlobalState::publishUpdate(const UpdateStatus& status) {
+  ElsCriticalSection guard;
+  m_updateStatus = status;
+}
 
 void  GlobalState::setDisplayReset() { m_displayReset = true; }
 bool GlobalState::getDisplayReset() {

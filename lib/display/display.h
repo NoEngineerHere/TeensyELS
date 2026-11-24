@@ -24,13 +24,7 @@ private:
   const Mk2Panel* m_panel;
   std::atomic<bool> m_failed{false};
   bool composeText(DisplayLines& lines, const DisplayStatus& status) const {
-    if (m_globalState.hasOTA()) {
-      std::snprintf(lines[0], sizeof(lines[0]), "Updating");
-      const int total = m_globalState.getOTALength();
-      if (total > 0) std::snprintf(lines[1], sizeof(lines[1]), "%d / %d",
-          m_globalState.getOTABytes(), total);
-      return true;
-    }
+    if (m_globalState.updateArmed() && formatUpdateLines(lines, m_globalState.updateStatus())) return true;
     if (!m_panel) return false;
     formatDisplayLines(lines, status, m_panel);
     return true;

@@ -2,6 +2,7 @@
 #include <axis.h>
 #include <config.h>
 #include <atomic>
+#include "update_status.h"
 
 #pragma once
 
@@ -43,10 +44,10 @@ class GlobalState {
  private:
   friend class Leadscrew;
   void requestMotionUnlocked(GlobalMotionMode mode);
+  void setFeedSelectUnlocked(int select);
   bool m_motionResetRequested = true;
-  volatile bool OTA = false;
-  volatile int OTAbytes = 0;
-  volatile int OTAlength = 0;
+  std::atomic<bool> m_updateArmed{false};
+  UpdateStatus m_updateStatus;
 
   GlobalFeedMode m_feedMode;
   GlobalMotionMode m_motionMode;
@@ -81,6 +82,8 @@ class GlobalState {
 
   void setFeedMode(GlobalFeedMode mode);
   GlobalFeedMode getFeedMode();
+  struct FeedSelection { GlobalFeedMode mode; GlobalUnitMode unit; int index; };
+  FeedSelection feedSelection() const;
 
   void setMotionMode(GlobalMotionMode mode);
   GlobalMotionMode getMotionMode();
@@ -95,14 +98,10 @@ class GlobalState {
   void setButtonLock(GlobalButtonLock lock);
   GlobalButtonLock getButtonLock();
 
-  bool hasOTA();
-  void setOTA();
-  void clearOTA();
+  bool updateArmed() const { return m_updateArmed.load(std::memory_order_acquire); }
+  UpdateStatus updateStatus() const;
+  void publishUpdate(const UpdateStatus& status);
 
-  void setOTABytes(int bytes);
-  int getOTABytes();
-  int getOTALength();
-  void setOTAContentLength(int length);
 
   void setDisplayReset();
   bool getDisplayReset();

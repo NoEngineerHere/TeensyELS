@@ -104,6 +104,7 @@ public:
   bool isOutputIdle() const;
   bool needsPulseService() const;
   bool hasOutputFault() const;
+  bool requestMaintenance();
   void setStopPosition(LeadscrewStopPosition position);
   void setStopPosition(LeadscrewStopPosition position, int stopPosition);
   LeadscrewStopState getStopPositionState(LeadscrewStopPosition position);

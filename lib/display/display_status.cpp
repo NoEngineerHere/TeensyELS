@@ -3,13 +3,14 @@
 #include <cstdio>
 
 DisplayStatus readDisplayStatus(GlobalState& state, Spindle& spindle, Leadscrew& screw) {
-  DisplayStatus status{state.getFeedMode(), state.getMotionMode(), state.getButtonLock(),
+  const auto selection = state.feedSelection();
+  DisplayStatus status{selection.mode, state.getMotionMode(), state.getButtonLock(),
     state.getThreadSyncState(),
     screw.getStopPositionState(LeadscrewStopPosition::LEFT) == LeadscrewStopState::SET,
     screw.getStopPositionState(LeadscrewStopPosition::RIGHT) == LeadscrewStopState::SET, {}, {}};
-  const auto index = state.getFeedSelect();
+  const auto index = selection.index;
   const bool thread = status.feed == FM_THREAD;
-  if (state.getUnitMode() == METRIC) {
+  if (selection.unit == METRIC) {
     std::snprintf(status.pitch, sizeof(status.pitch), "%.2fmm",
         thread ? threadPitchMetric[index] : feedPitchMetric[index]);
   } else {
@@ -41,4 +42,37 @@ void formatDisplayLines(DisplayLines& lines, const DisplayStatus& s, const Mk2Pa
     std::snprintf(lines[4], sizeof(lines[4]), "Selected: %s",
         sel.stop == LeadscrewStopPosition::LEFT ? "left" : "right");
   }
+}
+
+bool formatUpdateLines(DisplayLines& lines, const UpdateStatus& status) {
+  switch (status.phase) {
+    case UpdatePhase::Idle: return false;
+    case UpdatePhase::Draining:
+      std::snprintf(lines[0], sizeof(lines[0]), "Update");
+      std::snprintf(lines[1], sizeof(lines[1]), "Waiting for idle");
+      break;
+    case UpdatePhase::Waiting:
+      std::snprintf(lines[0], sizeof(lines[0]), "Join %s", status.network);
+      std::snprintf(lines[1], sizeof(lines[1]), "Wi-Fi key:");
+      std::snprintf(lines[2], sizeof(lines[2]), "%.16s", status.key);
+      std::snprintf(lines[3], sizeof(lines[3]), "%.16s", status.key+16);
+      std::snprintf(lines[4], sizeof(lines[4]), "IP %s", status.address);
+      std::snprintf(lines[5], sizeof(lines[5]), "PUT /firmware");
+      break;
+    case UpdatePhase::Receiving:
+      std::snprintf(lines[0], sizeof(lines[0]), "Updating");
+      if (status.total > 0)
+        std::snprintf(lines[1], sizeof(lines[1]), "%lu/%lu",
+            static_cast<unsigned long>(status.received), static_cast<unsigned long>(status.total));
+      break;
+    case UpdatePhase::Failed:
+      std::snprintf(lines[0], sizeof(lines[0]), "Update failed");
+      std::snprintf(lines[1], sizeof(lines[1]), "%s", status.detail);
+      std::snprintf(lines[2], sizeof(lines[2]), "Reboot locally");
+      break;
+    case UpdatePhase::Complete:
+      std::snprintf(lines[0], sizeof(lines[0]), "Update verified");
+      break;
+  }
+  return true;
 }
