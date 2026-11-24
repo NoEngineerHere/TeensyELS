@@ -1,5 +1,6 @@
 #pragma once
 #include <array>
+#include <stddef.h>
 #include <cstdint>
 #include <clock.h>
 using byte = uint8_t;
