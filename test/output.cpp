@@ -4,9 +4,10 @@
 #include "mocks/leadscrewio_mock.h"
 
 struct ResetMotionState {
+  GlobalState state;
   explicit ResetMotionState(uint32_t time) {
     setTestMicros(time);
-    auto* s = GlobalState::getInstance();
+    auto* s = &state;
     s->setUnitMode(METRIC); s->setFeedMode(FM_FEED); s->setFeedSelect(-1);
     s->setButtonLock(LK_LOCKED); s->setMotionMode(MM_DISABLED); s->setThreadSyncState(SS_UNSYNC);
   }
@@ -15,13 +16,13 @@ struct MotionRig : ResetMotionState {
   Spindle spindle;
   LeadscrewIOMock io;
   Leadscrew screw;
-  explicit MotionRig(uint32_t time=0) : ResetMotionState(time), screw(&spindle,&io,1000,100,1200,2,1200) {
+  explicit MotionRig(uint32_t time=0) : ResetMotionState(time), screw(state, &spindle,&io,1000,100,1200,2,1200) {
     EXPECT_TRUE(screw.initializeOutputs()); screw.setFaultInhibit(false);
     screw.setTargetPitchMM(1); screw.update();
   }
-  void tick(uint32_t dt=4) { setTestMicros(elsMicros()+dt); spindle.update(); screw.update(); }
+  void tick(uint32_t dt=4) { setTestMicros(elsMicros()+dt); spindle.incrementCurrentPosition(0); screw.update(); }
   void enable(int delta) {
-    GlobalState::getInstance()->setMotionMode(MM_ENABLED); screw.update();
+    state.setMotionMode(MM_ENABLED); screw.update();
     spindle.incrementCurrentPosition(delta);
   }
   bool high() {
@@ -35,8 +36,8 @@ TEST(Output, DisableLowAndRapidDisableEnableDiscardBacklog) {
  r.spindle.incrementCurrentPosition(1200); r.tick();
  EXPECT_EQ(r.io.completions,0);
  r.enable(1200);
- GlobalState::getInstance()->setMotionMode(MM_DISABLED);
- GlobalState::getInstance()->setMotionMode(MM_ENABLED);
+ r.state.setMotionMode(MM_DISABLED);
+ r.state.setMotionMode(MM_ENABLED);
  r.tick();
  for(int i=0;i<1000;++i) r.tick();
  EXPECT_EQ(r.io.completions,0); EXPECT_TRUE(r.screw.isOutputIdle());
@@ -47,7 +48,7 @@ TEST(Output, DisableHighFinishesExactlyOnceInOriginalDirection) {
   MotionRig r(0xffffff90u); r.enable(sign*1200); ASSERT_TRUE(r.high());
   const uint32_t started=r.io.started;
   const int dir=r.io.dir;
-  GlobalState::getInstance()->setMotionMode(MM_DISABLED);
+  r.state.setMotionMode(MM_DISABLED);
   r.spindle.incrementCurrentPosition(-sign*1200);
   r.tick(ELS_STEP_HIGH_US-1);
   EXPECT_EQ(r.io.step,1); EXPECT_FALSE(r.screw.isOutputIdle()); EXPECT_EQ(r.io.dir,dir);
@@ -70,13 +71,13 @@ TEST(Output, InhibitClearAndFreshInitializationNeverEnable) {
  MotionRig r; r.enable(1200); ASSERT_TRUE(r.high());
  r.screw.setFaultInhibit(true); r.tick();
  r.screw.setFaultInhibit(false);
- EXPECT_EQ(GlobalState::getInstance()->getMotionMode(),MM_DISABLED);
+ EXPECT_EQ(r.state.getMotionMode(),MM_DISABLED);
  const int completed=r.io.completions;
  for(int i=0;i<1000;++i)r.tick();
  EXPECT_EQ(r.io.completions,completed);
  EXPECT_TRUE(r.screw.isOutputIdle());
- Leadscrew fresh(&r.spindle,&r.io,1000,100,1200,2,1200);
- GlobalState::getInstance()->setMotionMode(MM_ENABLED);
+ Leadscrew fresh(r.state, &r.spindle,&r.io,1000,100,1200,2,1200);
+ r.state.setMotionMode(MM_ENABLED);
  r.spindle.incrementCurrentPosition(1000); fresh.update();
  EXPECT_EQ(fresh.getCurrentPosition(),0);
 }
@@ -84,15 +85,15 @@ TEST(Output, InitializationSendAndCompletionFailuresStayLatched) {
  for(int failure:{0,1,2}) {
   ResetMotionState reset(0); Spindle spindle; LeadscrewIOMock io;
   io.beginOK=failure!=0; io.startOK=failure!=1;
-  Leadscrew screw(&spindle,&io,1000,100,1200,2,1200);
+  Leadscrew screw(reset.state, &spindle,&io,1000,100,1200,2,1200);
   EXPECT_EQ(screw.initializeOutputs(),failure!=0);
-  screw.setFaultInhibit(false); GlobalState::getInstance()->setMotionMode(MM_ENABLED); screw.update();
+  screw.setFaultInhibit(false); reset.state.setMotionMode(MM_ENABLED); screw.update();
   spindle.incrementCurrentPosition(1200);
   for(uint32_t t=4;t<=1000;t+=4) {
     setTestMicros(t); if(failure==2 && io.step)io.completionOK=false; screw.update();
   }
   EXPECT_EQ(screw.getCurrentPosition(),0);
-  screw.setFaultInhibit(false); GlobalState::getInstance()->setMotionMode(MM_ENABLED);
+  screw.setFaultInhibit(false); reset.state.setMotionMode(MM_ENABLED);
   spindle.incrementCurrentPosition(-1200);
   for(uint32_t t=1004;t<=2000;t+=4){setTestMicros(t);screw.update();}
   EXPECT_EQ(screw.getCurrentPosition(),0); EXPECT_EQ(io.completions,0);
@@ -141,9 +142,9 @@ TEST(Output, DirectionSetupStartsAfterTheActualWriteNotCycleEntry) {
    dirWrittenAt=elsMicros();
   }
  } io;
- Spindle spindle;Leadscrew screw(&spindle,&io,1000,100,1200,2,1200);
+ Spindle spindle;Leadscrew screw(reset.state, &spindle,&io,1000,100,1200,2,1200);
  ASSERT_TRUE(screw.initializeOutputs());screw.setFaultInhibit(false);
- GlobalState::getInstance()->setMotionMode(MM_ENABLED);screw.update();
+ reset.state.setMotionMode(MM_ENABLED);screw.update();
  spindle.incrementCurrentPosition(1200);setTestMicros(100);screw.update();
  EXPECT_EQ(io.step,0);
  setTestMicros(io.dirWrittenAt+ELS_DIR_SETUP_US-1);screw.update();EXPECT_EQ(io.step,0);
@@ -153,7 +154,7 @@ TEST(Output, DirectionSetupStartsAfterTheActualWriteNotCycleEntry) {
 TEST(Output, PeriodicDisabledServiceAcrossTwoWrapsRearmsFromRest) {
  MotionRig r;
  r.enable(1200);ASSERT_TRUE(r.high());
- GlobalState::getInstance()->setMotionMode(MM_DISABLED);r.tick();
+ r.state.setMotionMode(MM_DISABLED);r.tick();
  const int stoppedAt=r.screw.getCurrentPosition();
  const int completions=r.io.completions;
  for(uint64_t elapsed=0;elapsed<(uint64_t(2)<<32);elapsed+=500000) {

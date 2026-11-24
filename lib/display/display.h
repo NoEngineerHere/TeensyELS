@@ -29,7 +29,7 @@ class Display {
 private:
   Spindle* m_spindle;
   Leadscrew* m_leadscrew;
-  GlobalState* m_globalState;
+  GlobalState& m_globalState;
 #ifdef ELS_UI_ENCODER
   EncoderColour firstColour = EC_NONE;
   EncoderColour secondColour = EC_NONE;
@@ -54,10 +54,8 @@ public:
 #elif ELS_DISPLAY == ST7789_240_135
   TFT_eSPI tft = TFT_eSPI();
 #endif
-  Display(Spindle* spindle, Leadscrew* leadscrew) {
-    this->m_spindle = spindle;
-    this->m_leadscrew = leadscrew;
-    this->m_globalState = GlobalState::getInstance();
+  Display(GlobalState& state, Spindle* spindle, Leadscrew* leadscrew)
+      : m_spindle(spindle), m_leadscrew(leadscrew), m_globalState(state) {
 #if ELS_DISPLAY == ELS_SSD1306_128_64
     this->m_ssd1306 =
       Adafruit_SSD1306(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, PIN_DISPLAY_RESET);

@@ -2,13 +2,17 @@
 #include "ESPCommsManager.h"
 
 #include <globalstate.h>
+#include <atomic>
 
 
 WiFiClient client;
 
 
-void HttpEvent(HttpEvent_t *event) {
-    GlobalState *gs =  GlobalState::getInstance();
+// The pinned Arduino OTA callback does not carry caller context.
+static std::atomic<GlobalState*> callbackState{nullptr};
+
+static void HttpEvent(HttpEvent_t *event) {
+    GlobalState* gs = callbackState.load(std::memory_order_acquire);
     switch (event->event_id) {
         case HTTP_EVENT_ERROR:
             break;
@@ -34,10 +38,6 @@ void HttpEvent(HttpEvent_t *event) {
     }
 }
 
-ESPCommsManager::ESPCommsManager(/* args */) {}
-
-ESPCommsManager::~ESPCommsManager() {}
-
 void ESPCommsManager::wifiConnect() {
 
     while (WiFi.status() != WL_CONNECTED) {
@@ -51,10 +51,11 @@ void ESPCommsManager::loop() {
     wifiConnect();
     for (;;) {
         wifi_loop();
-        if(GlobalState::getInstance()->hasOTA() && !updating)
+        if(motionState.hasOTA() && !updating)
         {
             updating = true;
             Serial.println("Beginning update");
+            callbackState.store(&motionState, std::memory_order_release);
             HttpsOTA.onHttpEvent(HttpEvent);
             HttpsOTA.begin(UPDATE_URL, "");
         }

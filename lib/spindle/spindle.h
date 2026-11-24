@@ -1,10 +1,5 @@
 #pragma once
 #include <config.h>
-#if defined(ESP32)
-#include <ESP32Encoder.h>
-#elif defined(CORE_TEENSY)
-#include <Encoder.h>
-#endif
 #include <axis.h>
 
 
@@ -27,25 +22,10 @@ private:
     uint32_t m_sampleTimestamp = elsMicros();
     int64_t m_sampleCounts = 0;
     void incrementUnlocked(int amount, uint32_t now);
+    friend class SpindleEncoder;
     void latchMotionFault();
 
-#ifndef ELS_SPINDLE_DRIVEN
-#if defined(ESP32)
-    ESP32Encoder  m_encoder;
-    int64_t m_lastEncoderCount = 0;
-#elif defined(CORE_TEENSY)
-    Encoder m_encoder;
-#endif
-#endif
-
 public:
-#if defined(PIO_UNIT_TESTING) || defined(ELS_SPINDLE_DRIVEN)
-    Spindle();
-#else
-    Spindle(int pinA, int pinB);
-#endif
-
-    void update();
     bool hasMotionFault() const;
     int getCurrentPosition() override;
     void setCurrentPosition(int position) override;

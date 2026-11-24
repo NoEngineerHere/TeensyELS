@@ -1,9 +1,10 @@
 #ifdef CORE_TEENSY
 #include "spindle.h"
-Spindle::Spindle(int pinA, int pinB) : m_encoder(pinA, pinB) {}
-void Spindle::update() {
-  int position = m_encoder.read();
-  m_encoder.write(0);
-  incrementCurrentPosition(position);
+#include "spindle_encoder.h"
+SpindleEncoder::SpindleEncoder(int pinA, int pinB) : encoder(pinA, pinB) {}
+void SpindleEncoder::sample(Spindle& spindle) {
+  int position = encoder.read();
+  encoder.write(0);
+  spindle.incrementCurrentPosition(position);
 }
 #endif

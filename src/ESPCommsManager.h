@@ -14,8 +14,11 @@
 
 #define CHECK_SUFFIX(subject, suffix) strcmp(&(subject[strlen(subject) - sizeof(suffix) + 1]), suffix) == 0
 
+class GlobalState;
+
 class ESPCommsManager {
 private:
+    GlobalState& motionState;
     const char* server_certificate = "";
     bool updating = false;
     char* stateSubject;
@@ -34,8 +37,7 @@ private:
 
 
 public:
-    ESPCommsManager(/* args */);
-    ~ESPCommsManager();
+    explicit ESPCommsManager(GlobalState& state) : motionState(state) {}
     void setup();
     void loop();
 };

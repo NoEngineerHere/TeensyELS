@@ -35,7 +35,7 @@ TEST(Timing, StaleVelocityStaysInvalidThroughTwoWraps) {
   spindle.consumePosition();
   for (uint64_t t = 1500001; t < (uint64_t(2) << 32) + 1500001; t += 500000) {
     setTestMicros(static_cast<uint32_t>(t));
-    spindle.update();
+    spindle.incrementCurrentPosition(0);
     ASSERT_EQ(spindle.getEstimatedVelocityInRPM(), 0);
   }
   const uint32_t now = elsMicros();
@@ -85,24 +85,24 @@ TEST(Timing, VelocityReadersObserveWholePublishedSamples) {
 
 static std::vector<int> pulseTrace(uint32_t base, GlobalMotionMode mode) {
   setTestMicros(base);
-  auto* state = GlobalState::getInstance();
-  state->setUnitMode(DEFAULT_UNIT_MODE);
-  state->setFeedMode(DEFAULT_FEED_MODE);
-  state->setThreadSyncState(SS_UNSYNC);
-  state->setMotionMode(MM_DISABLED);
+  GlobalState state;
+  state.setUnitMode(DEFAULT_UNIT_MODE);
+  state.setFeedMode(DEFAULT_FEED_MODE);
+  state.setThreadSyncState(SS_UNSYNC);
+  state.setMotionMode(MM_DISABLED);
   Spindle spindle;
   LeadscrewIOMock io;
-  Leadscrew screw(&spindle, &io, 1000, 100, 800, 2.54, 1200);
+  Leadscrew screw(state, &spindle, &io, 1000, 100, 800, 2.54, 1200);
   EXPECT_TRUE(screw.initializeOutputs());
   screw.setFaultInhibit(false);
   screw.setTargetPitchMM(1.27);
-  state->setMotionMode(mode);
+  state.setMotionMode(mode);
   screw.update();
   spindle.incrementCurrentPosition(1200);
   std::vector<int> trace;
   for (uint32_t t = 4; t <= 20000; t += 4) {
     setTestMicros(base + t);
-    spindle.update();
+    spindle.incrementCurrentPosition(0);
     screw.update();
     trace.push_back(screw.getCurrentPosition());
     trace.push_back(io.readStepPin());

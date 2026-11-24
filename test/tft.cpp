@@ -20,9 +20,9 @@ public:
  using Display::drawSpindleRpm;
 };
 TEST(Tft, ValidInvalidTransitionsRedrawOnlyChangedCompleteStrings) {
- setTestMicros(0);RpmSpindle spindle;LeadscrewIOMock io;
- Leadscrew screw(&spindle,&io,1000,100,1200,2,1200);
- TestDisplay display(&spindle,&screw);ASSERT_TRUE(display.init());
+ GlobalState state;setTestMicros(0);RpmSpindle spindle;LeadscrewIOMock io;
+ Leadscrew screw(state, &spindle,&io,1000,100,1200,2,1200);
+ TestDisplay display(state, &spindle,&screw);ASSERT_TRUE(display.init());
  display.drawSpindleRpm();display.drawSpindleRpm();
  spindle.rpm=1000000;display.drawSpindleRpm();display.drawSpindleRpm();
  spindle.rpm=12;display.drawSpindleRpm();
@@ -32,9 +32,9 @@ TEST(Tft, ValidInvalidTransitionsRedrawOnlyChangedCompleteStrings) {
 }
 
 TEST(Tft, BootBannerUsesLockedAndFaultStates) {
- setTestMicros(0);RpmSpindle spindle;LeadscrewIOMock io;
- Leadscrew screw(&spindle,&io,1000,100,1200,2,1200);
- TestDisplay display(&spindle,&screw);ASSERT_TRUE(display.init());
+ GlobalState state;setTestMicros(0);RpmSpindle spindle;LeadscrewIOMock io;
+ Leadscrew screw(state, &spindle,&io,1000,100,1200,2,1200);
+ TestDisplay display(state, &spindle,&screw);ASSERT_TRUE(display.init());
  display.showBootStatus(false);display.showBootStatus(true);
  EXPECT_EQ(display.tft.text,(std::vector<std::string>{"BOOT / LOCKED","BOOT / FAULT"}));
  EXPECT_EQ(io.completions,0);
