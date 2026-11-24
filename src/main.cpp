@@ -1,20 +1,17 @@
-// Libraries
+// Native boot tests supply only the hardware boundary; this state machine is shared.
+#ifndef PIO_UNIT_TESTING
 #include <Arduino.h>
-#include <SPI.h>
-//#include <Wire.h>
+#include <atomic>
 #include <globalstate.h>
 #include <leadscrew.h>
 #include <spindle.h>
-
+#include <boot_diagnostics.h>
 #include "ESPCommsManager.h"
-
 #include "buttons.h"
 #include "buttonpad.h"
 #include "config.h"
 #include "display.h"
 #include "keyarray.h"
-
-//#define FULLMONITOR
 #ifdef ESP32
 #include <esp_task_wdt.h>
 #include <leadscrew_io_esp.h>
@@ -23,28 +20,17 @@
 IntervalTimer timer;
 #endif
 
-
 GlobalState* globalState = GlobalState::getInstance();
-#ifdef ELS_SPINDLE_DRIVEN
-Spindle spindle;
-#else
 Spindle spindle(ELS_SPINDLE_ENCODER_A, ELS_SPINDLE_ENCODER_B);
-#endif
-
 #ifdef ESP32
 LeadscrewIOESP leadscrewIOImpl;
 #else
 LeadscrewIOTeensy leadscrewIOImpl;
 #endif
-
-Leadscrew leadscrew(&spindle,
-  &leadscrewIOImpl,
-  ACCEL_PULSE_SEC,
-  LEADSCREW_INITIAL_PULSE_DELAY_US,
-  ELS_LEADSCREW_STEPPER_PPR* ELS_GEARBOX_RATIO,
-  ELS_LEADSCREW_PITCH_MM, ELS_SPINDLE_ENCODER_PPR);
-
-#ifdef ESP32  
+Leadscrew leadscrew(&spindle, &leadscrewIOImpl, ACCEL_PULSE_SEC,
+    LEADSCREW_INITIAL_PULSE_DELAY_US, ELS_LEADSCREW_STEPPER_PPR * ELS_GEARBOX_RATIO,
+    ELS_LEADSCREW_PITCH_MM, ELS_SPINDLE_ENCODER_PPR);
+#ifdef ESP32
 KeyArray keyArray(&leadscrew);
 ButtonPad keyPad(&spindle, &leadscrew, &keyArray);
 ESPCommsManager commsManager;
@@ -52,147 +38,136 @@ ESPCommsManager commsManager;
 ButtonHandler keyPad(&spindle, &leadscrew);
 #endif
 Display display(&spindle, &leadscrew);
-int64_t lastcycle;
-int cyclecount;
-int finalcyclecount;
-
-
-// have to handle the leadscrew updates in a timer callback so we can update the
-// screen independently without losing pulses
-void timerCallback() {
-  if (GlobalState::getInstance()->hasOTA()) {
-    commsManager.loop();
-  } else {
-    spindle.update();
-    leadscrew.update();
-  }
+static void initializeEnableOutput() {
+  // Compatibility assertion only: LOW is not a claim of electrical disable.
+  digitalWrite(ELS_STEPPER_ENA, LOW);
+  pinMode(ELS_STEPPER_ENA, OUTPUT);
 }
-
-
-void displayLoop() {
-  keyPad.handle();
-
-  display.update();
-}
-
-#ifdef ESP32
-void DisplayTask(void* parameter) {
-  uint64_t m = 1;
-  while (true) {
-    displayLoop();
-    esp_task_wdt_reset();
-    uint64_t c = micros();
-    uint64_t delay = (250000 - (c - m)) / 1000;
-    if (delay > 0) {
-      vTaskDelay((delay > 250 ? 250 : delay) / portTICK_PERIOD_MS);
-    }
-    m = c + 250000;
-  }
-}
-
-void SpindleTask(void* parameter) {
-  while (true) {
-    timerCallback();
-    esp_task_wdt_reset();
-  }
-}
-
-void comms_loop(void* parameters) { commsManager.loop(); }
-
-#endif
-
-
-void setup() {
-  Serial.begin(921600);
-
-  // config - compile time checks for safety
-  CHECK_BOUNDS(DEFAULT_METRIC_THREAD_PITCH_IDX, threadPitchMetric,
-    "DEFAULT_METRIC_THREAD_PITCH_IDX out of bounds");
-  CHECK_BOUNDS(DEFAULT_METRIC_FEED_PITCH_IDX, feedPitchMetric,
-    "DEFAULT_METRIC_FEED_PITCH_IDX out of bounds");
-  CHECK_BOUNDS(DEFAULT_IMPERIAL_THREAD_PITCH_IDX, threadPitchImperial,
-    "DEFAULT_IMPERIAL_THREAD_PITCH_IDX out of bounds");
-  CHECK_BOUNDS(DEFAULT_IMPERIAL_FEED_PITCH_IDX, feedPitchImperial,
-    "DEFAULT_IMPERIAL_FEED_PITCH_IDX out of bounds");
-
-  // Pinmodes
-
-#ifndef ELS_SPINDLE_DRIVEN
-//  pinMode(ELS_SPINDLE_ENCODER_A, INPUT_PULLUP); // encoder pin 1
-//  pinMode(ELS_SPINDLE_ENCODER_B, INPUT_PULLUP); // encoder pin 2
-#endif
-
-#ifdef ELS_USE_RMT
-  rmt_obj_t* leadscreRMT = rmtInit(ELS_LEADSCREW_STEP, true, RMT_MEM_64);
-  leadscrew.setRMT(leadscreRMT);
-  rmtSetTick(leadscreRMT, 2500);
-
-#else
-  pinMode(ELS_LEADSCREW_STEP, OUTPUT); // step output pin
-#endif
-  pinMode(ELS_LEADSCREW_DIR, OUTPUT);  // direction output pin
-
+static void initializeBoardControls() {
+  CHECK_BOUNDS(DEFAULT_METRIC_THREAD_PITCH_IDX, threadPitchMetric, "Invalid thread default");
+  CHECK_BOUNDS(DEFAULT_METRIC_FEED_PITCH_IDX, feedPitchMetric, "Invalid feed default");
+  CHECK_BOUNDS(DEFAULT_IMPERIAL_THREAD_PITCH_IDX, threadPitchImperial, "Invalid thread default");
+  CHECK_BOUNDS(DEFAULT_IMPERIAL_FEED_PITCH_IDX, feedPitchImperial, "Invalid feed default");
 #ifdef ELS_UI_ENCODER
-  //  pinMode(ELS_UI_ENCODER_A, INPUT); // encoder pin 1
-  //  pinMode(ELS_UI_ENCODER_B, INPUT); // encoder pin 2
-
-#ifdef ELS_IND_GREEN
   pinMode(ELS_IND_GREEN, OUTPUT);
   pinMode(ELS_IND_RED, OUTPUT);
 #endif
-#endif
-
-  pinMode(ELS_STEPPER_ENA, OUTPUT);
-  digitalWrite(ELS_STEPPER_ENA, 0);
-
 #ifdef ELS_USE_BUTTON_ARRAY
   keyArray.initPad();
 #else
-  pinMode(ELS_RATE_INCREASE_BUTTON, INPUT_PULLUP);  // rate Inc
-  pinMode(ELS_RATE_DECREASE_BUTTON, INPUT_PULLUP);  // rate Dec
-  pinMode(ELS_MODE_CYCLE_BUTTON, INPUT_PULLUP);     // mode cycle
-  pinMode(ELS_THREAD_SYNC_BUTTON, INPUT_PULLUP);    // thread sync
-  pinMode(ELS_HALF_NUT_BUTTON, INPUT_PULLUP);       // half nut
-  pinMode(ELS_ENABLE_BUTTON, INPUT_PULLUP);         // enable toggle
-  pinMode(ELS_LOCK_BUTTON, INPUT_PULLUP);           // lock toggle
-  pinMode(ELS_JOG_LEFT_BUTTON, INPUT_PULLUP);       // jog left
-  pinMode(ELS_JOG_RIGHT_BUTTON, INPUT_PULLUP);      // jog right
+  for (int pin : {ELS_RATE_INCREASE_BUTTON, ELS_RATE_DECREASE_BUTTON, ELS_MODE_CYCLE_BUTTON,
+                 ELS_THREAD_SYNC_BUTTON, ELS_HALF_NUT_BUTTON, ELS_ENABLE_BUTTON,
+                 ELS_LOCK_BUTTON, ELS_JOG_LEFT_BUTTON, ELS_JOG_RIGHT_BUTTON}) pinMode(pin, INPUT_PULLUP);
+#endif
+}
 #endif
 
-  // Display Initalisation
+static std::atomic<bool> ready{false};
+static bool bootFault = false, displayReady = false;
+static uint32_t bannerStarted = 0;
+#ifdef ELS_PROGRESS_TELEMETRY
+static uint32_t foregroundLoops = 0;
+static std::atomic<uint32_t> timerCompletions{0}, displayReturns{0};
+#endif
 
-  display.init();
-
-  leadscrew.setTargetPitchMM(globalState->getCurrentFeedPitch());
-
-  display.update();
-
+void timerCallback() {
 #ifdef ESP32
-
-  TaskHandle_t spindleTask;
-  TaskHandle_t displayTask;
-  //TaskHandle_t commsTask;
-  xTaskCreatePinnedToCore(SpindleTask, "Spindle", 2048, NULL, 24 | portPRIVILEGE_BIT, &spindleTask, 0);
-  xTaskCreatePinnedToCore(DisplayTask, "Display", 8000, NULL, 1, &displayTask, 1);
-  //xTaskCreatePinnedToCore(comms_loop, "Comms", 16000, NULL, 10, &commsTask, 1);
+  if (globalState->hasOTA()) leadscrew.setFaultInhibit(true);
+#endif
+  spindle.update();
+  leadscrew.update();
+#ifdef ESP32
+  if (globalState->hasOTA() && leadscrew.isOutputIdle()) commsManager.loop();
+#endif
+#ifdef ELS_PROGRESS_TELEMETRY
+  timerCompletions.fetch_add(1, std::memory_order_relaxed);
+#endif
+}
+void displayLoop() {
+  if (!ready.load() || display.failed()) return;
+  keyPad.handle();
+  display.update();
+#ifdef ELS_PROGRESS_TELEMETRY
+  displayReturns.fetch_add(1, std::memory_order_relaxed);
+#endif
+}
+#ifdef ESP32
+void DisplayTask(void*) {
+  TickType_t lastWake = xTaskGetTickCount();
+  while (true) {
+    displayLoop();
+    vTaskDelayUntil(&lastWake, pdMS_TO_TICKS(250));
+  }
+}
+void SpindleTask(void*) {
+  while (true) {
+    if (ready.load() || !leadscrew.isOutputIdle()) timerCallback();
+    else vTaskDelay(1); // A later task-creation failure must not starve IDLE0.
+  }
+}
+#endif
+static void failBoot(const char* reason) {
+  ready.store(false);
+  bootFault = true;
+  leadscrew.setFaultInhibit(true);
+  recordBootFailure(reason);
+  if (displayReady) display.showBootStatus(true);
+}
+static void startMotionServices() {
+#ifdef ESP32
+  TaskHandle_t spindleTask = nullptr, displayTask = nullptr;
+  if (xTaskCreatePinnedToCore(SpindleTask, "Spindle", 2048, nullptr, 24 | portPRIVILEGE_BIT, &spindleTask, 0) != pdPASS) {
+    failBoot("MOTION_TASK_INIT_FAILED"); return;
+  }
+  if (xTaskCreatePinnedToCore(DisplayTask, "Display", 8000, nullptr, 1, &displayTask, 1) != pdPASS) {
+    failBoot("DISPLAY_TASK_INIT_FAILED"); return;
+  }
   disableLoopWDT();
   esp_task_wdt_delete(xTaskGetHandle("IDLE0"));
   esp_task_wdt_delete(xTaskGetHandle("IDLE1"));
-  esp_task_wdt_delete(spindleTask);
-  esp_task_wdt_delete(displayTask);
-  //esp_task_wdt_delete(commsTask);
-
 #else
-  timer.begin(timerCallback, LEADSCREW_TIMER_US);
+  if (!timer.begin(timerCallback, LEADSCREW_TIMER_US)) { failBoot("TIMER_INIT_FAILED"); return; }
 #endif
-
-  delay(2000);
-
+  recordBootStage(4);
+  leadscrew.setFaultInhibit(false);
+  ready.store(true);
 }
-
+void setup() {
+  globalState->setButtonLock(LK_LOCKED);
+  globalState->setMotionMode(MM_DISABLED);
+  const bool outputsReady = leadscrew.initializeOutputs();
+  initializeEnableOutput();
+  Serial.begin(921600);
+  const bool captureOK = captureBootDiagnostics();
+  // Old breadcrumbs must be consumed before recording this boot's first stage.
+  recordBootStage(1);
+  recordBootStage(2);
+  if (!captureOK) { bootFault = true; leadscrew.setFaultInhibit(true); }
+  if (!outputsReady) failBoot("PULSE_IO_INIT_FAILED");
+  initializeBoardControls();
+  displayReady = display.init();
+  if (!displayReady) { failBoot("DISPLAY_INIT_FAILED"); return; }
+  display.showBootStatus(bootFault);
+  recordBootStage(3);
+  leadscrew.setTargetPitchMM(globalState->getCurrentFeedPitch());
+  bannerStarted = elsMicros();
+}
 void loop() {
-#ifdef ESP32  
-  vTaskDelay(1000);
+#ifdef ELS_PROGRESS_TELEMETRY
+  ++foregroundLoops;
+#endif
+  serviceBootDiagnostics();
+  if (displayReady && display.failed() && !bootFault) failBoot("DISPLAY_COMM_FAILED");
+#ifdef ELS_PROGRESS_TELEMETRY
+  if (progressTelemetryDue()) {
+    queueProgressTelemetry(foregroundLoops, timerCompletions.load(std::memory_order_relaxed),
+        displayReturns.load(std::memory_order_relaxed), display.failed(), ready.load());
+  }
+#endif
+  const uint32_t bannerElapsed = elsMicros() - bannerStarted;
+  if (!bootFault && displayReady && !ready.load() && bannerElapsed >= 2000000) startMotionServices();
+#ifdef ESP32
+  vTaskDelay(1);
 #else
   displayLoop();
 #endif

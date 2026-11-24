@@ -1,6 +1,6 @@
 
 #include <cstdint>
-#include <Arduino.h>
+#include <clock.h>
 
 #pragma once
 
@@ -13,18 +13,22 @@ protected:
   volatile int m_currentPosition;
 
   // the timestamp of the last pulse
-  int64_t m_lastPulseTimestamp;
-  int64_t m_lastRevTimestamp;
+  uint32_t m_lastPulseTimestamp;
+  uint32_t m_lastRevTimestamp;
   int64_t m_lastRevPosition;
   int64_t m_lastRevSize;
-  int64_t m_lastRevMicros;
+  uint32_t m_lastRevMicros;
 
   // the elapsed time for the last full pulse duration
   uint32_t m_lastFullPulseDurationMicros;
 
 public:
   Axis() {
-    m_lastPulseTimestamp = micros();
+    m_lastPulseTimestamp = elsMicros();
+    m_lastRevTimestamp = m_lastPulseTimestamp;
+    m_lastRevPosition = 0;
+    m_lastRevSize = 0;
+    m_lastRevMicros = 0;
     m_lastFullPulseDurationMicros = 0;
     m_currentPosition = 0;
   }

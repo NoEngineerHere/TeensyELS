@@ -1,7 +1,5 @@
-#ifndef PIO_UNIT_TESTING
-#include <Wire.h>
-#endif
 #include <globalstate.h>
+#include <critical_section.h>
 
 GlobalState* GlobalState::m_instance = nullptr;
 GlobalState* GlobalState::getInstance() {
@@ -103,9 +101,24 @@ int GlobalState::prevFeedPitch() {
   return m_feedSelect;
 }
 
-void GlobalState::setMotionMode(GlobalMotionMode mode) { m_motionMode = mode; }
-
-GlobalMotionMode GlobalState::getMotionMode() { return m_motionMode; }
+void GlobalState::requestMotionUnlocked(GlobalMotionMode mode) {
+  if (mode != m_motionMode) m_motionResetRequested = true;
+  m_motionMode = mode;
+}
+void GlobalState::setMotionMode(GlobalMotionMode mode) {
+  ElsCriticalSection guard;
+  requestMotionUnlocked(mode);
+}
+GlobalMotionMode GlobalState::getMotionMode() {
+  ElsCriticalSection guard;
+  return m_motionMode;
+}
+GlobalMotionMode GlobalState::takeMotionRequest(bool& reset) {
+  ElsCriticalSection guard;
+  reset = m_motionResetRequested;
+  m_motionResetRequested = false;
+  return m_motionMode;
+}
 
 void GlobalState::setUnitMode(GlobalUnitMode mode) { m_unitMode = mode; }
 

@@ -1,14 +1,12 @@
 #include <spindle.h>
 #include <axis.h>
-#include <Arduino.h>
+#include <algorithm>
+#include <cstdint>
+#include <cfloat>
 #include "leadscrew_io.h"
 #pragma once
 
 
-// only run for unit tests
-#if PIO_UNIT_TESTING
-#undef ELS_INVERT_DIRECTION
-#endif
 
 /**
  * The state of the leadscrew stop position for either the left or right stop
@@ -36,82 +34,81 @@ enum class LeadscrewSpindleSyncPositionState { LEFT, RIGHT, UNSET };
 class Leadscrew : public LinearAxis, public DerivedAxis, public DrivenAxis {
 private:
 
-#ifdef ELS_USE_RMT
-  rmt_data_t rmt_data[24];
-  rmt_obj_t *rmtObj;
-#endif
 
   Spindle* m_spindle;
   LeadscrewIO* m_io;
 
-  float m_expectedPosition;
+  double m_expectedPosition = 0;
 
   // the ratio of how much the leadscrew moves per spindle rotation
   const int motorPulsePerRevolution;
   const float leadscrewPitch;
   // the number of pulses per revolution of the lead axis (spindle)
   const int encoderPPR;
-  float m_ratio;
+  float m_ratio = 0;
+  bool m_numericFault = false;
+  bool m_syncInvalid = false;
+  bool m_inhibit = true;
+  bool m_faultInhibitLatched = false;
+  bool m_initialized = false;
+  bool m_initAttempted = false;
+  bool m_ioFault = false;
+  bool m_pulsePending = false;
+  bool m_resetPending = true;
+  bool m_positionValid = true;
+  LeadscrewDirection m_pulseDirection = LeadscrewDirection::UNKNOWN;
+  uint32_t m_lastPulseStartTimestamp = 0;
+  uint32_t m_lowTimestamp = 0;
+  uint32_t m_dirTimestamp = 0;
 
   // The current delay between pulses in microseconds
   const float initialPulseDelay;
   float m_currentPulseDelay;
-  float m_leadscrewSpeed;
+  float m_leadscrewSpeed = 0;
   const float m_leadscrewAccel;
-  LeadscrewDirection m_currentDirection;
+  LeadscrewDirection m_currentDirection = LeadscrewDirection::UNKNOWN;
 
-  //float m_accumulator;
 
   // we may want more sophisticated control over positions, but for now this is
   // fine
-  LeadscrewStopState m_leftStopState;
-  int m_leftStopPosition;
+  LeadscrewStopState m_leftStopState = LeadscrewStopState::UNSET;
+  int m_leftStopPosition = INT32_MIN;
+  LeadscrewStopState m_rightStopState = LeadscrewStopState::UNSET;
+  int m_rightStopPosition = INT32_MAX;
+  LeadscrewSpindleSyncPositionState m_syncPositionState = LeadscrewSpindleSyncPositionState::UNSET;
+  int m_spindleSyncPosition = 0;
 
-  LeadscrewStopState m_rightStopState;
-  int m_rightStopPosition;
-
-  LeadscrewSpindleSyncPositionState m_syncPositionState;
-  int m_spindleSyncPosition;
-
-  /**
-   * This gets the "unit" of the accumulator, i.e the amount the accumulator
-   * increased by when the leadscrew position increases by 1
-   */
-  bool sendPulse();
+  void resetProfile(uint32_t now);
+  void latchIOFault(bool uncertain);
   int getStoppingDistanceInPulses();
   int getTargetSpeedDistanceInPulses();
-  uint64_t jogMicros;
+  uint32_t jogMicros;
 
-  int debugPulseCount;
-  bool initPos;
+  bool phaseAtPosition(int position, int& phase) const;
+  void setStopPositionUnlocked(LeadscrewStopPosition stop, int position);
+  int boundedInt(double value);
 
 public:
   Leadscrew(Spindle* spindle, LeadscrewIO* io,
     float leadscrewAccel, float initialPulseDelay, 
     int motorPulsePerRevolution,
     float leadscrewPitch, int encoderPPR);
-  #ifdef ELS_USE_RMT
-  void setRMT(rmt_obj_t *rmtObj){
-    this->rmtObj = rmtObj;
-    rmt_data->duration0 = 8;
-    rmt_data->level0 = 1;
-    rmt_data->duration1 = 8;
-    rmt_data->level1 = 0;
-  
-  }
-  #endif
 
 
+  bool initializeOutputs();
+  void setFaultInhibit(bool inhibit);
+  bool isOutputIdle() const;
   void setStopPosition(LeadscrewStopPosition position);
   void setStopPosition(LeadscrewStopPosition position, int stopPosition);
   LeadscrewStopState getStopPositionState(LeadscrewStopPosition position);
   void unsetStopPosition(LeadscrewStopPosition position);
   int getStopPosition(LeadscrewStopPosition position);
-  void setTargetPitchMM(float ratio);
-  void setCurrentPosition(int position);
-  void update();
-  int getPositionError();
+  void setTargetPitchMM(float ratio) override;
+  int getCurrentPosition() override;
+  void setCurrentPosition(int position) override;
+  void update() override;
+  int getPositionError() override;
   LeadscrewDirection getCurrentDirection();
-  float getEstimatedVelocityInMillimetersPerSecond();
+  float getEstimatedVelocityInMillimetersPerSecond() override;
 
 };

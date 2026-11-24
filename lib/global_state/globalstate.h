@@ -1,6 +1,7 @@
 
 #include <axis.h>
 #include <config.h>
+#include <atomic>
 
 #pragma once
 
@@ -45,6 +46,9 @@ enum GlobalButtonLock { LK_UNSET, LK_UNLOCKED, LK_LOCKED };
 // a time!
 class GlobalState {
  private:
+  friend class Leadscrew;
+  void requestMotionUnlocked(GlobalMotionMode mode);
+  bool m_motionResetRequested = true;
   static GlobalState *m_instance;
   volatile bool OTA = false;
   volatile int OTAbytes = 0;
@@ -53,7 +57,7 @@ class GlobalState {
   GlobalFeedMode m_feedMode;
   GlobalMotionMode m_motionMode;
   GlobalUnitMode m_unitMode;
-  GlobalThreadSyncState m_threadSyncState;
+  std::atomic<GlobalThreadSyncState> m_threadSyncState;
   GlobalButtonLock m_buttonLock;
 
   volatile bool m_debugMode = false;
@@ -68,8 +72,8 @@ class GlobalState {
   int m_resyncPulseCount;
 
   GlobalState() {
+    m_unitMode = DEFAULT_UNIT_MODE;
     setFeedMode(DEFAULT_FEED_MODE);
-    setUnitMode(DEFAULT_UNIT_MODE);
     setButtonLock(LK_LOCKED);
     setFeedSelect(-1);
     setThreadSyncState(SS_UNSYNC);
@@ -90,6 +94,7 @@ class GlobalState {
 
   void setMotionMode(GlobalMotionMode mode);
   GlobalMotionMode getMotionMode();
+  GlobalMotionMode takeMotionRequest(bool& reset);
 
   void setUnitMode(GlobalUnitMode mode);
   GlobalUnitMode getUnitMode();

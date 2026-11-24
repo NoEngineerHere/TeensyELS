@@ -1,17 +1,11 @@
-#include <config.h>
-
 #pragma once
-
-/**
- * This defines the HW interface for the leadscrew, abstracted away from the
- * actual calls so we can test it more easily
- */
+#include <cstdint>
+#include <config.h>
 class LeadscrewIO {
- protected:
-  int stepBitState;
- public:
-  virtual void writeStepPin(uint8_t val) = 0;
-  virtual uint8_t readStepPin() = 0;
+public:
+  enum class PulseResult { IDLE, PENDING, COMPLETE, FAULT };
+  virtual bool begin() = 0;
   virtual void writeDirPin(uint8_t val) = 0;
-  virtual uint8_t readDirPin() = 0;
+  virtual bool startPulse(uint32_t now) = 0;
+  virtual PulseResult servicePulse(uint32_t now) = 0;
 };
