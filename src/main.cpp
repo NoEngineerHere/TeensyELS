@@ -111,11 +111,26 @@ static void reportFault() {
 }
 
 void motionTick() {
+#ifdef ELS_MOTION_TRACE
+  static uint32_t lastTrace = 0;
+  const uint32_t started = elsMicros();
+  const bool traceDue = ready.load(std::memory_order_relaxed) && started - lastTrace >= 10000;
+#endif
   sampleAlarm();
   const bool maintenance = maintenanceRequested();
   if (maintenance) ready.store(false, std::memory_order_release);
+#ifdef ELS_MOTION_TRACE
+  const int spindleDelta = spindleEncoder.sample(spindle);
+#else
   spindleEncoder.sample(spindle);
+#endif
   leadscrew.update();
+#ifdef ELS_MOTION_TRACE
+  if (traceDue) {
+    lastTrace = started;
+    recordMotionTrace(started, elsMicros() - started, spindleDelta, leadscrew.traceFollowingError());
+  }
+#endif
   if (leadscrew.hasOutputFault()) latchFault("PULSE_OUTPUT_FAULT");
   else if (spindle.hasMotionFault()) latchFault("SPINDLE_COUNT_FAULT");
   if (maintenance && !faultReason.load(std::memory_order_acquire) &&

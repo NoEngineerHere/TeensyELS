@@ -3,6 +3,12 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
+#ifdef ELS_MOTION_TRACE
+#include <critical_section.h>
+#ifndef ELS_PROGRESS_TELEMETRY
+#error "Motion traces require ELS_PROGRESS_TELEMETRY"
+#endif
+#endif
 #ifndef PIO_UNIT_TESTING
 #include <Arduino.h>
 #ifdef ESP32
@@ -24,6 +30,13 @@ char progress[256]{};
 size_t progressLength = 0, progressOffset = 0;
 uint32_t lastProgress = 0;
 static_assert(sizeof(FIRMWARE_REVISION) <= 64, "Progress identity must fit one bounded record");
+#endif
+#ifdef ELS_MOTION_TRACE
+struct MotionTrace { uint32_t us, duration; int delta, error; };
+constexpr unsigned traceCapacity = 16;
+MotionTrace traces[traceCapacity];
+unsigned traceHead = 0, traceCount = 0;
+uint32_t traceDropped = 0;
 #endif
 void appendByte(char value) {
   if (overflow) return;
@@ -134,6 +147,34 @@ void queueProgressTelemetry(uint32_t loop, uint32_t timer, uint32_t frames,
   }
 }
 #endif
+#ifdef ELS_MOTION_TRACE
+void recordMotionTrace(uint32_t started, uint32_t duration, int spindleDelta, int followingError) {
+  ElsCriticalSection guard;
+  if (traceCount == traceCapacity) { ++traceDropped; return; }
+  traces[(traceHead + traceCount) % traceCapacity] = {started, duration, spindleDelta, followingError};
+  ++traceCount;
+}
+
+static void queueMotionTrace() {
+  MotionTrace trace;
+  uint32_t dropped;
+  {
+    ElsCriticalSection guard;
+    if (!traceCount) return;
+    trace = traces[traceHead];
+    traceHead = (traceHead + 1) % traceCapacity;
+    --traceCount;
+    dropped = traceDropped;
+  }
+  const int size = std::snprintf(progress, sizeof(progress),
+      "ELS_TRACE source=%s us=%lu loop_us=%lu spindle_delta=%d following_error=%d dropped=%lu\n",
+      FIRMWARE_REVISION, static_cast<unsigned long>(trace.us), static_cast<unsigned long>(trace.duration),
+      trace.delta, trace.error, static_cast<unsigned long>(dropped));
+  if (size <= 0 || size_t(size) >= sizeof(progress)) { recordBootFailure("TRACE_FORMAT_FAILED"); return; }
+  progressLength = size_t(size);
+  progressOffset = 0;
+}
+#endif
 void serviceBootDiagnostics() {
   if (!captured) return;
 #ifdef PIO_UNIT_TESTING
@@ -165,6 +206,9 @@ void serviceBootDiagnostics() {
 #else
   const int available = Serial.availableForWrite();
   const size_t capacity = available > 0 ? static_cast<size_t>(available) : 0;
+#endif
+#ifdef ELS_MOTION_TRACE
+  if (capacity && offset == length && !progressLength && !progressTelemetryDue()) queueMotionTrace();
 #endif
   const char* bytes = report;
   size_t* cursor = &offset;
@@ -200,6 +244,9 @@ void reset() {
 #ifdef ELS_PROGRESS_TELEMETRY
   progressLength = progressOffset = 0;
   lastProgress = 0;
+#endif
+#ifdef ELS_MOTION_TRACE
+  traceHead = traceCount = traceDropped = 0;
 #endif
 }
 const char* report() { return ::report; }

@@ -33,6 +33,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import sys
 import time
 
@@ -41,6 +42,20 @@ LEGACY = 'ELS_LEGACY_TEST_20261006_C'
 LEGACY_SOURCE = '664230e3c0d5208500cadf86273b61602a8a2c97d698661c66045c7c014e06a5'
 READ_LIMIT = 4096
 POLL = 0.05
+TRACE = re.compile(rb'ELS_TRACE source=([!-~]{1,128}) us=([0-9]{1,10}) loop_us=([0-9]{1,10}) '
+                   rb'spindle_delta=(-?[0-9]{1,10}) following_error=(-?[0-9]{1,10}) dropped=([0-9]{1,10})')
+
+
+def parse_trace(raw):
+    match = TRACE.fullmatch(raw)
+    if not match:
+        raise ValueError('invalid_motion_trace')
+    source, us, duration, delta, error, dropped = match.groups()
+    us, duration, delta, error, dropped = map(int, (us, duration, delta, error, dropped))
+    if max(us, duration, dropped) >= UINT32 or not all(-(1 << 31) <= n < (1 << 31) for n in (delta, error)):
+        raise ValueError('invalid_motion_trace')
+    return dict(source=source.decode('ascii'), us=us, loop_us=duration,
+                spindle_delta=delta, following_error=error, dropped=dropped)
 
 
 def parse_sample(raw):
@@ -361,6 +376,18 @@ def capture(args, logs, opener, clock=time.monotonic, sleep=time.sleep):
             return
         if raw.startswith(b'BOOT_FAILURE: '):
             monitor.state(now, 'boot_failure_reported', True, text=raw.decode('ascii', errors='replace'))
+            return
+        if raw.startswith(b'ELS_TRACE '):
+            try:
+                trace = parse_trace(raw)
+            except ValueError as exc:
+                monitor.invalid(now, str(exc))
+                return
+            if trace['source'] != args.expected_source:
+                monitor.state(now, 'source_mismatch', True, observed=trace['source'])
+                monitor.invalidate(now, 'source_mismatch')
+                return
+            logs.event(now, 'motion_trace', **trace)
             return
         if (boot_report and monitor.connected_at is not None and
                 now - monitor.connected_at <= args.grace and not raw.startswith(b'ELS_')):

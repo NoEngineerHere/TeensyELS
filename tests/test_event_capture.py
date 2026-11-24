@@ -307,6 +307,20 @@ class CaptureTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertFalse(any(event['event'] == 'sample' for event in logs.events))
 
+    def test_trace_records_drops_and_signed_values_without_proving_heartbeat(self):
+        trace = (b'ELS_TRACE source=abc us=4294967295 loop_us=4 '
+                 b'spindle_delta=-2147483648 following_error=2147483647 dropped=7\n')
+        code, _, _ = self.run_capture([FakeSerial([trace])], stall=1)
+        self.assertEqual(code, 1)
+        code, logs, _ = self.run_capture([FakeSerial([line() + b'\n', trace])], stall=1)
+        self.assertEqual(code, 0)
+        sample, = (event for event in logs.events if event['event'] == 'motion_trace')
+        self.assertEqual((sample['spindle_delta'], sample['following_error'], sample['dropped']),
+                         (-2147483648, 2147483647, 7))
+        for bad in (trace.replace(b'2147483647', b'2147483648'), trace.replace(b'=abc', b'=wrong')):
+            code, _, _ = self.run_capture([FakeSerial([line() + b'\n', bad])], stall=1)
+            self.assertEqual(code, 1)
+
     def test_unknown_els_schema_still_invalidates_proof(self):
         port = FakeSerial([line() + b'\n', b'ELS_UNKNOWN source=abc\n'])
         code, logs, _ = self.run_capture([port], stall=1)

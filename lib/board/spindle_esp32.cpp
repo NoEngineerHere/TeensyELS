@@ -9,15 +9,17 @@ bool SpindleEncoder::begin() {
   lastCount = encoder.getCount();
   return true;
 }
-void SpindleEncoder::sample(Spindle& spindle) {
+int SpindleEncoder::sample(Spindle& spindle) {
   const int64_t count = encoder.getCount();
   int64_t delta;
   if (__builtin_sub_overflow(count, lastCount, &delta) ||
       delta < INT_MIN || delta > INT_MAX) {
     spindle.latchMotionFault();
+    delta = 0;
   } else {
     spindle.incrementCurrentPosition(static_cast<int>(delta));
   }
   lastCount = count;
+  return static_cast<int>(delta);
 }
 #endif

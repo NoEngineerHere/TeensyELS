@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <boot_diagnostics.h>
 #include <clock.h>
+#include <algorithm>
 #include <cstring>
 namespace D=BootDiagnosticsTest;
 class Diagnostics : public testing::Test {
@@ -112,5 +113,22 @@ TEST_F(Diagnostics, ReconnectDiscardsOldPartialProgressAndReplaysBootFirst) {
  p.output.clear();setTestMicros(elsMicros()+1000000);queueProgressTelemetry(11,21,31,true,false);drain();
  EXPECT_EQ(p.output.find("ELS_PROGRESS source="),0u);
  EXPECT_NE(p.output.find("loop=11 timer=21 frames=31 oled_fault=1 ready=0\n"),std::string::npos);
+}
+#endif
+
+#ifdef ELS_MOTION_TRACE
+TEST_F(Diagnostics, MotionTraceQueueDropsNewestAndReportsLossThroughShortWrites) {
+ ASSERT_TRUE(captureBootDiagnostics());
+ auto& p=D::port();p.connected=true;drain();p.output.clear();p.capacity=0;
+ for(uint32_t i=0;i<20;++i) {
+  recordMotionTrace(UINT32_MAX-5+i,i,-int(i),int(i)*2);
+  serviceBootDiagnostics();
+ }
+ EXPECT_TRUE(p.output.empty());
+ p.capacity=7;p.writeLimit=3;drain();
+ EXPECT_EQ(std::count(p.output.begin(),p.output.end(),'\n'),16);
+ EXPECT_NE(p.output.find("us=4294967290 loop_us=0 spindle_delta=0 following_error=0 dropped=4\n"),std::string::npos);
+ EXPECT_NE(p.output.find("us=9 loop_us=15 spindle_delta=-15 following_error=30 dropped=4\n"),std::string::npos);
+ EXPECT_EQ(p.output.find("loop_us=16 "),std::string::npos);
 }
 #endif

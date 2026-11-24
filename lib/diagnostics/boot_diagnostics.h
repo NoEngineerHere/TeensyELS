@@ -11,6 +11,10 @@ bool progressTelemetryDue();
 void queueProgressTelemetry(uint32_t loop, uint32_t timer, uint32_t frames,
                             bool oledFault, bool ready);
 #endif
+#ifdef ELS_MOTION_TRACE
+// Called by motion service, never by the serial writer.
+void recordMotionTrace(uint32_t started, uint32_t duration, int spindleDelta, int followingError);
+#endif
 #ifdef PIO_UNIT_TESTING
 #include <cstddef>
 #include <string>
